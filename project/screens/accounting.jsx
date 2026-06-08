@@ -28,23 +28,23 @@ function DatePicker({ value, onChange }) {
   return (
     <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
       <button onClick={() => step(-1)} style={{
-        width: 60, height: 60, borderRadius: 14, flexShrink: 0,
+        width: 60, height: 60, borderRadius: 18, flexShrink: 0,
         background: '#FFFFFF', border: '1px solid rgba(28,26,24,0.12)',
         color: 'rgba(45,36,32,0.75)',
         display: 'flex', alignItems: 'center', justifyContent: 'center',
       }}><ChevronRight size={20} style={{ transform: 'rotate(180deg)' }}/></button>
       <button onClick={() => setOpen(true)} style={{
-        flex: 1, minWidth: 0, height: 60, padding: '0 12px', borderRadius: 14,
-        background: '#FFFFFF', border: '1px solid rgba(217,119,87,0.32)',
+        flex: 1, minWidth: 0, height: 60, padding: '0 12px', borderRadius: 18,
+        background: '#FFFFFF', border: '1px solid rgba(217, 119, 87,0.32)',
         color: '#F2B89C',
         display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
-        fontSize: 16, fontWeight: 600,
+        fontSize: 17, fontWeight: 600,
       }}>
         <Calendar size={16}/>
         {label}
       </button>
       <button onClick={() => step(1)} disabled={isToday} style={{
-        width: 60, height: 60, borderRadius: 14, flexShrink: 0,
+        width: 60, height: 60, borderRadius: 18, flexShrink: 0,
         background: '#FFFFFF', border: '1px solid rgba(28,26,24,0.12)',
         color: isToday ? 'rgba(28,26,24,0.38)' : 'rgba(45,36,32,0.75)',
         display: 'flex', alignItems: 'center', justifyContent: 'center',
@@ -92,78 +92,39 @@ const VOICE_SCENARIOS = [
   },
 ];
 
-function AccountingScreen({ onSaved, autoVoice }) {
-  const [mode, setMode] = useStateAcc('flow'); // 'flow' | 'stock'
+function AccountingScreen({ onSaved, onDelete, initialDraft, masterData }) {
+  const recordId = initialDraft && initialDraft.recordId;
+  const draftFlow = initialDraft && initialDraft.intent === 'flow' ? initialDraft.apply : null;
+  const draftStock = initialDraft && initialDraft.intent === 'stock' ? initialDraft.apply : null;
+  const [mode, setMode] = useStateAcc(initialDraft && initialDraft.intent === 'stock' ? 'stock' : 'flow');
 
-  // Flow form state (lifted)
+  // Flow form state (lifted) — seeded by voice draft when present
   const [flow, setFlow] = useStateAcc({
     kind: 'exp', amount: '', category: '餐飲',
     account: '信用卡 A', fromAccount: '主要存款帳戶', toAccount: '券商交割戶',
     date: new Date(TODAY_ACC), note: '',
+    ...(draftFlow || {}),
   });
   const updateFlow = (patch) => setFlow(f => ({ ...f, ...patch }));
 
-  // Stock form state (lifted)
+  // Stock form state (lifted) — seeded by voice draft when present
   const [stock, setStock] = useStateAcc({
     side: 'buy', code: '', name: '', shares: '', price: '',
     assetClass: '股票', broker: '主要券商', settleAccount: '券商交割戶',
     date: new Date(TODAY_ACC), note: '',
+    ...(draftStock || {}),
   });
   const updateStock = (patch) => setStock(s => ({ ...s, ...patch }));
 
-  // Unified voice
-  const [voiceState, setVoiceState] = useStateAcc('idle'); // idle, listening, done
-  const [voiceText, setVoiceText]   = useStateAcc('');
-  const [voiceResult, setVoiceResult] = useStateAcc(null);
-  const [voiceTurn, setVoiceTurn]   = useStateAcc(0);
-
-  const startVoice = () => {
-    const sc = VOICE_SCENARIOS[voiceTurn % VOICE_SCENARIOS.length];
-    setVoiceTurn(t => t + 1);
-    setVoiceState('listening');
-    setVoiceText('');
-    setVoiceResult(null);
-    let i = 0;
-    const id = setInterval(() => {
-      i++;
-      setVoiceText(sc.text.slice(0, i));
-      if (i >= sc.text.length) {
-        clearInterval(id);
-        setTimeout(() => {
-          if (sc.intent === 'flow') {
-            setMode('flow'); updateFlow(sc.apply);
-          } else {
-            setMode('stock'); updateStock(sc.apply);
-          }
-          setVoiceResult(sc);
-          setVoiceState('done');
-        }, 500);
-      }
-    }, 55);
-  };
-  const resetVoice = () => { setVoiceState('idle'); setVoiceText(''); setVoiceResult(null); };
-
-  // Long-press entry: auto-start voice when the sheet opens via long-press
-  useEffectAcc(() => {
-    if (autoVoice) {
-      const t = setTimeout(() => startVoice(), 360);
-      return () => clearTimeout(t);
-    }
-  }, []);
-
   return (
     <div style={{ paddingTop: 4 }}>
-      {/* Unified voice button */}
-      <div style={{ padding: '0 18px' }}>
-        <UnifiedVoice
-          state={voiceState} text={voiceText} result={voiceResult}
-          onStart={startVoice} onReset={resetVoice}/>
-      </div>
+      {/* AI prefill banner — shown only when data came from voice (not manual edit) */}
+      {initialDraft && !initialDraft.edit && <VoicePrefillBanner draft={initialDraft}/>}
 
       {/* Mode segmented */}
       <div style={{ padding: '18px 18px 0' }}>
         <div style={{
-          display: 'flex', gap: 6, padding: 4, borderRadius: 14,
+          display: 'flex', gap: 6, padding: 4, borderRadius: 18,
           background: '#EDE8E3', border: '1px solid rgba(28,26,24,0.12)',
         }}>
           {[
@@ -177,15 +138,57 @@ function AccountingScreen({ onSaved, autoVoice }) {
                 : 'transparent',
               border: mode === t.id ? '1px solid #D97757' : '1px solid transparent',
               color: mode === t.id ? '#FFFFFF' : 'rgba(45,36,32,0.6)',
-              fontSize: 15, fontWeight: mode === t.id ? 600 : 500,
+              fontSize: 16, fontWeight: mode === t.id ? 600 : 500,
             }}>{t.label}</button>
           ))}
         </div>
       </div>
 
       {mode === 'flow'
-        ? <FlowForm state={flow} update={updateFlow} onSaved={onSaved}/>
-        : <StockForm state={stock} update={updateStock} onSaved={onSaved}/>}
+        ? <FlowForm state={flow} update={updateFlow} onSaved={onSaved} onDelete={onDelete} recordId={recordId} masterData={masterData}/>
+        : <StockForm state={stock} update={updateStock} onSaved={onSaved} onDelete={onDelete} recordId={recordId} masterData={masterData}/>}
+    </div>
+  );
+}
+
+/* ============= AI prefill banner (shown after voice parse) ============= */
+function VoicePrefillBanner({ draft }) {
+  const { Sparkles, Volume } = window.Icons;
+  return (
+    <div style={{ padding: '8px 18px 0' }}>
+      <div style={{
+        padding: '14px 16px', borderRadius: 20,
+        background: 'linear-gradient(155deg, #F0E9E2 0%, #FFFFFF 100%)',
+        border: '1px solid rgba(168,189,140,0.4)',
+      }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+          <div style={{
+            width: 28, height: 28, borderRadius: 10, flexShrink: 0,
+            background: 'rgba(168,189,140,0.22)', border: '1px solid rgba(168,189,140,0.45)',
+            color: '#7C9A5A', display: 'flex', alignItems: 'center', justifyContent: 'center',
+          }}><Sparkles size={15}/></div>
+          <div style={{ fontSize: 15, fontWeight: 600, color: '#18110C' }}>AI 已帶入，請確認或補充</div>
+        </div>
+        <div style={{
+          marginTop: 10, padding: '8px 12px', borderRadius: 10,
+          background: 'rgba(28,26,24,0.05)', display: 'flex', alignItems: 'flex-start', gap: 6,
+          fontSize: 15, color: 'rgba(45,36,32,0.7)', lineHeight: 1.4,
+        }}>
+          <Volume size={13} style={{ color: '#A8BD8C', flexShrink: 0, marginTop: 2 }}/>
+          <span>「{draft.text}」</span>
+        </div>
+        <div style={{ marginTop: 8, display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+          {draft.summary.map(([k, v]) => (
+            <span key={k} style={{
+              fontSize: 15, padding: '3px 8px', borderRadius: 6,
+              background: 'rgba(168,189,140,0.16)', color: '#5F7A44',
+              fontFamily: 'JetBrains Mono, monospace',
+            }}>
+              <span style={{ opacity: 0.65 }}>{k}</span> {v}
+            </span>
+          ))}
+        </div>
+      </div>
     </div>
   );
 }
@@ -195,11 +198,11 @@ function UnifiedVoice({ state, text, result, onStart, onReset }) {
   const { Mic, Check, Sparkles, Volume } = window.Icons;
   return (
     <div style={{
-      padding: '18px 20px', borderRadius: 20,
+      padding: '18px 20px', borderRadius: 26,
       background: state !== 'idle'
         ? 'linear-gradient(155deg, #F0E9E2 0%, #FFFFFF 100%)'
         : '#FFFFFF',
-      border: '1px solid rgba(217,119,87,0.22)',
+      border: '1px solid rgba(217, 119, 87,0.22)',
     }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
         <button onClick={state === 'idle' ? onStart : onReset} style={{
@@ -211,32 +214,32 @@ function UnifiedVoice({ state, text, result, onStart, onReset }) {
               : 'linear-gradient(135deg, #E89878, #D97757)',
           border: 'none', color: '#fff',
           display: 'flex', alignItems: 'center', justifyContent: 'center',
-          boxShadow: '0 10px 22px rgba(217,119,87,0.45)', position: 'relative',
+          boxShadow: '0 10px 22px rgba(217, 119, 87,0.45)', position: 'relative',
           cursor: 'pointer',
         }}>
           {state === 'listening' && (
             <>
               <span style={{ position: 'absolute', inset: -10, borderRadius: 46,
-                border: '2px solid rgba(217,119,87,0.5)',
+                border: '2px solid rgba(217, 119, 87,0.5)',
                 animation: 'pulse 1.4s ease-out infinite' }}/>
               <span style={{ position: 'absolute', inset: -4, borderRadius: 40,
-                border: '2px solid rgba(217,119,87,0.7)',
+                border: '2px solid rgba(217, 119, 87,0.7)',
                 animation: 'pulse 1.4s ease-out infinite .35s' }}/>
             </>
           )}
           {state === 'done' ? <Check size={30} strokeWidth={2.5}/> : <Mic size={30} strokeWidth={2.2}/>}
         </button>
         <div style={{ flex: 1, minWidth: 0 }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 14,
+          <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 15,
             color: '#E89878', letterSpacing: 0.5 }}>
             <Sparkles size={14}/> AI 一鍵記帳
           </div>
-          <div style={{ marginTop: 4, fontSize: 16, fontWeight: 600 }}>
+          <div style={{ marginTop: 4, fontSize: 17, fontWeight: 600 }}>
             {state === 'idle'      && '按下說話，AI 自動分類'}
             {state === 'listening' && '正在聆聽…'}
             {state === 'done'      && '✓ 已自動填入'}
           </div>
-          <div style={{ marginTop: 2, fontSize: 14, color: 'rgba(45,36,32,0.5)' }}>
+          <div style={{ marginTop: 2, fontSize: 15, color: 'rgba(45,36,32,0.5)' }}>
             支援 收支 / 轉帳 / 股票買賣 / 債券
           </div>
         </div>
@@ -244,11 +247,11 @@ function UnifiedVoice({ state, text, result, onStart, onReset }) {
 
       {text && (
         <div style={{
-          marginTop: 14, padding: '12px 14px', borderRadius: 14,
+          marginTop: 14, padding: '12px 14px', borderRadius: 18,
           background: 'rgba(45,36,32,0.05)', border: '1px solid rgba(28,26,24,0.12)',
-          fontSize: 15, lineHeight: 1.5, color: '#18110C',
+          fontSize: 16, lineHeight: 1.5, color: '#18110C',
         }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 14,
+          <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 15,
             color: 'rgba(28,26,24,0.60)', letterSpacing: 1,
             textTransform: 'uppercase', marginBottom: 6 }}>
             <Volume size={12}/> 語音轉文字
@@ -267,13 +270,13 @@ function UnifiedVoice({ state, text, result, onStart, onReset }) {
           background: 'rgba(168,189,140,0.08)', border: '1px solid rgba(168,189,140,0.25)',
           display: 'flex', flexWrap: 'wrap', gap: 6, alignItems: 'center',
         }}>
-          <span style={{ fontSize: 14, color: '#A8BD8C', display: 'inline-flex',
+          <span style={{ fontSize: 15, color: '#A8BD8C', display: 'inline-flex',
             alignItems: 'center', gap: 4 }}>
             <Sparkles size={12}/> 解析
           </span>
           {result.summary.map(([k, v]) => (
             <span key={k} style={{
-              fontSize: 14, padding: '3px 8px', borderRadius: 8,
+              fontSize: 15, padding: '3px 8px', borderRadius: 8,
               background: 'rgba(28,26,24,0.12)', color: '#18110C',
               fontFamily: 'JetBrains Mono, monospace',
             }}>
@@ -293,15 +296,15 @@ function DropField({ label, value, options, onChange, icon }) {
   return (
     <div style={{ position: 'relative' }}>
       <button onClick={() => setOpen(!open)} style={{
-        width: '100%', minHeight: 60, padding: '8px 14px', borderRadius: 14,
-        background: '#FFFFFF', border: open ? '1px solid rgba(217,119,87,0.45)' : '1px solid rgba(28,26,24,0.12)',
+        width: '100%', minHeight: 60, padding: '8px 14px', borderRadius: 18,
+        background: '#FFFFFF', border: open ? '1px solid rgba(217, 119, 87,0.45)' : '1px solid rgba(28,26,24,0.12)',
         color: '#18110C', display: 'flex', alignItems: 'center', gap: 10, textAlign: 'left',
       }}>
         {icon && <span style={{ color: 'rgba(45,36,32,0.5)', flexShrink: 0 }}>{icon}</span>}
         <div style={{ flex: 1, minWidth: 0 }}>
-          <div style={{ fontSize: 14, color: 'rgba(45,36,32,0.5)', letterSpacing: 0.5,
+          <div style={{ fontSize: 15, color: 'rgba(45,36,32,0.5)', letterSpacing: 0.5,
             textTransform: 'uppercase' }}>{label}</div>
-          <div style={{ marginTop: 1, fontSize: 16, fontWeight: 500,
+          <div style={{ marginTop: 1, fontSize: 17, fontWeight: 500,
             overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{value}</div>
         </div>
         <ChevronDown size={16} style={{ color: 'rgba(45,36,32,0.5)', flexShrink: 0,
@@ -310,7 +313,7 @@ function DropField({ label, value, options, onChange, icon }) {
       {open && (
         <div style={{
           position: 'absolute', top: 'calc(100% + 6px)', left: 0, right: 0, zIndex: 30,
-          background: '#FBF7F2', borderRadius: 14, padding: 6,
+          background: '#FBF7F2', borderRadius: 18, padding: 6,
           border: '1px solid rgba(28,26,24,0.16)',
           boxShadow: '0 18px 36px rgba(0,0,0,0.12)',
           maxHeight: 280, overflowY: 'auto',
@@ -321,7 +324,7 @@ function DropField({ label, value, options, onChange, icon }) {
                 width: '100%', minHeight: 44, padding: '8px 12px', borderRadius: 8,
                 background: o === value ? '#D97757' : 'transparent',
                 border: 'none', textAlign: 'left',
-                color: o === value ? '#FFFFFF' : '#18110C', fontSize: 15,
+                color: o === value ? '#FFFFFF' : '#18110C', fontSize: 16,
                 fontWeight: o === value ? 600 : 400,
               }}>{o}</button>
           ))}
@@ -335,7 +338,7 @@ function SectionLabel({ children, action }) {
   return (
     <div style={{ marginTop: 22, marginBottom: 10, padding: '0 4px',
       display: 'flex', justifyContent: 'space-between', alignItems: 'baseline' }}>
-      <div style={{ fontSize: 14, color: 'rgba(18,17,12,0.72)', letterSpacing: 1,
+      <div style={{ fontSize: 15, color: 'rgba(18,17,12,0.72)', letterSpacing: 1,
         textTransform: 'uppercase' }}>{children}</div>
       {action}
     </div>
@@ -343,8 +346,10 @@ function SectionLabel({ children, action }) {
 }
 
 /* ============= 收支轉帳 form ============= */
-function FlowForm({ state, update, onSaved }) {
-  const { Plus, Tag, CreditCard, Calendar, ArrowRight, Wallet } = window.Icons;
+function FlowForm({ state, update, onSaved, onDelete, recordId, masterData }) {
+  const { Plus, Tag, CreditCard, Calendar, ArrowRight, Wallet, X, Trash } = window.Icons;
+  const md = masterData || {};
+  const allAccts = (md.accounts || []).map(a => a.name);
 
   const KINDS = [
     { id: 'exp', label: '支出', color: '#D88770' },
@@ -354,16 +359,16 @@ function FlowForm({ state, update, onSaved }) {
   const active = KINDS.find(k => k.id === state.kind);
 
   const categoriesByKind = {
-    exp:  ['餐飲', '交通', '生活雜貨', '娛樂', '醫療', '住房', '其他'],
-    inc:  ['薪資', '獎金', '股利', '紅利回饋', '其他'],
-    xfer: ['轉帳'],
+    exp:  md.cat_exp  || ['餐飲', '交通', '生活雜貨', '娛樂', '醫療', '住房', '其他'],
+    inc:  md.cat_inc  || ['薪資', '獎金', '股利', '紅利回饋', '其他'],
+    xfer: md.cat_xfer || ['轉帳'],
   };
   const accountsByKind = {
-    exp:  ['信用卡 A', '信用卡 B', '主要存款帳戶', '現金', 'LINE Pay'],
-    inc:  ['主要存款帳戶', '郵局帳戶', '現金', '券商交割戶'],
+    exp:  allAccts.length ? allAccts : ['信用卡 A', '信用卡 B', '主要存款帳戶', '現金', 'LINE Pay'],
+    inc:  allAccts.length ? allAccts : ['主要存款帳戶', '郵局帳戶', '現金', '券商交割戶'],
     xfer: ['轉帳'],
   };
-  const transferAccounts = ['主要存款帳戶', '郵局帳戶', '數位帳戶', '券商交割戶', '複委託交割戶', '信用卡 A', '信用卡 B', '現金'];
+  const transferAccounts = allAccts.length ? allAccts : ['主要存款帳戶', '郵局帳戶', '數位帳戶', '券商交割戶', '複委託交割戶', '信用卡 A', '信用卡 B', '現金'];
 
   return (
     <div style={{ padding: '8px 18px 28px', color: '#18110C' }}>
@@ -382,18 +387,18 @@ function FlowForm({ state, update, onSaved }) {
                 account: newAccts.includes(state.account) ? state.account : newAccts[0],
               });
             }} style={{
-              flex: 1, height: 68, borderRadius: 14,
+              flex: 1, height: 68, borderRadius: 18,
               background: on
                 ? k.color
                 : '#FFFFFF',
               border: on ? `1px solid ${k.color}` : '1px solid rgba(28,26,24,0.12)',
               color: on ? '#FFFFFF' : 'rgba(45,36,32,0.6)',
               display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
-              fontSize: 16, fontWeight: on ? 700 : 500, gap: 2,
+              fontSize: 17, fontWeight: on ? 700 : 500, gap: 2,
               boxShadow: 'none',
             }}>
               <span style={{
-                fontSize: 14, fontFamily: 'JetBrains Mono, monospace',
+                fontSize: 15, fontFamily: 'JetBrains Mono, monospace',
                 letterSpacing: 1, opacity: on ? 0.7 : 0.55,
               }}>{ {exp:'-', inc:'+', xfer:'↔'}[k.id] }</span>
               {k.label}
@@ -405,7 +410,7 @@ function FlowForm({ state, update, onSaved }) {
       {/* Amount big */}
       <SectionLabel>金額</SectionLabel>
       <div style={{
-        padding: '16px 20px', borderRadius: 14, background: '#FFFFFF',
+        padding: '16px 20px', borderRadius: 18, background: '#FFFFFF',
         border: '1px solid rgba(28,26,24,0.12)',
       }}>
         <div style={{ display: 'flex', alignItems: 'baseline', gap: 8 }}>
@@ -434,7 +439,7 @@ function FlowForm({ state, update, onSaved }) {
                 icon={<CreditCard size={16}/>}/>
             </div>
             <div style={{
-              width: 32, height: 32, borderRadius: 14, flexShrink: 0,
+              width: 32, height: 32, borderRadius: 18, flexShrink: 0,
               background: 'rgba(197,160,125,0.18)', border: '1px solid rgba(197,160,125,0.4)',
               color: '#C5A07D', display: 'flex', alignItems: 'center', justifyContent: 'center',
               alignSelf: 'flex-end', marginBottom: 14,
@@ -471,36 +476,49 @@ function FlowForm({ state, update, onSaved }) {
 
       {/* Note */}
       <SectionLabel>備註</SectionLabel>
-      <div style={{ padding: '14px 18px', borderRadius: 14, background: '#FFFFFF',
+      <div style={{ padding: '14px 18px', borderRadius: 18, background: '#FFFFFF',
         border: '1px solid rgba(28,26,24,0.12)' }}>
         <input value={state.note} onChange={e => update({ note: e.target.value })}
           placeholder="輸入備註…"
           style={{
             width: '100%', background: 'transparent', border: 'none', outline: 'none',
-            fontSize: 16, color: '#18110C',
+            fontSize: 17, color: '#18110C',
           }}/>
       </div>
 
       {/* Submit */}
-      <button onClick={() => {
-        if (!state.amount || parseFloat(state.amount) <= 0) return;
-        onSaved && onSaved('flow', state);
-      }} style={{
-        marginTop: 18, width: '100%', height: 60, borderRadius: 14,
-        background: `linear-gradient(135deg, ${active.color}, ${active.color}cc)`,
-        border: 'none', color: '#1a1a1a', fontSize: 17, fontWeight: 600,
-        display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
-        boxShadow: `0 6px 18px ${active.color}40`,
-      }}>
-        <Plus size={20} strokeWidth={2.5}/> 儲存{active.label}
-      </button>
+      <div style={{ marginTop: 18, display: 'flex', gap: 10 }}>
+        {recordId && (
+          <button onClick={() => onDelete && onDelete(recordId)} style={{
+            flex: '0 0 auto', padding: '0 22px', height: 60, borderRadius: 18,
+            background: 'transparent', border: '1px solid rgba(216,135,112,0.4)',
+            color: '#D88770', fontSize: 17, fontWeight: 600,
+            display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
+          }}>
+            <Trash size={20} strokeWidth={2.2}/> 刪除
+          </button>
+        )}
+        <button onClick={() => {
+          if (!state.amount || parseFloat(state.amount) <= 0) return;
+          onSaved && onSaved('flow', { ...state, recordId });
+        }} style={{
+          flex: 1, height: 60, borderRadius: 18,
+          background: `linear-gradient(135deg, ${active.color}, ${active.color}cc)`,
+          border: 'none', color: '#1a1a1a', fontSize: 18, fontWeight: 600,
+          display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
+          boxShadow: `0 6px 18px ${active.color}40`,
+        }}>
+          <Plus size={20} strokeWidth={2.5}/> {recordId ? '更新' : '儲存'}{active.label}
+        </button>
+      </div>
     </div>
   );
 }
 
 /* ============= 股票買賣 form ============= */
-function StockForm({ state, update, onSaved }) {
-  const { Plus, TrendUp, TrendDown, Search, Calendar } = window.Icons;
+function StockForm({ state, update, onSaved, onDelete, recordId, masterData }) {
+  const { Plus, TrendUp, TrendDown, Search, Calendar, X, Trash } = window.Icons;
+  const md = masterData || {};
 
   // Watchlist
   const universe = [
@@ -521,7 +539,7 @@ function StockForm({ state, update, onSaved }) {
   const sh = parseFloat(state.shares) || 0;
   const pr = parseFloat(state.price)  || 0;
   const gross = sh * pr;
-  const fee = sh > 0 && pr > 0 ? Math.max(20, Math.round(gross * 0.001425)) : 0;
+  const fee = sh > 0 && pr > 0 ? Math.max(1, Math.round(gross * 0.001425)) : 0;
   const tax = state.side === 'sell' ? Math.round(gross * 0.003) : 0;
   const net = state.side === 'buy' ? gross + fee : gross - fee - tax;
 
@@ -531,10 +549,10 @@ function StockForm({ state, update, onSaved }) {
     { id: 'sell', label: '賣出', Icon: TrendDown, color: '#A8BD8C' },
   ];
 
-  // Available brokers / settle accounts depend on asset class
-  const brokers       = ['主要券商', '副券商', '複委託 (美股)'];
-  const settleAccounts = ['券商交割戶', '複委託交割戶', '主要存款帳戶'];
-  const classes       = ['股票', 'ETF', '債券', '特別股'];
+  // Brokers / settle accounts / asset classes pulled from Settings master data
+  const brokers        = (md.brokers || []).map(b => b.name).length ? (md.brokers).map(b => b.name) : ['主要券商', '副券商', '複委託 (美股)'];
+  const settleAccounts = (md.settle || []).map(s => s.name).length ? (md.settle).map(s => s.name) : ['券商交割戶', '複委託交割戶', '主要存款帳戶'];
+  const classes        = md.asset_class || ['股票', '債券', '市值 ETF', '主動 ETF', '特別股'];
 
   return (
     <div style={{ padding: '8px 18px 28px', color: '#18110C' }}>
@@ -545,14 +563,14 @@ function StockForm({ state, update, onSaved }) {
           const on = s.id === state.side;
           return (
             <button key={s.id} onClick={() => update({ side: s.id })} style={{
-              flex: 1, height: 68, borderRadius: 14,
+              flex: 1, height: 68, borderRadius: 18,
               background: on
                 ? s.color
                 : '#FFFFFF',
               border: on ? `1px solid ${s.color}` : '1px solid rgba(28,26,24,0.12)',
               color: on ? '#FFFFFF' : 'rgba(45,36,32,0.6)',
               display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
-              fontSize: 17, fontWeight: on ? 700 : 500,
+              fontSize: 18, fontWeight: on ? 700 : 500,
             }}>
               <s.Icon size={18} strokeWidth={on ? 2.2 : 1.8}/>
               {s.label}
@@ -564,7 +582,7 @@ function StockForm({ state, update, onSaved }) {
       {/* Stock picker */}
       <SectionLabel>標的</SectionLabel>
       <div style={{
-        padding: '4px 14px', borderRadius: 14, background: '#FFFFFF',
+        padding: '4px 14px', borderRadius: 18, background: '#FFFFFF',
         border: '1px solid rgba(28,26,24,0.12)',
         display: 'flex', alignItems: 'center', gap: 10,
       }}>
@@ -579,7 +597,7 @@ function StockForm({ state, update, onSaved }) {
           placeholder="或股票名稱"
           style={{
             flex: 1, minWidth: 0, background: 'transparent', border: 'none', outline: 'none',
-            fontSize: 16, color: 'rgba(45,36,32,0.85)',
+            fontSize: 17, color: 'rgba(45,36,32,0.85)',
             paddingTop: 4, paddingBottom: 4,
           }}/>
       </div>
@@ -592,14 +610,14 @@ function StockForm({ state, update, onSaved }) {
               border: '1px solid rgba(28,26,24,0.12)', color: '#18110C',
               textAlign: 'left',
             }}>
-              <span style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: 15,
+              <span style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: 16,
                 fontWeight: 600, width: 64 }}>{s.code}</span>
-              <span style={{ flex: 1, fontSize: 15 }}>{s.name}</span>
-              <span style={{ fontSize: 14, padding: '2px 8px', borderRadius: 5,
+              <span style={{ flex: 1, fontSize: 16 }}>{s.name}</span>
+              <span style={{ fontSize: 15, padding: '2px 8px', borderRadius: 5,
                 background: 'rgba(28,26,24,0.12)', color: 'rgba(45,36,32,0.6)' }}>
                 {s.class}
               </span>
-              <span style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: 14,
+              <span style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: 15,
                 color: 'rgba(18,17,12,0.72)' }}>{s.last}</span>
             </button>
           ))}
@@ -614,10 +632,10 @@ function StockForm({ state, update, onSaved }) {
           { k: 'price',  label: '成交價',  placeholder: '0', inputMode: 'decimal' },
         ].map(f => (
           <div key={f.k} style={{
-            padding: '12px 14px', borderRadius: 14,
+            padding: '12px 14px', borderRadius: 18,
             background: '#FFFFFF', border: '1px solid rgba(28,26,24,0.12)',
           }}>
-            <div style={{ fontSize: 14, color: 'rgba(45,36,32,0.5)', letterSpacing: 0.5,
+            <div style={{ fontSize: 15, color: 'rgba(45,36,32,0.5)', letterSpacing: 0.5,
               textTransform: 'uppercase' }}>{f.label}</div>
             <input value={state[f.k]} onChange={e => update({ [f.k]: e.target.value })}
               placeholder={f.placeholder} inputMode={f.inputMode}
@@ -635,24 +653,24 @@ function StockForm({ state, update, onSaved }) {
             flex: 1, height: 36, borderRadius: 8,
             background: 'rgba(28,26,24,0.12)', border: '1px solid rgba(28,26,24,0.14)',
             color: 'rgba(45,36,32,0.7)', fontFamily: 'JetBrains Mono, monospace',
-            fontSize: 14, fontWeight: 500,
+            fontSize: 15, fontWeight: 500,
           }}>{n.toLocaleString()} 股</button>
         ))}
       </div>
 
       {/* Calc */}
       <div style={{
-        marginTop: 16, padding: '14px 18px', borderRadius: 14,
+        marginTop: 16, padding: '14px 18px', borderRadius: 18,
         background: `${accent}10`, border: `1px solid ${accent}30`,
       }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 14,
+        <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 15,
           color: 'rgba(45,36,32,0.6)' }}>
           <span>成交金額</span>
           <span style={{ fontFamily: 'JetBrains Mono, monospace', color: '#18110C' }}>
             NT$ {gross.toLocaleString(undefined, { maximumFractionDigits: 0 })}
           </span>
         </div>
-        <div style={{ marginTop: 4, display: 'flex', justifyContent: 'space-between', fontSize: 14,
+        <div style={{ marginTop: 4, display: 'flex', justifyContent: 'space-between', fontSize: 15,
           color: 'rgba(45,36,32,0.6)' }}>
           <span>手續費 0.1425%</span>
           <span style={{ fontFamily: 'JetBrains Mono, monospace', color: '#18110C' }}>
@@ -660,7 +678,7 @@ function StockForm({ state, update, onSaved }) {
           </span>
         </div>
         {state.side === 'sell' && (
-          <div style={{ marginTop: 4, display: 'flex', justifyContent: 'space-between', fontSize: 14,
+          <div style={{ marginTop: 4, display: 'flex', justifyContent: 'space-between', fontSize: 15,
             color: 'rgba(45,36,32,0.6)' }}>
             <span>證交稅 0.3%</span>
             <span style={{ fontFamily: 'JetBrains Mono, monospace', color: '#18110C' }}>
@@ -671,7 +689,7 @@ function StockForm({ state, update, onSaved }) {
         <div style={{ marginTop: 10, paddingTop: 10,
           borderTop: '1px solid rgba(28,26,24,0.14)',
           display: 'flex', justifyContent: 'space-between', alignItems: 'baseline' }}>
-          <span style={{ fontSize: 15, fontWeight: 500 }}>
+          <span style={{ fontSize: 16, fontWeight: 500 }}>
             {state.side === 'buy' ? '應付' : '應收'}
           </span>
           <span style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: 22, fontWeight: 700,
@@ -698,31 +716,44 @@ function StockForm({ state, update, onSaved }) {
 
       {/* Note */}
       <SectionLabel>備註</SectionLabel>
-      <div style={{ padding: '14px 18px', borderRadius: 14, background: '#FFFFFF',
+      <div style={{ padding: '14px 18px', borderRadius: 18, background: '#FFFFFF',
         border: '1px solid rgba(28,26,24,0.12)' }}>
         <input value={state.note} onChange={e => update({ note: e.target.value })}
           placeholder="例：除權息前布局"
           style={{
             width: '100%', background: 'transparent', border: 'none', outline: 'none',
-            fontSize: 16, color: '#18110C',
+            fontSize: 17, color: '#18110C',
           }}/>
       </div>
 
       {/* Submit */}
-      <button onClick={() => {
-        if (!state.code || !state.shares || !state.price) return;
-        onSaved && onSaved('stock', state);
-      }} style={{
-        marginTop: 18, width: '100%', height: 60, borderRadius: 14,
-        background: `linear-gradient(135deg, ${accent}, ${accent}cc)`,
-        border: 'none', color: '#1a1a1a', fontSize: 17, fontWeight: 600,
-        display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
-        boxShadow: `0 6px 18px ${accent}40`,
-      }}>
-        <Plus size={20} strokeWidth={2.5}/> 儲存{state.side === 'buy' ? '買進' : '賣出'}紀錄
-      </button>
+      <div style={{ marginTop: 18, display: 'flex', gap: 10 }}>
+        {recordId && (
+          <button onClick={() => onDelete && onDelete(recordId)} style={{
+            flex: '0 0 auto', padding: '0 22px', height: 60, borderRadius: 18,
+            background: 'transparent', border: '1px solid rgba(216,135,112,0.4)',
+            color: '#D88770', fontSize: 17, fontWeight: 600,
+            display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
+          }}>
+            <Trash size={20} strokeWidth={2.2}/> 刪除
+          </button>
+        )}
+        <button onClick={() => {
+          if (!state.code || !state.shares || !state.price) return;
+          onSaved && onSaved('stock', { ...state, recordId });
+        }} style={{
+          flex: 1, height: 60, borderRadius: 18,
+          background: `linear-gradient(135deg, ${accent}, ${accent}cc)`,
+          border: 'none', color: '#1a1a1a', fontSize: 18, fontWeight: 600,
+          display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
+          boxShadow: `0 6px 18px ${accent}40`,
+        }}>
+          <Plus size={20} strokeWidth={2.5}/> {recordId ? '更新' : '儲存'}{state.side === 'buy' ? '買進' : '賣出'}紀錄
+        </button>
+      </div>
     </div>
   );
 }
 
 window.AccountingScreen = AccountingScreen;
+window.VOICE_SCENARIOS = VOICE_SCENARIOS;

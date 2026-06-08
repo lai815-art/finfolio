@@ -1,4 +1,4 @@
-import type { PieSlice } from '../data/demo';
+import type { PieSlice } from '../data/types';
 
 interface PieDonutProps {
   data: PieSlice[];

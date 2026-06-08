@@ -71,3 +71,15 @@ export const Mail = (p: IconProps) => <Ico {...p}><rect x="2" y="5" width="20" h
 export const Zap = (p: IconProps) => <Ico {...p}><path d="M13 2 3 14h7l-1 8 10-12h-7l1-8Z"/></Ico>;
 export const Volume = (p: IconProps) => <Ico {...p}><path d="M11 5 6 9H2v6h4l5 4V5Z"/><path d="M15 9a4 4 0 0 1 0 6"/><path d="M18 6a8 8 0 0 1 0 12"/></Ico>;
 export const Search = (p: IconProps) => <Ico {...p}><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></Ico>;
+export const Pencil = (p: IconProps) => <Ico {...p}><path d="M12 20h9"/><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z"/></Ico>;
+export const Trash = (p: IconProps) => <Ico {...p}><path d="M3 6h18"/><path d="M8 6V4a1 1 0 0 1 1-1h6a1 1 0 0 1 1 1v2"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6M14 11v6"/></Ico>;
+export const Grip = (p: IconProps) => <Ico {...p}><circle cx="9" cy="6" r="1" fill="currentColor" stroke="none"/><circle cx="15" cy="6" r="1" fill="currentColor" stroke="none"/><circle cx="9" cy="12" r="1" fill="currentColor" stroke="none"/><circle cx="15" cy="12" r="1" fill="currentColor" stroke="none"/><circle cx="9" cy="18" r="1" fill="currentColor" stroke="none"/><circle cx="15" cy="18" r="1" fill="currentColor" stroke="none"/></Ico>;
+
+// Resolve an icon component by its string name (used by data-driven group lists).
+export const IconByName: Record<string, (p: IconProps) => JSX.Element> = {
+  LayoutGrid, Receipt, Sparkles, Settings, RefreshCw, Plus, Mic, Clipboard, Send,
+  TrendUp, TrendDown, ArrowUpRight, ArrowRight, Pencil, Wallet, CreditCard, LineChart,
+  Lock, Shield, Key, Bell, ChevronRight, ChevronDown, Eye, EyeOff, Bot, Brain, Check, X,
+  Trash, Grip, MessageCircle, Smartphone, Calendar, Tag, Activity, Banknote, ChartPie,
+  Info, Mail, Zap, Volume, Search,
+};

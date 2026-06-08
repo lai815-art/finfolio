@@ -19,7 +19,7 @@ export default function DropField({ label, value, options, onChange, icon }: Dro
           width: '100%',
           minHeight: 60,
           padding: '8px 14px',
-          borderRadius: 14,
+          borderRadius: 18,
           background: '#FFFFFF',
           border: open ? '1px solid rgba(217,119,87,0.45)' : '1px solid rgba(28,26,24,0.12)',
           color: '#18110C',
@@ -31,8 +31,8 @@ export default function DropField({ label, value, options, onChange, icon }: Dro
       >
         {icon && <span style={{ color: 'rgba(45,36,32,0.5)', flexShrink: 0 }}>{icon}</span>}
         <div style={{ flex: 1, minWidth: 0 }}>
-          <div style={{ fontSize: 14, color: 'rgba(45,36,32,0.5)', letterSpacing: 0.5, textTransform: 'uppercase' }}>{label}</div>
-          <div style={{ marginTop: 1, fontSize: 16, fontWeight: 500, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{value}</div>
+          <div style={{ fontSize: 15, color: 'rgba(45,36,32,0.5)', letterSpacing: 0.5, textTransform: 'uppercase' }}>{label}</div>
+          <div style={{ marginTop: 1, fontSize: 17, fontWeight: 500, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{value}</div>
         </div>
         <ChevronDown size={16} style={{ color: 'rgba(45,36,32,0.5)', flexShrink: 0, transition: 'transform 200ms', transform: open ? 'rotate(180deg)' : 'none' }} />
       </button>
@@ -45,7 +45,7 @@ export default function DropField({ label, value, options, onChange, icon }: Dro
             right: 0,
             zIndex: 30,
             background: '#FBF7F2',
-            borderRadius: 14,
+            borderRadius: 18,
             padding: 6,
             border: '1px solid rgba(28,26,24,0.16)',
             boxShadow: '0 18px 36px rgba(0,0,0,0.12)',
@@ -69,7 +69,7 @@ export default function DropField({ label, value, options, onChange, icon }: Dro
                 border: 'none',
                 textAlign: 'left',
                 color: o === value ? '#FFFFFF' : '#18110C',
-                fontSize: 15,
+                fontSize: 16,
                 fontWeight: o === value ? 600 : 400,
               }}
             >

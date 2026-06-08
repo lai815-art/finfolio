@@ -58,8 +58,8 @@ export default function CalendarSheet({ open, date, onPick, onClose }: CalendarS
         style={{
           width: '100%',
           background: '#F7F2EC',
-          borderTopLeftRadius: 26,
-          borderTopRightRadius: 26,
+          borderTopLeftRadius: 30,
+          borderTopRightRadius: 30,
           transform: shown ? 'translateY(0)' : 'translateY(100%)',
           transition: 'transform 280ms cubic-bezier(0.32, 0.72, 0.18, 1)',
           boxShadow: '0 -20px 40px rgba(0,0,0,0.5)',
@@ -72,17 +72,7 @@ export default function CalendarSheet({ open, date, onPick, onClose }: CalendarS
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '4px 18px 14px' }}>
           <button
             onClick={() => setViewMonth(new Date(year, month - 1, 1))}
-            style={{
-              width: 36,
-              height: 36,
-              borderRadius: 8,
-              background: 'rgba(28,26,24,0.12)',
-              border: '1px solid rgba(28,26,24,0.14)',
-              color: '#18110C',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-            }}
+            style={{ width: 36, height: 36, borderRadius: 8, background: 'rgba(28,26,24,0.12)', border: '1px solid rgba(28,26,24,0.14)', color: '#18110C', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
           >
             <ChevronRight size={18} style={{ transform: 'rotate(180deg)' }} />
           </button>
@@ -91,17 +81,7 @@ export default function CalendarSheet({ open, date, onPick, onClose }: CalendarS
           </div>
           <button
             onClick={() => setViewMonth(new Date(year, month + 1, 1))}
-            style={{
-              width: 36,
-              height: 36,
-              borderRadius: 8,
-              background: 'rgba(28,26,24,0.12)',
-              border: '1px solid rgba(28,26,24,0.14)',
-              color: '#18110C',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-            }}
+            style={{ width: 36, height: 36, borderRadius: 8, background: 'rgba(28,26,24,0.12)', border: '1px solid rgba(28,26,24,0.14)', color: '#18110C', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
           >
             <ChevronRight size={18} />
           </button>
@@ -109,15 +89,7 @@ export default function CalendarSheet({ open, date, onPick, onClose }: CalendarS
         <div style={{ padding: '0 18px' }}>
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7,1fr)', gap: 4 }}>
             {week.map((w, i) => (
-              <div
-                key={w}
-                style={{
-                  textAlign: 'center',
-                  fontSize: 14,
-                  padding: '6px 0',
-                  color: i === 0 || i === 6 ? 'rgba(216,135,112,0.7)' : 'rgba(45,36,32,0.5)',
-                }}
-              >
+              <div key={w} style={{ textAlign: 'center', fontSize: 15, padding: '6px 0', color: i === 0 || i === 6 ? 'rgba(216,135,112,0.7)' : 'rgba(45,36,32,0.5)' }}>
                 {w}
               </div>
             ))}
@@ -135,14 +107,10 @@ export default function CalendarSheet({ open, date, onPick, onClose }: CalendarS
                   style={{
                     aspectRatio: '1 / 1',
                     borderRadius: 8,
-                    background: sel
-                      ? 'linear-gradient(135deg, #E89878, #D97757)'
-                      : td
-                        ? 'rgba(217,119,87,0.12)'
-                        : 'transparent',
+                    background: sel ? 'linear-gradient(135deg, #E89878, #D97757)' : td ? 'rgba(217,119,87,0.12)' : 'transparent',
                     border: sel ? 'none' : td ? '1px solid rgba(217,119,87,0.3)' : '1px solid transparent',
                     color: sel ? '#fff' : fut ? 'rgba(45,36,32,0.2)' : dow === 0 || dow === 6 ? 'rgba(216,135,112,0.85)' : '#18110C',
-                    fontSize: 15,
+                    fontSize: 16,
                     fontWeight: sel ? 700 : td ? 600 : 500,
                     fontFamily: 'JetBrains Mono, monospace',
                     display: 'flex',
@@ -158,34 +126,10 @@ export default function CalendarSheet({ open, date, onPick, onClose }: CalendarS
           </div>
         </div>
         <div style={{ marginTop: 16, padding: '0 18px', display: 'flex', gap: 10 }}>
-          <button
-            onClick={() => onPick(new Date(TODAY))}
-            style={{
-              flex: 1,
-              height: 48,
-              borderRadius: 14,
-              background: 'rgba(28,26,24,0.12)',
-              border: '1px solid rgba(28,26,24,0.14)',
-              color: 'rgba(45,36,32,0.75)',
-              fontSize: 15,
-              fontWeight: 500,
-            }}
-          >
+          <button onClick={() => onPick(new Date(TODAY))} style={{ flex: 1, height: 48, borderRadius: 18, background: 'rgba(28,26,24,0.12)', border: '1px solid rgba(28,26,24,0.14)', color: 'rgba(45,36,32,0.75)', fontSize: 16, fontWeight: 500 }}>
             回到今日
           </button>
-          <button
-            onClick={onClose}
-            style={{
-              flex: 1,
-              height: 48,
-              borderRadius: 14,
-              background: 'linear-gradient(135deg, #E89878, #D97757)',
-              border: 'none',
-              color: '#fff',
-              fontSize: 15,
-              fontWeight: 600,
-            }}
-          >
+          <button onClick={onClose} style={{ flex: 1, height: 48, borderRadius: 18, background: 'linear-gradient(135deg, #E89878, #D97757)', border: 'none', color: '#fff', fontSize: 16, fontWeight: 600 }}>
             關閉
           </button>
         </div>
