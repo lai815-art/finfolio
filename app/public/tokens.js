@@ -29,10 +29,10 @@
     red: '#B85C4A', red2: '#C47060', blue: '#7AAFC4',
     blue2: '#4E7FA0', indigo: '#7A6EA2', teal: '#5A8E88', orange: '#C4854A',
 
-    /* 記帳類型配色 Transaction types */
-    typeExp: '#B85C4A', typeInc: '#4E7FA0', typeXfer: '#C4854A',
-    typeBuy: '#B85C4A', typeSell: '#4E7FA0',
-    incBlue: '#285aa4',
+    /* 記帳類型配色 Transaction types — income blue softened (lower chroma) */
+    typeExp: '#B85C4A', typeInc: '#6688A0', typeXfer: '#C4854A',
+    typeBuy: '#B85C4A', typeSell: '#6688A0',
+    incBlue: '#4A6E8C',
 
     /* 帳戶類別配色 Account categories */
     catCredit: '#B85C4A', catCash: '#6E9B6A', catBank: '#4E7FA0',

@@ -355,13 +355,13 @@ function DailyView({ date, hideAmounts, extraFlows = [], extraTrades = [], onEdi
           const sign = t.kind === 'exp' ? '-' : '';
           const fresh = !!t._justAdded;
           return (
-            <div key={i} onClick={() => onEditRecord && onEditRecord({
+            <div key={i} onClick={() => { if (t._autoGen) return; onEditRecord && onEditRecord({
               intent: 'flow', edit: true, recordId: t._id,
               apply: t.kind === 'xfer' ?
               { kind: 'xfer', amount: String(t.amount), category: '轉帳', note: t.note || t.merchant || '' } :
               { kind: t.kind, amount: String(t.amount), category: t.cat, account: t.account, note: t.note || t.merchant || '' }
-            })} style={{ ...{
-                cursor: 'pointer',
+            }); }} style={{ ...{
+                cursor: t._autoGen ? 'default' : 'pointer',
                 display: 'flex', alignItems: 'center', gap: SP(14), padding: PAD('12px 14px'),
                 borderBottom: i < arr.length - 1 ? '1px solid rgba(0,0,0,0.12)' : 'none',
                 minHeight: 56,
@@ -376,9 +376,12 @@ function DailyView({ date, hideAmounts, extraFlows = [], extraTrades = [], onEdi
               <div style={{ flex: 1, minWidth: 0 }}>
                 {t.kind === 'xfer' ?
                 <>
-                  <div style={{ fontSize: FS(20), fontWeight: 500, overflow: 'hidden',
-                    textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                    {t._autoGen && (t.merchant === '投資獲利' || t.merchant === '投資損失') ? t.merchant : t.cat}
+                  <div style={{ display: 'flex', alignItems: 'center', gap: SP(6), minWidth: 0 }}>
+                    <span style={{ fontSize: FS(20), fontWeight: 500, overflow: 'hidden',
+                      textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                      {t._autoGen && (t.merchant === '投資獲利' || t.merchant === '投資損失') ? t.merchant : t.cat}
+                    </span>
+                    {t._autoGen && <span style={{ fontSize: FS(13), fontWeight: 600, color: TOKENS.gray3, background: 'rgba(0,0,0,0.06)', padding: '1px 6px', borderRadius: RS(6), whiteSpace: 'nowrap', flexShrink: 0 }}>系統自動</span>}
                   </div>
                   <div style={{ ...{ fontSize: FS(16), color: 'rgba(0,0,0,0.84)', marginTop: SP(2),
                       overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }, fontSize: "14px" }}>
@@ -386,11 +389,12 @@ function DailyView({ date, hideAmounts, extraFlows = [], extraTrades = [], onEdi
                   </div>
                 </> :
                 <>
-                  <div style={{ display: 'flex', alignItems: 'center', minWidth: 0 }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: SP(6), minWidth: 0 }}>
                     <span style={{ ...{ fontSize: FS(20), fontWeight: 500, overflow: 'hidden',
                         textOverflow: 'ellipsis', whiteSpace: 'nowrap', flex: 1, minWidth: 0 }, fontSize: "18px" }}>
                       {t._autoGen && (t.merchant === '投資獲利' || t.merchant === '投資損失') ? t.merchant : t.cat}
                     </span>
+                    {t._autoGen && <span style={{ fontSize: FS(13), fontWeight: 600, color: TOKENS.gray3, background: 'rgba(0,0,0,0.06)', padding: '1px 6px', borderRadius: RS(6), whiteSpace: 'nowrap', flexShrink: 0 }}>系統自動</span>}
                   </div>
                   <div style={{ ...{ fontSize: FS(16), color: 'rgba(0,0,0,0.84)', marginTop: SP(2),
                       overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }, fontSize: "14px" }}>
