@@ -36,14 +36,17 @@ const num = (s) => {
 // Build (or read from cache) the full Taiwan code→close map for today.
 async function getTWMap(ctx) {
   const cache = caches.default;
-  const key = new Request(`https://ff-cache.local/tw/${todayStr()}`);
+  // v2 + short TTL: TWSE's daily-all file finalizes in the afternoon, so refresh
+  // every ~30 min (instead of caching the whole day) to self-correct to the
+  // official close shortly after it publishes.
+  const key = new Request(`https://ff-cache.local/tw/v2/${todayStr()}`);
   const hit = await cache.match(key);
   if (hit) return hit.json();
 
   const map = {};
   // TWSE 上市 每日收盤
   try {
-    const r = await fetch('https://openapi.twse.com.tw/v1/exchangeReport/STOCK_DAY_ALL', { cf: { cacheTtl: 1800 } });
+    const r = await fetch('https://openapi.twse.com.tw/v1/exchangeReport/STOCK_DAY_ALL', { cf: { cacheTtl: 600 } });
     if (r.ok) {
       const arr = await r.json();
       (Array.isArray(arr) ? arr : []).forEach((s) => {
@@ -54,7 +57,7 @@ async function getTWMap(ctx) {
   } catch (e) { /* ignore */ }
   // TPEX 上櫃 每日收盤
   try {
-    const r = await fetch('https://www.tpex.org.tw/openapi/v1/tpex_mainboard_daily_close_quotes', { cf: { cacheTtl: 1800 } });
+    const r = await fetch('https://www.tpex.org.tw/openapi/v1/tpex_mainboard_daily_close_quotes', { cf: { cacheTtl: 600 } });
     if (r.ok) {
       const arr = await r.json();
       (Array.isArray(arr) ? arr : []).forEach((s) => {
@@ -65,10 +68,10 @@ async function getTWMap(ctx) {
     }
   } catch (e) { /* ignore */ }
 
-  // cache for the rest of the day (only if we actually got data)
+  // cache for ~30 min (only if we actually got data)
   if (Object.keys(map).length > 50) {
     ctx.waitUntil(cache.put(key, new Response(JSON.stringify(map), {
-      headers: { 'Content-Type': 'application/json', 'Cache-Control': 'public, max-age=43200' },
+      headers: { 'Content-Type': 'application/json', 'Cache-Control': 'public, max-age=1800' },
     })));
   }
   return map;
@@ -77,7 +80,7 @@ async function getTWMap(ctx) {
 // USD→TWD (and a few others) from a free, keyless source, cached daily.
 async function getFX(ctx) {
   const cache = caches.default;
-  const key = new Request(`https://ff-cache.local/fx/${todayStr()}`);
+  const key = new Request(`https://ff-cache.local/fx/v2/${todayStr()}`);
   const hit = await cache.match(key);
   if (hit) return hit.json();
 
