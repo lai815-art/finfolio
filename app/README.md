@@ -1,46 +1,46 @@
 # FinFolio — 智慧資產管理 App
 
-由 `claude.ai/design` 匯出的設計原型（`../project/FinFolio.html`）忠實實作而成的真正前端專案。
+由 `claude.ai/design` 的 FinFolio 設計（v3）建置而成的前端 App。
 
-- **技術堆疊**：Vite + React 18 + TypeScript
-- **樣式**：沿用原型的 inline style 設計系統（暖色淺色主題，Noto Sans TC + JetBrains Mono）
-- **目標**：像素級還原原型的視覺、互動與動畫；展示資料維持原型的 mock data
+- **技術**：Vite 打包 + React 18（v3 設計原始碼預先編譯，取代瀏覽器內 Babel）
+- **設計變數**：`public/tokens.js`（顏色／間距／字級／匯率輔助，掛在 `window`）
+- **股票清單/價格輔助**：`public/stock-data.js`
+- **資料**：記帳、餘額、持倉、設定皆存於使用者瀏覽器本機（localStorage），不上雲
 
 ## 開發
 
 ```bash
 npm install      # 安裝相依套件
-npm run dev      # 啟動開發伺服器 (http://localhost:5173)
-npm run build    # 型別檢查 + 打包到 dist/
+npm run dev      # 開發伺服器 (http://localhost:5173)
+npm run build    # 打包到 dist/
 npm run preview  # 預覽打包結果
 ```
 
-打開後會看到一支固定 402×874 的手機框，並自動縮放至視窗大小（與原型相同的 `fit()` 邏輯，位於 `src/main.tsx`）。
-
-## 專案結構
+## 結構
 
 ```
+public/
+  tokens.js          設計變數 + FS/SP/PAD/RS/SH/fxToTWD 等全域輔助（經典腳本，先載入）
+  stock-data.js      US 股清單 + 台股清單非同步載入（經典腳本）
 src/
-  main.tsx              進入點：掛載 App、手機框縮放邏輯
-  index.css             全域樣式、字型、keyframes 動畫、捲軸隱藏
-  App.tsx               根元件：狀態列、標題列、底部導覽列 (含中央 FAB)、記帳底部彈窗、跨頁狀態
-  icons.tsx             Lucide 風格自繪 SVG 圖示組
-  data/demo.ts          型別定義 + 看板每日 mock 資料的確定性產生器 (mulberry32 PRNG)
-  components/
-    PieDonut.tsx        環圈圖
-    CalendarSheet.tsx   日曆底部彈窗 (看板與記帳共用)
-    DropField.tsx       下拉選單欄位
-  screens/
-    Dashboard.tsx       看板：淨值卡、日期切換/滑動、當日收支與股票買賣
-    Accounts.tsx        配置：淨資產 + 4 類圓餅、7 個可展開資產分項
-    Accounting.tsx      記帳：收支轉帳 / 股票買賣表單 + AI 一鍵語音記帳 (模擬)
-    Advisor.tsx         AI 財富導師：健檢卡、快速提問、對話 (模擬回覆)
-    Settings.tsx        設定：加密盾、主檔管理 (分類/帳戶/券商/交割戶)、AI 金鑰 (BYOK)
+  main.js            進入點：將 React/ReactDOM 設為全域，再動態載入 v3 程式
+  legacy/
+    load.js          依原始順序載入各畫面
+    icons.jsx        圖示組
+    app.jsx          App 殼層、TabBar、記帳彈窗、語音 overlay、設定 overlay、
+                     餘額/持倉動態計算 (computeAccounts/computeHoldings)、ErrorBoundary
+    screens/
+      portfolio.jsx  共用資料來源 (ASSET_GROUPS / INVEST_HOLDINGS / computePortfolio)
+      dashboard.jsx  看板：月收支統計、淨值、當日收支/交易、日曆
+      accounts.jsx   資產：淨值 Hero、帳戶分類、帳戶明細
+      accounting.jsx 記帳：收支轉帳 / 股票買賣、語音情境
+      advisor.jsx    AI 顧問（健康檢查 + 對話）
+      invest.jsx     投資組合（依類型分頁、持倉明細、拆解）
+      settings.jsx   設定：主檔管理、AI 金鑰、初始餘額、安全備份
+index.html           手機框、字型、keyframes、縮放邏輯、經典腳本載入順序
 ```
 
-## 與原型的對應與取捨
-
-- 原型靠 `window.Icons`、`window.CalendarSheet` 等全域變數與瀏覽器內 Babel 轉譯串接；本專案改寫為正規的 ES module import 與元件拆分。
-- 原型 `dashboard.jsx` 內定義的 `DashWidget`（配置/消費/股票圓餅小工具）在最終的 `DashboardScreen` 中並未被渲染（配置圖已從看板移除），故本實作未移植該段死碼。`SettingsScreen` 實際上也未使用 `dashWidget` 參數，一併略過。
-- 設定頁的「外部連動」區塊在原型中已被註解隱藏，本實作以註解標記保留其位置。
-- AI 對話與語音記帳維持原型的「模擬」行為（打字動畫、預設情境解析）；尚未串接真實 AI 或裝置語音。可作為後續延伸。
+## 待辦（後續階段）
+- 配色微調（收入降彩度）、賣股自動分錄標示、初始餘額穩定 id、資料版本/migration、加密備份匯出入
+- 真實每日收盤市價（台股/美股，經由極小後端服務）
+- 真 AI 顧問（BYOK）＋ 記帳/提問意圖判斷

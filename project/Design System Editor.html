@@ -1,0 +1,539 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1"/>
+<title>FinFolio — 設計系統編輯器</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600&family=Noto+Sans+TC:wght@400;500;600;700&display=swap"/>
+<script src="tokens.js"></script>
+<style>
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+html, body { height: 100%; font-family: "Noto Sans TC", -apple-system, sans-serif; background: #1a1a1e; color: #f0f0f4; -webkit-font-smoothing: antialiased; }
+
+.layout { display: flex; height: 100vh; }
+
+/* ── Sidebar ── */
+.sidebar {
+  width: 220px; flex-shrink: 0;
+  background: #111115; border-right: 1px solid rgba(255,255,255,0.08);
+  display: flex; flex-direction: column;
+  padding: 0 0 16px;
+}
+.sidebar-header {
+  padding: 22px 20px 14px;
+  border-bottom: 1px solid rgba(255,255,255,0.07);
+}
+.sidebar-logo { font-size: 17px; font-weight: 700; color: #f0f0f4; letter-spacing: -0.3px; }
+.sidebar-sub { font-size: 12px; color: rgba(255,255,255,0.35); margin-top: 3px; }
+.nav-group { padding: 12px 10px 4px; }
+.nav-label { font-size: 10px; color: rgba(255,255,255,0.28); letter-spacing: 1px; text-transform: uppercase; padding: 0 10px 6px; }
+.nav-item {
+  display: flex; align-items: center; gap: 9px;
+  padding: 9px 12px; border-radius: 8px;
+  font-size: 14px; color: rgba(255,255,255,0.62);
+  cursor: pointer; transition: all 140ms; border: none; background: transparent;
+  width: 100%; text-align: left;
+}
+.nav-item:hover { background: rgba(255,255,255,0.06); color: rgba(255,255,255,0.9); }
+.nav-item.active { background: rgba(217,119,87,0.18); color: #E89878; font-weight: 600; }
+.nav-dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
+.nav-item.active .nav-dot { box-shadow: 0 0 0 2px rgba(217,119,87,0.4); }
+
+.sidebar-footer {
+  margin-top: auto; padding: 12px 14px 0;
+  border-top: 1px solid rgba(255,255,255,0.06);
+}
+.reset-btn {
+  width: 100%; padding: 9px 14px; border-radius: 8px;
+  background: rgba(255,59,48,0.12); border: 1px solid rgba(255,59,48,0.25);
+  color: #FF6B6B; font-size: 13px; cursor: pointer;
+  display: flex; align-items: center; justify-content: center; gap: 6px;
+  transition: all 140ms; font-family: inherit;
+}
+.reset-btn:hover { background: rgba(255,59,48,0.22); }
+
+/* ── Main ── */
+.main { flex: 1; overflow-y: auto; }
+
+.main-header {
+  padding: 28px 36px 20px;
+  border-bottom: 1px solid rgba(255,255,255,0.07);
+  position: sticky; top: 0; background: #1a1a1e; z-index: 10;
+  display: flex; align-items: baseline; gap: 16px;
+}
+.main-title { font-size: 22px; font-weight: 700; letter-spacing: -0.4px; }
+.main-sub { font-size: 13px; color: rgba(255,255,255,0.35); }
+.live-badge {
+  margin-left: auto; font-size: 11px; padding: 3px 9px; border-radius: 20px;
+  background: rgba(52,199,89,0.15); border: 1px solid rgba(52,199,89,0.3);
+  color: #4CD964; font-weight: 600; letter-spacing: 0.5px;
+}
+
+.section { padding: 24px 36px; border-bottom: 1px solid rgba(255,255,255,0.05); }
+.section:last-child { border-bottom: none; }
+.section-title {
+  font-size: 11px; font-weight: 600; color: rgba(255,255,255,0.3);
+  letter-spacing: 1.2px; text-transform: uppercase; margin-bottom: 16px;
+}
+
+/* ── Token rows ── */
+.token-grid { display: flex; flex-direction: column; gap: 4px; }
+
+.token-row {
+  display: flex; align-items: center; gap: 16px;
+  padding: 10px 14px; border-radius: 10px;
+  background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.06);
+  transition: background 120ms;
+}
+.token-row:hover { background: rgba(255,255,255,0.06); }
+.token-label { flex: 1; min-width: 0; }
+.token-name { font-size: 14px; font-weight: 500; color: rgba(255,255,255,0.88); }
+.token-sub { font-size: 12px; color: rgba(255,255,255,0.3); margin-top: 2px; }
+.token-controls { display: flex; align-items: center; gap: 10px; flex-shrink: 0; }
+.color-preview {
+  width: 28px; height: 28px; border-radius: 7px;
+  border: 1.5px solid rgba(255,255,255,0.15); flex-shrink: 0;
+  cursor: pointer; transition: transform 120ms;
+}
+.color-preview:hover { transform: scale(1.1); }
+input[type="color"] {
+  width: 0; height: 0; opacity: 0; position: absolute;
+}
+.hex-input {
+  width: 80px; height: 30px; padding: 0 8px;
+  background: rgba(255,255,255,0.06); border: 1px solid rgba(255,255,255,0.12);
+  border-radius: 6px; color: rgba(255,255,255,0.7);
+  font-family: "JetBrains Mono", monospace; font-size: 12px;
+  outline: none; transition: border-color 120ms; text-transform: uppercase;
+}
+.hex-input:focus { border-color: rgba(217,119,87,0.6); color: #fff; }
+
+/* ── Slider rows ── */
+.slider-row {
+  padding: 14px 14px; border-radius: 10px;
+  background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.06);
+  margin-bottom: 4px;
+}
+.slider-header { display: flex; justify-content: space-between; margin-bottom: 10px; }
+.slider-name { font-size: 14px; font-weight: 500; color: rgba(255,255,255,0.88); }
+.slider-val { font-family: "JetBrains Mono", monospace; font-size: 14px; color: #E89878; font-weight: 600; }
+input[type="range"] {
+  width: 100%; height: 4px; accent-color: #D97757;
+  cursor: pointer;
+}
+.slider-ticks { display: flex; justify-content: space-between; margin-top: 5px; }
+.slider-tick { font-size: 11px; color: rgba(255,255,255,0.25); font-family: "JetBrains Mono", monospace; }
+
+/* ── Preview strip ── */
+.preview-bar {
+  position: fixed; bottom: 0; left: 220px; right: 0;
+  background: rgba(17,17,21,0.95); border-top: 1px solid rgba(255,255,255,0.08);
+  padding: 10px 36px; display: flex; align-items: center; gap: 20px;
+  backdrop-filter: blur(12px); z-index: 20;
+  font-size: 13px;
+}
+.preview-item { display: flex; align-items: center; gap: 8px; }
+.preview-dot { width: 10px; height: 10px; border-radius: 50%; }
+.preview-label { color: rgba(255,255,255,0.4); }
+.preview-val { font-family: "JetBrains Mono", monospace; color: rgba(255,255,255,0.7); font-size: 12px; }
+
+/* panel visibility */
+.panel { display: none; }
+.panel.active { display: block; }
+</style>
+</head>
+<body>
+<div class="layout">
+  <!-- Sidebar -->
+  <nav class="sidebar">
+    <div class="sidebar-header">
+      <div class="sidebar-logo">FinFolio DS</div>
+      <div class="sidebar-sub">設計系統編輯器</div>
+    </div>
+
+    <div class="nav-group">
+      <div class="nav-label">版面配色</div>
+      <button class="nav-item active" data-panel="bg" onclick="switchPanel('bg')">
+        <span class="nav-dot" style="background:#D97757"></span> 背景 / 底色
+      </button>
+      <button class="nav-item" data-panel="header" onclick="switchPanel('header')">
+        <span class="nav-dot" style="background:#2C2C2E"></span> 頁首統計區
+      </button>
+      <button class="nav-item" data-panel="accent" onclick="switchPanel('accent')">
+        <span class="nav-dot" style="background:#D97757"></span> 強調色
+      </button>
+    </div>
+
+    <div class="nav-group">
+      <div class="nav-label">類別配色</div>
+      <button class="nav-item" data-panel="txn" onclick="switchPanel('txn')">
+        <span class="nav-dot" style="background:#FF3B30"></span> 收支類型
+      </button>
+      <button class="nav-item" data-panel="acct" onclick="switchPanel('acct')">
+        <span class="nav-dot" style="background:#2E72D8"></span> 帳戶類別
+      </button>
+      <button class="nav-item" data-panel="inv" onclick="switchPanel('inv')">
+        <span class="nav-dot" style="background:#6C5CE0"></span> 投資類別
+      </button>
+    </div>
+
+    <div class="nav-group">
+      <div class="nav-label">文字排版</div>
+      <button class="nav-item" data-panel="type" onclick="switchPanel('type')">
+        <span class="nav-dot" style="background:#E89878"></span> 字型大小 / 顏色
+      </button>
+      <button class="nav-item" data-panel="radius" onclick="switchPanel('radius')">
+        <span class="nav-dot" style="background:#636366"></span> 圓角 / 間距
+      </button>
+    </div>
+
+    <div class="sidebar-footer">
+      <button class="reset-btn" onclick="resetAll()">↩ 重置所有設定</button>
+    </div>
+  </nav>
+
+  <!-- Main -->
+  <main class="main" style="padding-bottom: 60px;">
+    <div class="main-header">
+      <div class="main-title" id="panel-title">背景 / 底色</div>
+      <div class="main-sub">變更即時同步至 App</div>
+      <div class="live-badge">● LIVE</div>
+    </div>
+
+    <!-- BG panel -->
+    <div class="panel active" id="panel-bg">
+      <div class="section">
+        <div class="section-title">頁面背景</div>
+        <div class="token-grid" id="grid-bg"></div>
+      </div>
+      <div class="section">
+        <div class="section-title">卡片 / 區塊</div>
+        <div class="token-grid" id="grid-surface"></div>
+      </div>
+    </div>
+
+    <!-- Header panel -->
+    <div class="panel" id="panel-header">
+      <div class="section">
+        <div class="section-title">頂部統計區色塊（漸層由 ink → gray2）</div>
+        <div class="token-grid" id="grid-header"></div>
+      </div>
+    </div>
+
+    <!-- Accent panel -->
+    <div class="panel" id="panel-accent">
+      <div class="section">
+        <div class="section-title">全站強調色系</div>
+        <div class="token-grid" id="grid-accent"></div>
+      </div>
+    </div>
+
+    <!-- TXN panel -->
+    <div class="panel" id="panel-txn">
+      <div class="section">
+        <div class="section-title">收支轉帳 / 買賣</div>
+        <div class="token-grid" id="grid-txn"></div>
+      </div>
+    </div>
+
+    <!-- Acct panel -->
+    <div class="panel" id="panel-acct">
+      <div class="section">
+        <div class="section-title">帳戶類別顏色</div>
+        <div class="token-grid" id="grid-acct"></div>
+      </div>
+    </div>
+
+    <!-- Inv panel -->
+    <div class="panel" id="panel-inv">
+      <div class="section">
+        <div class="section-title">投資類別 1–6（圓餅圖 / 持倉卡片）</div>
+        <div class="token-grid" id="grid-inv"></div>
+      </div>
+    </div>
+
+    <!-- Type panel -->
+    <div class="panel" id="panel-type">
+      <div class="section">
+        <div class="section-title">字型大小比例</div>
+        <div id="slider-font"></div>
+      </div>
+      <div class="section">
+        <div class="section-title">文字顏色</div>
+        <div class="token-grid" id="grid-type"></div>
+      </div>
+    </div>
+
+    <!-- Radius panel -->
+    <div class="panel" id="panel-radius">
+      <div class="section">
+        <div class="section-title">圓角比例</div>
+        <div id="slider-radius"></div>
+      </div>
+      <div class="section">
+        <div class="section-title">間距比例</div>
+        <div id="slider-space"></div>
+      </div>
+    </div>
+  </main>
+</div>
+
+<!-- Preview bar -->
+<div class="preview-bar" id="preview-bar"></div>
+
+<script>
+// ── State ──
+var T = window.TOKENS;
+var STORAGE_KEY = 'ff_token_overrides';
+
+function getOverrides() {
+  try { return JSON.parse(localStorage.getItem(STORAGE_KEY) || '{}'); } catch(e) { return {}; }
+}
+function setToken(key, val) {
+  window.FFTokens.setMany(Object.fromEntries([[key, val]]));
+  T = window.TOKENS;
+  updateAllPreviews();
+}
+function resetAll() {
+  if (!confirm('重置所有自訂設定，回到預設值？')) return;
+  window.FFTokens.reset();
+  T = window.TOKENS;
+  renderAll();
+  updateAllPreviews();
+}
+
+// ── Panel switching ──
+var PANEL_TITLES = {
+  bg: '背景 / 底色', header: '頁首統計區', accent: '強調色',
+  txn: '收支類型配色', acct: '帳戶類別配色', inv: '投資類別配色',
+  type: '文字大小 / 顏色', radius: '圓角 / 間距比例'
+};
+function switchPanel(id) {
+  document.querySelectorAll('.panel').forEach(p => p.classList.remove('active'));
+  document.querySelectorAll('.nav-item').forEach(b => b.classList.remove('active'));
+  document.getElementById('panel-' + id).classList.add('active');
+  document.querySelector('[data-panel="' + id + '"]').classList.add('active');
+  document.getElementById('panel-title').textContent = PANEL_TITLES[id];
+}
+
+// ── Color row builder ──
+function colorRow(containerId, key, name, sub) {
+  var container = document.getElementById(containerId);
+  if (!container) return;
+  var row = document.createElement('div');
+  row.className = 'token-row';
+  row.id = 'row-' + key;
+  row.innerHTML = `
+    <div class="token-label">
+      <div class="token-name">${name}</div>
+      ${sub ? '<div class="token-sub">' + sub + '</div>' : ''}
+    </div>
+    <div class="token-controls">
+      <div class="color-preview" id="prev-${key}" onclick="triggerPicker('${key}')"
+        style="background:${T[key] || '#888'}"></div>
+      <input type="color" id="picker-${key}" value="${(T[key]||'#888888').slice(0,7)}"
+        oninput="onColorInput('${key}', this.value)">
+      <input class="hex-input" id="hex-${key}" value="${(T[key]||'').toUpperCase().slice(0,7)}"
+        maxlength="7"
+        onchange="onHexInput('${key}', this.value)"
+        onkeydown="if(event.key==='Enter') onHexInput('${key}', this.value)">
+    </div>`;
+  container.appendChild(row);
+}
+
+function triggerPicker(key) {
+  var picker = document.getElementById('picker-' + key);
+  picker.value = (T[key] || '#888888').slice(0,7);
+  picker.click();
+}
+function onColorInput(key, val) {
+  setToken(key, val);
+  document.getElementById('prev-' + key).style.background = val;
+  document.getElementById('hex-' + key).value = val.toUpperCase();
+}
+function onHexInput(key, val) {
+  val = val.trim();
+  if (!val.startsWith('#')) val = '#' + val;
+  if (/^#[0-9a-fA-F]{6}$/.test(val)) {
+    setToken(key, val);
+    document.getElementById('prev-' + key).style.background = val;
+    document.getElementById('picker-' + key).value = val;
+  }
+}
+
+// ── Slider builder ──
+function sliderRow(containerId, key, name, min, max, step, fmt) {
+  var container = document.getElementById(containerId);
+  if (!container) return;
+  var val = T[key] != null ? T[key] : 1;
+  var div = document.createElement('div');
+  div.className = 'slider-row';
+  div.id = 'slrow-' + key;
+  div.innerHTML = `
+    <div class="slider-header">
+      <span class="slider-name">${name}</span>
+      <span class="slider-val" id="slval-${key}">${fmt(val)}</span>
+    </div>
+    <input type="range" min="${min}" max="${max}" step="${step}" value="${val}"
+      id="sl-${key}"
+      oninput="onSlider('${key}', this.value, '${encodeURIComponent(fmt.toString())}')">
+    <div class="slider-ticks">
+      <span class="slider-tick">${fmt(min)}</span>
+      <span class="slider-tick">${fmt((min+max)/2)}</span>
+      <span class="slider-tick">${fmt(max)}</span>
+    </div>`;
+  container.appendChild(div);
+}
+
+var FMT_PCT = function(v) { return Math.round(v*100) + '%'; };
+var FMT_PX = function(v) { return v + 'px'; };
+var FMT_NUM = function(v) { return (+v).toFixed(2); };
+
+function onSlider(key, val, fmtStr) {
+  var fmt = key === 'fontScale' || key === 'radiusScale' || key === 'spaceScale' ? FMT_PCT : FMT_NUM;
+  var numVal = parseFloat(val);
+  setToken(key, numVal);
+  document.getElementById('slval-' + key).textContent = fmt(numVal);
+}
+
+// ── Render all panels ──
+function renderAll() {
+  T = window.TOKENS;
+
+  // Background
+  document.getElementById('grid-bg').innerHTML = '';
+  [
+    ['bgWarm2', 'App 底色', '整體頁面背景'],
+    ['bgWarm',  '暖色底色', '部分卡片外背景'],
+    ['bgWarm3', '暖色底色 3', ''],
+  ].forEach(function(r) { colorRow('grid-bg', r[0], r[1], r[2]); });
+
+  document.getElementById('grid-surface').innerHTML = '';
+  [
+    ['surface',  '卡片底色', '清單、面板、對話框'],
+    ['surface2', '次要卡片', '較深一層'],
+    ['warmBorder', '暖邊框色', '分隔線、卡片邊框'],
+  ].forEach(function(r) { colorRow('grid-surface', r[0], r[1], r[2]); });
+
+  // Header
+  document.getElementById('grid-header').innerHTML = '';
+  [
+    ['ink',  '頁首深色（漸層起）', '看板 / 帳戶 / 投資頂部'],
+    ['gray2','頁首淺色（漸層末）', ''],
+    ['ink2', '選中 / 活躍色', 'Tab 選中、卡片高亮'],
+  ].forEach(function(r) { colorRow('grid-header', r[0], r[1], r[2]); });
+
+  // Accent
+  document.getElementById('grid-accent').innerHTML = '';
+  [
+    ['accent',      '主強調色',   '按鈕、邊框、焦點環'],
+    ['accent2',     '強調色 2',   ''],
+    ['accentLight', '淺強調色',   ''],
+    ['accentDark',  '深強調色',   ''],
+    ['onAccent',    '強調色上文字','按鈕文字'],
+    ['accentTint',  '強調淡底',   '淡色區塊背景'],
+  ].forEach(function(r) { colorRow('grid-accent', r[0], r[1], r[2]); });
+
+  // TXN
+  document.getElementById('grid-txn').innerHTML = '';
+  [
+    ['typeExp',  '支出', ''],
+    ['typeInc',  '收入', ''],
+    ['typeXfer', '轉帳', ''],
+    ['typeBuy',  '買進', ''],
+    ['typeSell', '賣出', ''],
+  ].forEach(function(r) { colorRow('grid-txn', r[0], r[1], r[2]); });
+
+  // Acct
+  document.getElementById('grid-acct').innerHTML = '';
+  [
+    ['catBank',     '銀行帳戶', ''],
+    ['catCredit',   '信用卡',   ''],
+    ['catCash',     '現金',     ''],
+    ['catBrokerage','證券戶',   ''],
+    ['catPrepaid',  '儲值卡',   ''],
+    ['catEpay',     '電子支付', ''],
+  ].forEach(function(r) { colorRow('grid-acct', r[0], r[1], r[2]); });
+
+  // Investment
+  document.getElementById('grid-inv').innerHTML = '';
+  [1,2,3,4,5,6].forEach(function(n) {
+    colorRow('grid-inv', 'inv'+n, '投資類別 ' + n, '');
+  });
+
+  // Typography
+  document.getElementById('slider-font').innerHTML = '';
+  sliderRow('slider-font', 'fontScale', '字型大小比例', 0.80, 1.40, 0.05, FMT_PCT);
+
+  document.getElementById('grid-type').innerHTML = '';
+  [
+    ['ink',     '主要文字',  '標題、金額、主內文'],
+    ['gray3',   '次要文字',  '副標題、說明文字'],
+    ['gray4',   '備註文字',  '提示、label、placeholder'],
+    ['surface', '亮色文字',  '深底上的文字'],
+  ].forEach(function(r) { colorRow('grid-type', r[0], r[1], r[2]); });
+
+  // Radius / space
+  document.getElementById('slider-radius').innerHTML = '';
+  sliderRow('slider-radius', 'radiusScale', '圓角比例', 0.30, 2.00, 0.10, FMT_PCT);
+  document.getElementById('slider-space').innerHTML = '';
+  sliderRow('slider-space', 'spaceScale', '間距比例', 0.70, 1.50, 0.05, FMT_PCT);
+
+  updateAllPreviews();
+}
+
+// ── Preview bar ──
+function updateAllPreviews() {
+  T = window.TOKENS;
+  var bar = document.getElementById('preview-bar');
+  var items = [
+    { label: '底色', k: 'bgWarm2' },
+    { label: '頁首', k: 'ink' },
+    { label: '強調', k: 'accent' },
+    { label: '支出', k: 'typeExp' },
+    { label: '收入', k: 'typeInc' },
+    { label: '銀行', k: 'catBank' },
+    { label: '投資1', k: 'inv1' },
+    { label: '文字', k: 'ink' },
+  ];
+  bar.innerHTML = '<span style="font-size:12px;color:rgba(255,255,255,0.25);margin-right:4px">現行配色</span>' +
+    items.map(function(it) {
+      return '<div class="preview-item">' +
+        '<div class="preview-dot" style="background:' + (T[it.k]||'#888') + '"></div>' +
+        '<span class="preview-label">' + it.label + '</span>' +
+        '</div>';
+    }).join('') +
+    '<span style="margin-left:auto;font-size:12px;color:rgba(255,255,255,0.3)">字型 ' +
+      Math.round((T.fontScale||1)*100) + '% · 圓角 ' +
+      Math.round((T.radiusScale||1)*100) + '%</span>';
+
+  // Also update any visible rows
+  document.querySelectorAll('[id^="prev-"]').forEach(function(el) {
+    var k = el.id.replace('prev-', '');
+    if (T[k]) el.style.background = T[k];
+  });
+  document.querySelectorAll('[id^="hex-"]').forEach(function(el) {
+    var k = el.id.replace('hex-', '');
+    if (T[k]) el.value = T[k].toUpperCase().slice(0,7);
+  });
+  document.querySelectorAll('[id^="sl-"]').forEach(function(el) {
+    var k = el.id.replace('sl-', '');
+    if (T[k] != null) {
+      el.value = T[k];
+      var valEl = document.getElementById('slval-' + k);
+      if (valEl) valEl.textContent = FMT_PCT(T[k]);
+    }
+  });
+}
+
+// Listen for changes from the app
+window.addEventListener('ff-tokens-changed', function() {
+  T = window.TOKENS;
+  updateAllPreviews();
+});
+
+// Init
+renderAll();
+</script>
+</body>
+</html>

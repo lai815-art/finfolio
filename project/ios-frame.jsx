@@ -166,7 +166,7 @@ function IOSListRow({ title, detail, icon, chevron = true, isLast = false, dark 
 
 function IOSList({ header, children, dark = false }) {
   const hc = dark ? 'rgba(235,235,245,0.6)' : 'rgba(60,60,67,0.6)';
-  const bg = dark ? '#1C1C1E' : '#fff';
+  const bg = dark ? TOKENS.ink : '#fff';
   return (
     <div>
       {header && (
@@ -194,7 +194,7 @@ function IOSDevice({
   return (
     <div style={{
       width, height, borderRadius: 48, overflow: 'hidden',
-      position: 'relative', background: dark ? '#000' : '#F2F2F7',
+      position: 'relative', background: dark ? '#000' : TOKENS.bg,
       boxShadow: '0 40px 80px rgba(0,0,0,0.18), 0 0 0 1px rgba(0,0,0,0.12)',
       fontFamily: '-apple-system, system-ui, sans-serif',
       WebkitFontSmoothing: 'antialiased',
