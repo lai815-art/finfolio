@@ -2,4 +2,4 @@
    Leave empty ('') to disable live prices (holdings then use the
    transaction price). Example:
    window.FF_PRICE_API = 'https://finfolio-prices.your-subdomain.workers.dev'; */
-window.FF_PRICE_API = '';
+window.FF_PRICE_API = 'https://sweet-disk-086bfinfolio-prices.lai815.workers.dev';
