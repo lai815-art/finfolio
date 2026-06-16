@@ -1,0 +1,6 @@
+name = "finfolio-prices"
+main = "index.js"
+compatibility_date = "2024-11-01"
+
+# Deploy:  cd worker && npx wrangler deploy
+# US stocks (optional):  npx wrangler secret put FINNHUB_KEY

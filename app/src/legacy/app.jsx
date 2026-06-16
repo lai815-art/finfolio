@@ -132,7 +132,7 @@ function computeHoldings(trades, masterData, livePrices = {}) {
     const key = s.assetClass || '股票';
     if (!groups[key]) groups[key] = { id: key, name: key, items: [] };
     const avg = s.qty > 0 ? totalCost / s.qty : 0;
-    const price = livePrices[s.code] || simCurrentPrice(s.code, s.lastPrice),mv = s.qty * price,pnl = mv - totalCost;
+    const price = livePrices[s.code] || s.lastPrice || 0,mv = s.qty * price,pnl = mv - totalCost;
     const cur = curMap[s.broker] || 'TWD';
     groups[key].items.push({
       code: s.code, name: s.name,
@@ -552,75 +552,44 @@ function App() {
   useEffectApp(() => {
     try {localStorage.setItem('ff_hide_amounts', String(hideAmounts));} catch {}
   }, [hideAmounts]);
-  const [livePrices, setLivePrices] = useStateApp({});
-  const [pricesFetchedAt, setPricesFetchedAt] = useStateApp(null);
+  const [livePrices, setLivePrices] = useStateApp(() => {
+    try {
+      const s = JSON.parse(localStorage.getItem('ff_prices') || 'null');
+      if (s && s.prices) { if (s.fx && s.fx.USD) window.FX_RATES.USD = s.fx.USD; return s.prices; }
+    } catch (e) {}
+    return {};
+  });
+  const [pricesFetchedAt, setPricesFetchedAt] = useStateApp(() => {
+    try { const s = JSON.parse(localStorage.getItem('ff_prices') || 'null'); if (s && s.date) return new Date(s.date); } catch (e) {}
+    return null;
+  });
   const savedTradesRef = React.useRef([]);
 
+  // Daily-close prices via the FinFolio price Worker (sends only stock codes).
+  // Shows cached prices instantly; this refreshes in the background / on demand.
+  // If the service is unset or unreachable, holdings fall back to the
+  // transaction price (see computeHoldings).
   const fetchLivePrices = React.useCallback(async () => {
     const codes = [...new Set(
       savedTradesRef.current.filter((t) => t.code).map((t) => t.code)
     )];
     if (!codes.length) return;
-    const map = {};
-
-    // 1️⃣ TWSE MIS 即時報價（盤中）
+    const base = window.FF_PRICE_API;
+    if (!base) return; // price service not configured yet
     try {
-      const exCh = codes.flatMap((c) => [`tse_${c}.tw`, `otc_${c}.tw`]).join('|');
-      const res = await fetch(
-        `https://mis.twse.com.tw/stock/api/getStockInfo.asp?ex_ch=${exCh}&json=1&delay=0&_=${Date.now()}`
-      );
-      if (res.ok) {
-        const data = await res.json();
-        (data.msgArray || []).forEach((item) => {
-          if (!item.c) return;
-          const z = item.z && item.z !== '-' ? parseFloat(item.z) : NaN;
-          const price = isNaN(z) ? parseFloat(item.y || '') : z;
-          if (!isNaN(price) && price > 0) map[item.c] = price;
+      const res = await fetch(base + '/quotes?codes=' + encodeURIComponent(codes.join(',')));
+      if (!res.ok) return;
+      const data = await res.json();
+      if (data && data.fx && data.fx.USD) window.FX_RATES.USD = data.fx.USD;
+      if (data && data.prices && Object.keys(data.prices).length > 0) {
+        setLivePrices((prev) => {
+          const merged = { ...prev, ...data.prices };
+          try { localStorage.setItem('ff_prices', JSON.stringify({ prices: merged, fx: data.fx || {}, date: data.date || null })); } catch (e) {}
+          return merged;
         });
+        setPricesFetchedAt(data.date ? new Date(data.date) : new Date());
       }
-    } catch {}
-
-    if (Object.keys(map).length > 0) {
-      setLivePrices((prev) => ({ ...prev, ...map }));
-      setPricesFetchedAt(new Date());
-      return;
-    }
-
-    // 2️⃣ TWSE 每日收盤（上市）
-    try {
-      const codeSet = new Set(codes);
-      const res = await fetch('https://openapi.twse.com.tw/v1/exchangeReport/STOCK_DAY_ALL');
-      if (res.ok) {
-        const data = await res.json();
-        (Array.isArray(data) ? data : []).forEach((item) => {
-          if (!codeSet.has(item.Code)) return;
-          const p = parseFloat((item.ClosingPrice || '').replace(/,/g, ''));
-          if (!isNaN(p) && p > 0) map[item.Code] = p;
-        });
-      }
-    } catch {}
-
-    // 3️⃣ TPEX 每日收盤（上櫃）
-    try {
-      const codeSet = new Set(codes.filter((c) => !map[c]));
-      if (codeSet.size > 0) {
-        const res = await fetch('https://www.tpex.org.tw/openapi/v1/tpex_mainboard_daily_close_quotes');
-        if (res.ok) {
-          const data = await res.json();
-          (Array.isArray(data) ? data : []).forEach((item) => {
-            const code = item.SecuritiesCompanyCode;
-            if (!codeSet.has(code)) return;
-            const p = parseFloat((item.Close || item.ClosingPrice || '').replace(/,/g, ''));
-            if (!isNaN(p) && p > 0) map[code] = p;
-          });
-        }
-      }
-    } catch {}
-
-    if (Object.keys(map).length > 0) {
-      setLivePrices((prev) => ({ ...prev, ...map }));
-      setPricesFetchedAt(new Date());
-    }
+    } catch (e) { /* offline / blocked — keep cached prices */ }
   }, []);
 
   const [recordOpen, setRecordOpen] = useStateApp(false);
