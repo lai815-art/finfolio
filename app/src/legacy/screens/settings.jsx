@@ -141,6 +141,7 @@ function SettingsScreen({ masterData, setMasterData, dashWidget, setDashWidget, 
   const setData = setMasterData;
   const [sheet, setSheet] = useStateSet(null);
   const [notice, setNotice] = useStateSet(null);
+  const [backupOpen, setBackupOpen] = useStateSet(false);
   React.useEffect(() => {
     if (!notice) return;
     const t = setTimeout(() => setNotice(null), 4000);
@@ -364,7 +365,8 @@ function SettingsScreen({ masterData, setMasterData, dashWidget, setDashWidget, 
         value={autoBackup} onChange={setAutoBackup} />
         <Divider />
         <Row icon={<Key size={18} />} iconColor={TOKENS.red}
-        label="匯出加密備份檔" sub="可存至 iCloud / Google Drive" chevron />
+        label="加密備份 / 還原" sub="匯出或從備份檔還原 · 跨裝置"
+        onClick={() => setBackupOpen(true)} chevron />
       </Section>
 
       {/* About */}
@@ -383,6 +385,9 @@ function SettingsScreen({ masterData, setMasterData, dashWidget, setDashWidget, 
       savedFlows={savedFlows} savedTrades={savedTrades}
       setSavedFlows={setSavedFlows} setSavedTrades={setSavedTrades}
       onBlocked={setNotice} />
+
+      {/* Encrypted backup / restore sheet */}
+      <BackupSheet open={backupOpen} onClose={() => setBackupOpen(false)} />
 
       {/* 主檔刪除阻擋提示 */}
       {notice &&
@@ -403,11 +408,11 @@ function Divider() {
   return <div style={{ height: 1, background: 'rgba(0,0,0,0.12)', marginLeft: SP(64) }} />;
 }
 
-function Row({ icon, iconColor, label, sub, detail, chevron }) {
+function Row({ icon, iconColor, label, sub, detail, chevron, onClick }) {
   const { ChevronRight } = window.Icons;
   const ic = iconColor || TOKENS.gray3;
   return (
-    <button style={{
+    <button onClick={onClick} style={{
       width: '100%', minHeight: 64, padding: PAD('14px 16px'),
       background: 'transparent', border: 'none', color: TOKENS.ink,
       display: 'flex', alignItems: 'center', gap: SP(14), textAlign: 'left'
@@ -1848,6 +1853,171 @@ function AppearanceSheet({ open, onClose }) {
       </div>
     </div>);
 
+}
+
+/* ===================== Encrypted backup / restore ===================== */
+function _b64(buf) {
+  const a = new Uint8Array(buf);
+  let s = '';
+  for (let i = 0; i < a.length; i++) s += String.fromCharCode(a[i]);
+  return btoa(s);
+}
+function _ub64(str) {
+  const bin = atob(str);
+  const a = new Uint8Array(bin.length);
+  for (let i = 0; i < bin.length; i++) a[i] = bin.charCodeAt(i);
+  return a;
+}
+async function _deriveKey(pass, salt) {
+  const km = await crypto.subtle.importKey('raw', new TextEncoder().encode(pass), 'PBKDF2', false, ['deriveKey']);
+  return crypto.subtle.deriveKey(
+    { name: 'PBKDF2', salt, iterations: 150000, hash: 'SHA-256' },
+    km, { name: 'AES-GCM', length: 256 }, false, ['encrypt', 'decrypt']);
+}
+async function ffExportBackup(pass) {
+  const data = {};
+  for (let i = 0; i < localStorage.length; i++) {
+    const k = localStorage.key(i);
+    if (k && k.indexOf('ff_') === 0) data[k] = localStorage.getItem(k);
+  }
+  const pt = new TextEncoder().encode(JSON.stringify(data));
+  const salt = crypto.getRandomValues(new Uint8Array(16));
+  const iv = crypto.getRandomValues(new Uint8Array(12));
+  const key = await _deriveKey(pass, salt);
+  const ct = await crypto.subtle.encrypt({ name: 'AES-GCM', iv }, key, pt);
+  const blob = { v: 1, app: 'finfolio', ts: new Date().toISOString(), salt: _b64(salt), iv: _b64(iv), data: _b64(ct) };
+  const f = new Blob([JSON.stringify(blob)], { type: 'application/octet-stream' });
+  const url = URL.createObjectURL(f);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `finfolio-backup-${new Date().toISOString().slice(0, 10)}.finfolio`;
+  document.body.appendChild(a); a.click(); a.remove();
+  URL.revokeObjectURL(url);
+}
+async function ffImportBackup(text, pass) {
+  const blob = JSON.parse(text);
+  if (!blob || blob.app !== 'finfolio' || !blob.data) throw new Error('檔案格式不符');
+  const key = await _deriveKey(pass, _ub64(blob.salt));
+  const ptBuf = await crypto.subtle.decrypt({ name: 'AES-GCM', iv: _ub64(blob.iv) }, key, _ub64(blob.data));
+  const data = JSON.parse(new TextDecoder().decode(ptBuf));
+  Object.keys(data).forEach((k) => { if (k.indexOf('ff_') === 0) localStorage.setItem(k, data[k]); });
+}
+
+function BackupSheet({ open, onClose }) {
+  const { X, Lock, Key, Shield } = window.Icons;
+  const [shown, setShown] = useStateSet(false);
+  const [pass, setPass] = useStateSet('');
+  const [fileText, setFileText] = useStateSet(null);
+  const [fileName, setFileName] = useStateSet('');
+  const [status, setStatus] = useStateSet(null); // {type:'ok'|'err', msg}
+  const [busy, setBusy] = useStateSet(false);
+  const fileRef = React.useRef(null);
+
+  React.useEffect(() => {
+    if (open) { const t = setTimeout(() => setShown(true), 20); return () => clearTimeout(t); }
+    setShown(false); setPass(''); setFileText(null); setFileName(''); setStatus(null); setBusy(false);
+  }, [open]);
+
+  if (!open) return null;
+
+  const doExport = async () => {
+    if (pass.length < 4) { setStatus({ type: 'err', msg: '請設定至少 4 個字的密碼' }); return; }
+    setBusy(true); setStatus(null);
+    try { await ffExportBackup(pass); setStatus({ type: 'ok', msg: '已匯出備份檔。請妥善保存「檔案」與「密碼」，還原時兩者缺一不可。' }); }
+    catch (e) { setStatus({ type: 'err', msg: '匯出失敗：' + e.message }); }
+    setBusy(false);
+  };
+  const onPickFile = (e) => {
+    const f = e.target.files && e.target.files[0];
+    if (!f) return;
+    const r = new FileReader();
+    r.onload = () => { setFileText(String(r.result)); setFileName(f.name); setStatus(null); };
+    r.readAsText(f);
+  };
+  const doImport = async () => {
+    if (!fileText) { setStatus({ type: 'err', msg: '請先選擇備份檔' }); return; }
+    if (pass.length < 4) { setStatus({ type: 'err', msg: '請輸入備份時設定的密碼' }); return; }
+    setBusy(true); setStatus(null);
+    try {
+      await ffImportBackup(fileText, pass);
+      setStatus({ type: 'ok', msg: '還原成功，即將重新載入…' });
+      setTimeout(() => location.reload(), 900);
+    } catch (e) {
+      setStatus({ type: 'err', msg: '還原失敗：密碼錯誤或檔案損毀。' });
+      setBusy(false);
+    }
+  };
+
+  const btn = (bg, color) => ({
+    width: '100%', minHeight: 50, borderRadius: RS(14), border: 'none',
+    background: bg, color, fontSize: FS(17), fontWeight: 600,
+    display: 'flex', alignItems: 'center', justifyContent: 'center', gap: SP(8),
+    opacity: busy ? 0.6 : 1,
+  });
+
+  return (
+    <div style={{ position: 'absolute', inset: 0, zIndex: 70, background: shown ? 'rgba(0,0,0,0.55)' : 'rgba(0,0,0,0)', transition: 'background 220ms ease-out', display: 'flex', alignItems: 'flex-end' }} onClick={onClose}>
+      <div onClick={(e) => e.stopPropagation()} style={{ width: '100%', maxHeight: '90%', background: TOKENS.bg, borderTopLeftRadius: 30, borderTopRightRadius: 30, transform: shown ? 'translateY(0)' : 'translateY(100%)', transition: 'transform 280ms cubic-bezier(0.32,0.72,0.18,1)', boxShadow: SH('0 -20px 40px rgba(0,0,0,0.5)'), display: 'flex', flexDirection: 'column' }}>
+        <div style={{ display: 'flex', justifyContent: 'center', padding: PAD('10px 0 4px') }}>
+          <div style={{ width: 40, height: 4, borderRadius: RS(8), background: 'rgba(0,0,0,0.38)' }} />
+        </div>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: PAD('8px 18px 14px') }}>
+          <div>
+            <div style={{ fontSize: FS(20), fontWeight: 700, color: TOKENS.ink, display: 'flex', alignItems: 'center', gap: SP(8) }}><Lock size={18} /> 加密備份 / 還原</div>
+            <div style={{ fontSize: FS(16), color: 'rgba(60,60,67,0.5)', marginTop: SP(2) }}>資料只存在你的裝置；備份檔以密碼加密</div>
+          </div>
+          <button onClick={onClose} style={{ width: 36, height: 36, borderRadius: RS(18), background: 'rgba(0,0,0,0.14)', border: 'none', color: 'rgba(60,60,67,0.7)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}><X size={18} /></button>
+        </div>
+
+        <div style={{ flex: 1, overflowY: 'auto', overflowX: 'hidden', padding: PAD('0 18px 28px') }}>
+          {/* passphrase */}
+          <div style={{ fontSize: FS(16), color: 'rgba(60,60,67,0.6)', marginBottom: SP(6) }}>備份密碼</div>
+          <input type="password" value={pass} onChange={(e) => setPass(e.target.value)} placeholder="設定/輸入密碼（至少 4 字）"
+            style={{ width: '100%', height: 50, padding: PAD('0 14px'), borderRadius: RS(14), background: TOKENS.surface, border: '1px solid rgba(0,0,0,0.14)', color: TOKENS.ink, fontSize: FS(17), outline: 'none', boxSizing: 'border-box' }} />
+
+          {/* export */}
+          <div style={{ marginTop: SP(16) }}>
+            <button disabled={busy} onClick={doExport} style={btn('linear-gradient(135deg, ' + TOKENS.accentLight + ', ' + TOKENS.accent + ')', '#fff')}>
+              <Shield size={18} /> 加密匯出備份檔
+            </button>
+            <div style={{ fontSize: FS(14), color: 'rgba(60,60,67,0.5)', marginTop: SP(6), lineHeight: 1.5 }}>
+              匯出一個 .finfolio 檔，可存到 iCloud / Google Drive / 其他裝置。
+            </div>
+          </div>
+
+          {/* divider */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: SP(10), margin: PAD('20px 0') }}>
+            <div style={{ flex: 1, height: 1, background: 'rgba(0,0,0,0.12)' }} />
+            <span style={{ fontSize: FS(14), color: 'rgba(60,60,67,0.4)' }}>或從備份還原</span>
+            <div style={{ flex: 1, height: 1, background: 'rgba(0,0,0,0.12)' }} />
+          </div>
+
+          {/* import */}
+          <input ref={fileRef} type="file" accept=".finfolio,application/json,application/octet-stream" onChange={onPickFile} style={{ display: 'none' }} />
+          <button disabled={busy} onClick={() => fileRef.current && fileRef.current.click()} style={btn(TOKENS.surface, TOKENS.ink)}>
+            <Key size={18} /> {fileName ? '已選：' + fileName : '選擇備份檔'}
+          </button>
+          {fileText && (
+            <button disabled={busy} onClick={doImport} style={{ ...btn('linear-gradient(135deg, ' + TOKENS.green2 + ', ' + TOKENS.greenDark + ')', '#fff'), marginTop: SP(10) }}>
+              還原此備份（會覆蓋目前資料）
+            </button>
+          )}
+
+          {status && (
+            <div style={{ marginTop: SP(16), padding: PAD('12px 14px'), borderRadius: RS(14), fontSize: FS(15), lineHeight: 1.5,
+              background: status.type === 'ok' ? 'rgba(110,155,106,0.12)' : 'rgba(184,92,74,0.10)',
+              border: '1px solid ' + (status.type === 'ok' ? 'rgba(110,155,106,0.3)' : 'rgba(184,92,74,0.3)'),
+              color: status.type === 'ok' ? TOKENS.greenDark : TOKENS.red }}>
+              {status.msg}
+            </div>
+          )}
+
+          <div style={{ marginTop: SP(16), fontSize: FS(14), color: 'rgba(60,60,67,0.45)', lineHeight: 1.6 }}>
+            ⚠️ 密碼用於加密，<b>忘記密碼將無法還原</b>。備份檔不含密碼，請分開保存。
+          </div>
+        </div>
+      </div>
+    </div>);
 }
 
 window.SettingsScreen = SettingsScreen;
