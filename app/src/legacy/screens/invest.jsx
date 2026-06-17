@@ -644,7 +644,7 @@ function InvestBreakdownSheet({ open, onClose, computedHoldings = [], masterData
               const sign = f.kind === 'inc' ? 1 : -1;
               if (mer === '投資獲利') byYear[y].pnl += f.amount;else
               if (mer === '投資損失') byYear[y].pnl -= f.amount;else
-              if (/股息|配息/.test(cat + mer + note)) byYear[y].div += sign * f.amount;else
+              if (/股息|股利|配息/.test(cat + mer + note)) byYear[y].div += sign * f.amount;else
               if (/債息|利息|coupon/.test(cat + mer + note)) byYear[y].bond += sign * f.amount;
             });
 

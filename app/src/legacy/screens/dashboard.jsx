@@ -64,7 +64,7 @@ const INC_TEMPLATES = [
 { icon: '💼', cat: '薪資', merchant: '公司轉帳', account: '主要存款帳戶', range: [52000, 52000] },
 { icon: '💰', cat: '獎金', merchant: '績效獎金', account: '主要存款帳戶', range: [8000, 18000] },
 { icon: '🎁', cat: '紅利', merchant: '信用卡回饋', account: '信用卡 A', range: [240, 580] },
-{ icon: '📈', cat: '股利', merchant: '股票股利', account: '券商交割戶', range: [1800, 5200] }];
+{ icon: '📈', cat: '股息', merchant: '股息', account: '券商交割戶', range: [1800, 5200] }];
 
 const XFER_TEMPLATES = [
 { icon: '↔', cat: '轉帳', merchant: '至證券交割戶', account: '主要 → 證券', range: [20000, 80000] },
@@ -274,7 +274,7 @@ const FLOW_CAT_ICON = {
   '交通': 'Car', '生活雜貨': 'ShoppingBag', '購物': 'ShoppingBag', '娛樂': 'Film', '醫療': 'Pill',
   '住房': 'Home', '教育': 'BookOpen', '投資損失': 'TrendDown',
   '薪資': 'Briefcase', '加班費': 'Briefcase', '獎金': 'Gift', '紅利': 'Gift', '紅利回饋': 'Gift',
-  '發票中獎': 'Gift', '退稅': 'Gift', '股利': 'TrendUp', '投資收入': 'TrendUp',
+  '發票中獎': 'Gift', '退稅': 'Gift', '股利': 'TrendUp', '股息': 'TrendUp', '投資收入': 'TrendUp',
   '利息': 'Banknote', '租金': 'Home', '轉帳': 'ArrowRight'
 };
 function flowIconName(t) {

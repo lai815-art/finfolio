@@ -71,7 +71,7 @@ const DEFAULT_DATA = {
   { name: '薪資', group: '主動' },
   { name: '獎金', group: '主動' },
   { name: '加班費', group: '主動' },
-  { name: '股利', group: '被動' },
+  { name: '股息', group: '被動' },
   { name: '利息', group: '被動' },
   { name: '租金', group: '被動' },
   { name: '紅利回饋', group: '被動' },
