@@ -42,11 +42,6 @@ function HoldingCard({ item, color, mask, onOpen }) {
           <span style={{ ...{ fontFamily: TOKENS.fontMono, fontSize: FS(16), color: 'rgba(44,44,50,0.88)', whiteSpace: 'nowrap', flexShrink: 0 }, fontSize: "15px" }}>
             {item.qty.toLocaleString()} 股
           </span>
-          <span style={{ fontSize: FS(16), padding: PAD('1px 6px'), borderRadius: RS(5),
-            background: 'rgba(0,0,0,0.08)', color: 'rgba(44,44,50,0.84)', whiteSpace: 'nowrap', flexShrink: 0,
-            overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: 96 }}>
-            {item.assetClass || item.broker}
-          </span>
         </div>
       </div>
 
