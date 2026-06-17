@@ -175,7 +175,7 @@ function VoicePrefillBanner({ draft }) {
         <div style={{
           marginTop: SP(10), padding: PAD('8px 12px'), borderRadius: RS(10),
           background: 'rgba(0,0,0,0.05)', display: 'flex', alignItems: 'flex-start', gap: SP(6),
-          fontSize: FS(18), color: 'rgba(60,60,67,0.7)', lineHeight: 1.4
+          fontSize: FS(18), color: 'rgba(44,44,50,0.7)', lineHeight: 1.4
         }}>
           <Volume size={13} style={{ color: TOKENS.green, flexShrink: 0, marginTop: SP(2) }} />
           <span>「{draft.text}」</span>
@@ -242,7 +242,7 @@ function UnifiedVoice({ state, text, result, onStart, onReset }) {
             {state === 'listening' && '正在聆聽…'}
             {state === 'done' && '✓ 已自動填入'}
           </div>
-          <div style={{ marginTop: SP(2), fontSize: FS(18), color: 'rgba(60,60,67,0.5)' }}>
+          <div style={{ marginTop: SP(2), fontSize: FS(18), color: 'rgba(44,44,50,0.5)' }}>
             支援 收支 / 轉帳 / 股票買賣 / 債券
           </div>
         </div>
@@ -283,7 +283,7 @@ function UnifiedVoice({ state, text, result, onStart, onReset }) {
           background: 'rgba(0,0,0,0.12)', color: TOKENS.ink,
           fontFamily: TOKENS.fontMono
         }}>
-              <span style={{ color: 'rgba(60,60,67,0.5)' }}>{k}</span> {v}
+              <span style={{ color: 'rgba(44,44,50,0.5)' }}>{k}</span> {v}
             </span>
         )}
         </div>
@@ -344,14 +344,14 @@ function DropField({ label, value, options, onChange, icon }) {
         background: TOKENS.surface, border: open ? '1px solid rgba(0,0,0,0.30)' : '1px solid rgba(0,0,0,0.12)',
         color: TOKENS.ink, display: 'flex', alignItems: 'center', gap: SP(10), textAlign: 'left', height: "60px"
       }}>
-        {icon && <span style={{ color: 'rgba(60,60,67,0.5)', flexShrink: 0 }}>{icon}</span>}
+        {icon && <span style={{ color: 'rgba(44,44,50,0.5)', flexShrink: 0 }}>{icon}</span>}
         <div style={{ flex: 1, minWidth: 0 }}>
-          <div style={{ ...{ fontSize: FS(18), color: 'rgba(60,60,67,0.5)', letterSpacing: 0.5,
+          <div style={{ ...{ fontSize: FS(18), color: 'rgba(44,44,50,0.5)', letterSpacing: 0.5,
               textTransform: 'uppercase' }, fontSize: "15px" }}>{label}</div>
           <div style={{ marginTop: SP(1), fontSize: FS(20), fontWeight: 500,
             overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{value}</div>
         </div>
-        <ChevronDown size={16} style={{ color: 'rgba(60,60,67,0.5)', flexShrink: 0,
+        <ChevronDown size={16} style={{ color: 'rgba(44,44,50,0.5)', flexShrink: 0,
           transition: 'transform 200ms', transform: open ? 'rotate(180deg)' : 'none' }} />
       </button>
       {open &&
@@ -385,7 +385,7 @@ function SectionLabel({ children, action }) {
   return (
     <div style={{ marginTop: SP(16), marginBottom: SP(8), padding: PAD('0 4px'),
       display: 'flex', justifyContent: 'space-between', alignItems: 'baseline' }}>
-      <div style={{ ...{ fontSize: FS(14), color: 'rgba(0,0,0,0.45)', fontWeight: 600, letterSpacing: 1.2,
+      <div style={{ ...{ fontSize: FS(14), color: 'rgba(0,0,0,0.62)', fontWeight: 600, letterSpacing: 1.2,
           textTransform: 'uppercase', borderLeft: `3px solid ${TOKENS.accent}`,
           paddingLeft: SP(6), lineHeight: 1 }, fontSize: "14px" }}>{children}</div>
       {action}
@@ -720,7 +720,7 @@ function StockForm({ state, update, onSaved, onDelete, recordId, masterData, com
         border: '1px solid rgba(0,0,0,0.20)',
         display: 'flex', alignItems: 'center', gap: SP(10)
       }}>
-        <Search size={18} style={{ color: 'rgba(60,60,67,0.5)', flexShrink: 0 }} />
+        <Search size={18} style={{ color: 'rgba(44,44,50,0.5)', flexShrink: 0 }} />
         <input value={state.code} onChange={(e) => update({ code: e.target.value.toUpperCase(), name: '' })}
         onFocus={() => state.side === 'sell' && allHoldings.length > 0 && setShowHoldings(true)}
         onBlur={() => setTimeout(() => setShowHoldings(false), 200)}
@@ -733,7 +733,7 @@ function StockForm({ state, update, onSaved, onDelete, recordId, masterData, com
         placeholder="或股票名稱"
         style={{
           flex: 1, minWidth: 0, background: 'transparent', border: 'none', outline: 'none',
-          fontSize: FS(20), color: 'rgba(60,60,67,0.85)',
+          fontSize: FS(20), color: 'rgba(44,44,50,0.85)',
           paddingTop: SP(4), paddingBottom: SP(4)
         }} />
       </div>
@@ -756,9 +756,9 @@ function StockForm({ state, update, onSaved, onDelete, recordId, masterData, com
                 <div style={{ fontSize: FS(18), fontWeight: 500, color: TOKENS.ink,
               display: 'flex', alignItems: 'baseline', gap: SP(6) }}>
                   <span style={{ fontFamily: TOKENS.fontMono }}>{h.code}</span>
-                  <span style={{ color: 'rgba(60,60,67,0.88)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{h.name}</span>
+                  <span style={{ color: 'rgba(44,44,50,0.88)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{h.name}</span>
                 </div>
-                <div style={{ fontSize: FS(16), color: 'rgba(60,60,67,0.88)', marginTop: SP(1), fontFamily: TOKENS.fontMono }}>
+                <div style={{ fontSize: FS(16), color: 'rgba(44,44,50,0.88)', marginTop: SP(1), fontFamily: TOKENS.fontMono }}>
                   {h.qty.toLocaleString()} 股 · 均價 {h.avg.toLocaleString()}
                 </div>
               </div>
@@ -784,7 +784,7 @@ function StockForm({ state, update, onSaved, onDelete, recordId, masterData, com
             fontWeight: 600, width: 64 }}>{s.code}</span>
               <span style={{ flex: 1, fontSize: FS(19) }}>{s.name}</span>
               <span style={{ fontSize: FS(18), padding: PAD('2px 8px'), borderRadius: RS(5),
-            background: 'rgba(0,0,0,0.12)', color: 'rgba(60,60,67,0.6)' }}>
+            background: 'rgba(0,0,0,0.12)', color: 'rgba(44,44,50,0.6)' }}>
                 {s.class}
               </span>
               <span style={{ fontFamily: TOKENS.fontMono, fontSize: FS(18),
@@ -805,7 +805,7 @@ function StockForm({ state, update, onSaved, onDelete, recordId, masterData, com
             padding: PAD('12px 14px'), borderRadius: RS(18),
             background: TOKENS.surface, border: '1px solid rgba(0,0,0,0.20)'
           }, padding: "6px 14px 10px", height: "70px" }}>
-            <div style={{ fontSize: FS(18), color: 'rgba(60,60,67,0.5)', letterSpacing: 0.5,
+            <div style={{ fontSize: FS(18), color: 'rgba(44,44,50,0.5)', letterSpacing: 0.5,
             textTransform: 'uppercase' }}>{f.label}</div>
             <input value={state[f.k]} onChange={(e) => update({ [f.k]: e.target.value })}
           placeholder={f.placeholder} inputMode={f.inputMode}
@@ -822,7 +822,7 @@ function StockForm({ state, update, onSaved, onDelete, recordId, masterData, com
         <button key={n} onClick={() => update({ shares: String(n) })} style={{ ...{
             flex: 1, height: 40, borderRadius: RS(8),
             background: 'rgba(0,0,0,0.12)', border: '1px solid rgba(0,0,0,0.14)',
-            color: 'rgba(60,60,67,0.7)', fontFamily: TOKENS.fontMono,
+            color: 'rgba(44,44,50,0.7)', fontFamily: TOKENS.fontMono,
             fontSize: FS(18), fontWeight: 500
           }, fontSize: "17px" }}>{n.toLocaleString()} 股</button>
         )}
@@ -834,14 +834,14 @@ function StockForm({ state, update, onSaved, onDelete, recordId, masterData, com
         background: `${accent}10`, border: `1px solid ${accent}30`
       }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: FS(18),
-          color: 'rgba(60,60,67,0.6)' }}>
+          color: 'rgba(44,44,50,0.6)' }}>
           <span>成交金額</span>
           <span style={{ fontFamily: TOKENS.fontMono, color: TOKENS.ink }}>
             {gross.toLocaleString(undefined, { maximumFractionDigits: 0 })}
           </span>
         </div>
         <div style={{ marginTop: SP(4), display: 'flex', justifyContent: 'space-between', fontSize: FS(18),
-          color: 'rgba(60,60,67,0.6)' }}>
+          color: 'rgba(44,44,50,0.6)' }}>
           <span>手續費 0.1425%</span>
           <span style={{ fontFamily: TOKENS.fontMono, color: TOKENS.ink }}>
             {fee.toLocaleString()}
@@ -849,7 +849,7 @@ function StockForm({ state, update, onSaved, onDelete, recordId, masterData, com
         </div>
         {state.side === 'sell' &&
         <div style={{ marginTop: SP(4), display: 'flex', justifyContent: 'space-between', fontSize: FS(18),
-          color: 'rgba(60,60,67,0.6)' }}>
+          color: 'rgba(44,44,50,0.6)' }}>
             <span>證交稅 0.3%</span>
             <span style={{ fontFamily: TOKENS.fontMono, color: TOKENS.ink }}>
               {tax.toLocaleString()}

@@ -195,7 +195,7 @@ function SettingsScreen({ masterData, setMasterData, dashWidget, setDashWidget, 
               <button onClick={() => setEditing(false)} style={{
               width: 32, height: 32, borderRadius: RS(8), flexShrink: 0,
               background: 'rgba(0,0,0,0.10)', border: '1px solid rgba(0,0,0,0.12)',
-              color: 'rgba(60,60,67,0.88)',
+              color: 'rgba(44,44,50,0.88)',
               display: 'flex', alignItems: 'center', justifyContent: 'center'
             }}><X size={14} /></button>
             </div> :
@@ -208,7 +208,7 @@ function SettingsScreen({ masterData, setMasterData, dashWidget, setDashWidget, 
               color: value > 0 ? TOKENS.ink : 'rgba(60,60,67,0.35)' }}>
                 {value !== undefined && value !== 0 ? `${Math.round(value).toLocaleString()}` : '未設定'}
               </span>
-              <Pencil size={13} style={{ color: 'rgba(60,60,67,0.30)' }} />
+              <Pencil size={13} style={{ color: 'rgba(44,44,50,0.30)' }} />
             </button>
           }
         </div>
@@ -304,10 +304,10 @@ function SettingsScreen({ masterData, setMasterData, dashWidget, setDashWidget, 
                 display: 'flex', alignItems: 'center', justifyContent: 'center'
               }, borderRadius: "20px" }}><Sparkles size={18} /></div>
             <div style={{ flex: 1, minWidth: 0 }}>
-              <div style={{ fontSize: FS(18), color: 'rgba(60,60,67,0.5)' }}>對話與分析使用</div>
+              <div style={{ fontSize: FS(18), color: 'rgba(44,44,50,0.5)' }}>對話與分析使用</div>
               <div style={{ marginTop: SP(1), fontSize: FS(20), fontWeight: 600 }}>{activeModel.name}</div>
             </div>
-            <ChevronDown size={18} style={{ color: 'rgba(60,60,67,0.4)',
+            <ChevronDown size={18} style={{ color: 'rgba(44,44,50,0.4)',
               transition: 'transform 200ms', transform: modelOpen ? 'rotate(180deg)' : 'none' }} />
           </button>
           {modelOpen &&
@@ -375,7 +375,7 @@ function SettingsScreen({ masterData, setMasterData, dashWidget, setDashWidget, 
       </Section>
 
       <div style={{ textAlign: 'center', marginTop: SP(28), fontSize: FS(18),
-        color: 'rgba(60,60,67,0.3)', letterSpacing: 1, fontFamily: TOKENS.fontMono }}>
+        color: 'rgba(44,44,50,0.3)', letterSpacing: 1, fontFamily: TOKENS.fontMono }}>
         FINFOLIO · LOCAL-FIRST · 2026
       </div>
 
@@ -424,11 +424,11 @@ function Row({ icon, iconColor, label, sub, detail, chevron, onClick }) {
         }, borderRadius: "20px" }}>{icon}</div>
       <div style={{ flex: 1, minWidth: 0 }}>
         <div style={{ fontSize: FS(20), fontWeight: 500 }}>{label}</div>
-        {sub && <div style={{ fontSize: FS(15), color: 'rgba(0,0,0,0.55)', marginTop: SP(2) }}>{sub}</div>}
+        {sub && <div style={{ fontSize: FS(15), color: 'rgba(0,0,0,0.68)', marginTop: SP(2) }}>{sub}</div>}
       </div>
       {detail && <span style={{ fontSize: FS(18), color: 'rgba(0,0,0,0.90)', marginRight: SP(4),
         fontFamily: TOKENS.fontMono, flexShrink: 0, whiteSpace: 'nowrap' }}>{detail}</span>}
-      {chevron && <ChevronRight size={18} style={{ color: 'rgba(60,60,67,0.4)', flexShrink: 0 }} />}
+      {chevron && <ChevronRight size={18} style={{ color: 'rgba(44,44,50,0.4)', flexShrink: 0 }} />}
     </button>);
 }
 
@@ -448,13 +448,13 @@ function ManageRow({ icon, color, label, sub, count, onClick }) {
         }, borderRadius: "20px" }}>{icon}</div>
       <div style={{ flex: 1, minWidth: 0 }}>
         <div style={{ fontSize: FS(20), fontWeight: 500 }}>{label}</div>
-        <div style={{ fontSize: FS(15), color: 'rgba(0,0,0,0.55)', marginTop: SP(2) }}>{sub}</div>
+        <div style={{ fontSize: FS(15), color: 'rgba(0,0,0,0.68)', marginTop: SP(2) }}>{sub}</div>
       </div>
       <span style={{
         padding: PAD('3px 10px'), borderRadius: RS(8), fontSize: FS(18), fontWeight: 600,
         background: `${ic}14`, color: ic, fontFamily: TOKENS.fontMono
       }}>{count}</span>
-      <ChevronRight size={18} style={{ color: 'rgba(60,60,67,0.4)', flexShrink: 0 }} />
+      <ChevronRight size={18} style={{ color: 'rgba(44,44,50,0.4)', flexShrink: 0 }} />
     </button>);
 }
 
@@ -472,7 +472,7 @@ function ToggleRow({ icon, iconColor, label, sub, value, onChange }) {
         }, borderRadius: "20px" }}>{icon}</div>
       <div style={{ flex: 1, minWidth: 0 }}>
         <div style={{ fontSize: FS(20), fontWeight: 500 }}>{label}</div>
-        {sub && <div style={{ fontSize: FS(15), color: 'rgba(0,0,0,0.55)', marginTop: SP(2) }}>{sub}</div>}
+        {sub && <div style={{ fontSize: FS(15), color: 'rgba(0,0,0,0.68)', marginTop: SP(2) }}>{sub}</div>}
       </div>
       <button onClick={() => onChange(!value)} style={{
         width: 52, height: 32, borderRadius: RS(18), flexShrink: 0,
@@ -542,7 +542,7 @@ function AIKeyManager({ keys = [], onChange }) {
       <div style={{ display: 'flex', gap: SP(8) }}>
         <button onClick={onCancel} style={{ flex: 1, height: 36, borderRadius: RS(10),
         background: 'rgba(0,0,0,0.08)', border: '1px solid rgba(0,0,0,0.10)',
-        color: 'rgba(60,60,67,0.88)', fontSize: FS(17) }}>取消</button>
+        color: 'rgba(44,44,50,0.88)', fontSize: FS(17) }}>取消</button>
         <button onClick={onSave} style={{ flex: 2, height: 36, borderRadius: RS(10),
         background: 'linear-gradient(135deg,' + (v.color || TOKENS.ink2) + 'dd,' + (v.color || TOKENS.ink2) + ')',
         border: 'none', color: TOKENS.surface, fontSize: FS(17), fontWeight: 600,
@@ -568,7 +568,7 @@ function AIKeyManager({ keys = [], onChange }) {
                 </div>
                 <div style={{ flex: 1, minWidth: 0 }}>
                   <div style={{ fontSize: FS(19), fontWeight: 500, color: TOKENS.ink }}>{k.name}</div>
-                  <div style={{ fontSize: FS(16), color: 'rgba(60,60,67,0.88)', marginTop: SP(1),
+                  <div style={{ fontSize: FS(16), color: 'rgba(44,44,50,0.88)', marginTop: SP(1),
               display: 'flex', alignItems: 'center', gap: SP(8), flexWrap: 'wrap' }}>
                     {k.sub && <span>{k.sub}</span>}
                     {k.key ?
@@ -647,7 +647,7 @@ function KeyRow({ icon, iconColor, label, sub, value, onChange, show, onToggle, 
         <button onClick={onToggle} style={{
           width: 44, height: 44, borderRadius: RS(8), flexShrink: 0,
           background: 'rgba(0,0,0,0.12)', border: '1px solid rgba(0,0,0,0.14)',
-          color: 'rgba(60,60,67,0.6)',
+          color: 'rgba(44,44,50,0.6)',
           display: 'flex', alignItems: 'center', justifyContent: 'center'
         }}>{show ? <EyeOff size={18} /> : <Eye size={18} />}</button>
       </div>
@@ -759,12 +759,12 @@ function ManageSheet({ cfg, data, setData, onClose, initialBalances, setInitialB
         }}>
           <div>
             <div style={{ fontSize: FS(20), fontWeight: 700, color: TOKENS.ink }}>管理 · {cfg.title}</div>
-            <div style={{ fontSize: FS(18), color: 'rgba(60,60,67,0.5)', marginTop: SP(2) }}>新增、編輯或刪除項目</div>
+            <div style={{ fontSize: FS(18), color: 'rgba(44,44,50,0.5)', marginTop: SP(2) }}>新增、編輯或刪除項目</div>
           </div>
           <button onClick={onClose} style={{
             width: 36, height: 36, borderRadius: RS(18),
             background: 'rgba(0,0,0,0.14)', border: 'none',
-            color: 'rgba(60,60,67,0.7)',
+            color: 'rgba(44,44,50,0.7)',
             display: 'flex', alignItems: 'center', justifyContent: 'center'
           }}><X size={18} /></button>
         </div>
@@ -849,7 +849,7 @@ function IncomeGroupManager({ items, onChange, color, groups, groupColors, group
                       </button>
                       <button onClick={() => setEditing(null)} style={{ width: 34, height: 34, borderRadius: RS(8), flexShrink: 0,
                     background: 'rgba(0,0,0,0.08)', border: '1px solid rgba(0,0,0,0.12)',
-                    color: 'rgba(60,60,67,0.84)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                    color: 'rgba(44,44,50,0.84)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                         <X size={14} />
                       </button>
                     </div> :
@@ -870,7 +870,7 @@ function IncomeGroupManager({ items, onChange, color, groups, groupColors, group
                 </div>
               )}
               {gItems.length === 0 &&
-              <div style={{ padding: PAD('12px 14px'), fontSize: FS(17), color: 'rgba(60,60,67,0.35)' }}>尚無項目</div>
+              <div style={{ padding: PAD('12px 14px'), fontSize: FS(17), color: 'rgba(44,44,50,0.35)' }}>尚無項目</div>
               }
             </div>
             {adding === g ?
@@ -886,7 +886,7 @@ function IncomeGroupManager({ items, onChange, color, groups, groupColors, group
                 fontSize: FS(17), fontWeight: 600 }}>新增</button>
                 <button onClick={() => {setAdding(null);setAddVal('');}} style={{ height: 36, padding: PAD('0 14px'), flexShrink: 0,
                 borderRadius: RS(10), background: 'rgba(0,0,0,0.08)', border: '1px solid rgba(0,0,0,0.12)',
-                color: 'rgba(60,60,67,0.84)', fontSize: FS(17) }}>取消</button>
+                color: 'rgba(44,44,50,0.84)', fontSize: FS(17) }}>取消</button>
               </div> :
 
             <button onClick={() => {setAdding(g);setAddVal('');}} style={{
@@ -934,7 +934,7 @@ function AccountsTabsManager({ data, onChange, initialBalances, setInitialBalanc
         }}>{t.label}</button>
         )}
       </div>
-      <div style={{ fontSize: FS(16), color: 'rgba(60,60,67,0.62)', marginBottom: SP(12), paddingLeft: SP(4) }}>
+      <div style={{ fontSize: FS(16), color: 'rgba(44,44,50,0.62)', marginBottom: SP(12), paddingLeft: SP(4) }}>
         {hints[tab]}
       </div>
       {tab === 'accounts' &&
@@ -1057,7 +1057,7 @@ function StringListManager({ items, onChange, color, placeholder }) {
                 <button onClick={() => setEditingIdx(null)} style={{
               width: 36, height: 36, borderRadius: RS(8), flexShrink: 0,
               background: 'rgba(0,0,0,0.12)', border: '1px solid rgba(0,0,0,0.14)',
-              color: 'rgba(60,60,67,0.6)',
+              color: 'rgba(44,44,50,0.6)',
               display: 'flex', alignItems: 'center', justifyContent: 'center'
             }}><X size={16} /></button>
               </> :
@@ -1159,7 +1159,7 @@ function AccountsManager({ data, onChange, color, initialBalances, setInitialBal
                 background: overIdx === i && dragIdx !== i ? `${kc}0a` : 'transparent',
                 transition: 'opacity 120ms, background 120ms' }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: SP(10) }}>
-                    <div title="拖移排序" style={{ width: 20, flexShrink: 0, color: 'rgba(60,60,67,0.30)',
+                    <div title="拖移排序" style={{ width: 20, flexShrink: 0, color: 'rgba(44,44,50,0.30)',
                     cursor: editingIdx === i ? 'default' : 'grab',
                     display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                       <Grip size={16} />
@@ -1180,7 +1180,7 @@ function AccountsManager({ data, onChange, color, initialBalances, setInitialBal
                           <span style={{ fontSize: FS(19), fontWeight: 500, color: TOKENS.ink }}>{it.name}</span>
                           <CurrencyChip code={it.currency} />
                         </div>
-                        <div style={{ fontSize: FS(15), color: 'rgba(60,60,67,0.78)', fontFamily: 'JetBrains Mono,monospace' }}>
+                        <div style={{ fontSize: FS(15), color: 'rgba(44,44,50,0.78)', fontFamily: 'JetBrains Mono,monospace' }}>
                           {initialBalances[it.name] !== undefined && initialBalances[it.name] !== 0 ?
                       '初始 ' + Math.round(initialBalances[it.name]).toLocaleString() : '尚未設定初始餘額'}
                         </div>
@@ -1191,7 +1191,7 @@ function AccountsManager({ data, onChange, color, initialBalances, setInitialBal
                       background: `${kc}22`, border: `1px solid ${kc}55`, color: kc,
                       display: 'flex', alignItems: 'center', justifyContent: 'center' }}><Check size={15} strokeWidth={2.5} /></button>
                         <button onClick={() => setEditingIdx(null)} style={{ width: 34, height: 34, borderRadius: RS(8), flexShrink: 0,
-                      background: 'rgba(0,0,0,0.10)', border: '1px solid rgba(0,0,0,0.12)', color: 'rgba(60,60,67,0.7)',
+                      background: 'rgba(0,0,0,0.10)', border: '1px solid rgba(0,0,0,0.12)', color: 'rgba(44,44,50,0.7)',
                       display: 'flex', alignItems: 'center', justifyContent: 'center' }}><X size={15} /></button></> :
                   <button onClick={() => remove(i)} style={{ width: 30, height: 30, borderRadius: RS(7), flexShrink: 0,
                     background: 'rgba(216,135,112,0.10)', border: '1px solid rgba(216,135,112,0.22)', color: TOKENS.red,
@@ -1209,7 +1209,7 @@ function AccountsManager({ data, onChange, color, initialBalances, setInitialBal
                         <CurrencySelect value={edit.currency} onChange={(v) => setEdit({ ...edit, currency: v })} color={kc} style={{ flex: 1, minWidth: 0, height: 36 }} />
                       </div>
                       <div style={{ display: 'flex', alignItems: 'center', gap: SP(8) }}>
-                        <span style={{ fontSize: FS(16), color: 'rgba(60,60,67,0.84)', whiteSpace: 'nowrap', flexShrink: 0 }}>初始餘額</span>
+                        <span style={{ fontSize: FS(16), color: 'rgba(44,44,50,0.84)', whiteSpace: 'nowrap', flexShrink: 0 }}>初始餘額</span>
                         <input value={edit.initBal} onChange={(e) => setEdit({ ...edit, initBal: e.target.value })} inputMode="decimal" placeholder="0"
                     style={{ flex: 1, minWidth: 0, height: 34, padding: PAD('0 10px'), borderRadius: RS(8), background: 'rgba(0,0,0,0.06)',
                       border: `1px solid ${kc}40`, fontSize: FS(18), fontFamily: 'JetBrains Mono,monospace', color: TOKENS.ink, outline: 'none' }} />
@@ -1219,7 +1219,7 @@ function AccountsManager({ data, onChange, color, initialBalances, setInitialBal
                 </div>
               )}
               {rows.length === 0 &&
-              <div style={{ padding: PAD('12px 14px'), fontSize: FS(17), color: 'rgba(60,60,67,0.35)' }}>尚無帳戶</div>
+              <div style={{ padding: PAD('12px 14px'), fontSize: FS(17), color: 'rgba(44,44,50,0.35)' }}>尚無帳戶</div>
               }
             </div>
             {adding === kind ?
@@ -1230,14 +1230,14 @@ function AccountsManager({ data, onChange, color, initialBalances, setInitialBal
                 border: `1px solid ${kc}55`, fontSize: FS(19), color: TOKENS.ink, outline: 'none', marginBottom: SP(8) }} />
                 <div style={{ display: 'flex', alignItems: 'center', gap: SP(8), marginBottom: SP(8) }}>
                   <CurrencySelect value={addV.currency} onChange={(v) => setAddV({ ...addV, currency: v })} color={kc} style={{ width: 90, background: TOKENS.surface }} />
-                  <span style={{ fontSize: FS(16), color: 'rgba(60,60,67,0.84)', whiteSpace: 'nowrap' }}>初始餘額</span>
+                  <span style={{ fontSize: FS(16), color: 'rgba(44,44,50,0.84)', whiteSpace: 'nowrap' }}>初始餘額</span>
                   <input value={addV.initBal} onChange={(e) => setAddV({ ...addV, initBal: e.target.value })} inputMode="decimal" placeholder="0"
                 style={{ flex: 1, minWidth: 0, height: 34, padding: PAD('0 10px'), borderRadius: RS(8), background: TOKENS.surface,
                   border: `1px solid ${kc}40`, fontSize: FS(18), fontFamily: 'JetBrains Mono,monospace', color: TOKENS.ink, outline: 'none' }} />
                 </div>
                 <div style={{ display: 'flex', gap: SP(8) }}>
                   <button onClick={() => setAdding(null)} style={{ flex: 1, height: 36, borderRadius: RS(10),
-                  background: 'rgba(0,0,0,0.08)', border: '1px solid rgba(0,0,0,0.10)', color: 'rgba(60,60,67,0.88)', fontSize: FS(17) }}>取消</button>
+                  background: 'rgba(0,0,0,0.08)', border: '1px solid rgba(0,0,0,0.10)', color: 'rgba(44,44,50,0.88)', fontSize: FS(17) }}>取消</button>
                   <button onClick={addNew} style={{ flex: 2, height: 36, borderRadius: RS(10),
                   background: `linear-gradient(135deg,${kc}dd,${kc})`, border: 'none', color: TOKENS.surface,
                   fontSize: FS(17), fontWeight: 600 }}>新增</button>
@@ -1307,7 +1307,7 @@ function BrokerManager({ items, onChange, color, settleOptions = [] }) {
           opacity: dragIdx === i ? 0.4 : 1, transition: 'opacity 120ms'
         }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: SP(10) }}>
-              <div style={{ width: 22, flexShrink: 0, color: 'rgba(60,60,67,0.35)', cursor: editIdx === i ? 'default' : 'grab',
+              <div style={{ width: 22, flexShrink: 0, color: 'rgba(44,44,50,0.35)', cursor: editIdx === i ? 'default' : 'grab',
               display: 'flex', alignItems: 'center', justifyContent: 'center' }}><Grip size={18} /></div>
               <div style={{ width: 30, height: 30, borderRadius: RS(8), flexShrink: 0,
               background: `${color}22`, border: `1px solid ${color}40`, color,
@@ -1320,7 +1320,7 @@ function BrokerManager({ items, onChange, color, settleOptions = [] }) {
               color: TOKENS.ink, fontSize: FS(19), textAlign: 'left', padding: SP(0), display: 'flex', flexDirection: 'column', gap: SP(2) }}>
                     <span style={{ fontWeight: 500, display: 'flex', alignItems: 'center', gap: SP(6) }}>{it.name}<CurrencyChip code={it.currency} /></span>
                     {it.settleAccount &&
-              <span style={{ fontSize: FS(16), color: 'rgba(60,60,67,0.88)' }}>
+              <span style={{ fontSize: FS(16), color: 'rgba(44,44,50,0.88)' }}>
                         交割：{it.settleAccount}
                       </span>
               }
@@ -1331,7 +1331,7 @@ function BrokerManager({ items, onChange, color, settleOptions = [] }) {
                 background: `${color}22`, border: `1px solid ${color}55`, color,
                 display: 'flex', alignItems: 'center', justifyContent: 'center' }}><Check size={16} strokeWidth={2.5} /></button>
                     <button onClick={() => setEditIdx(null)} style={{ width: 36, height: 36, borderRadius: RS(8), flexShrink: 0,
-                background: 'rgba(0,0,0,0.12)', border: '1px solid rgba(0,0,0,0.14)', color: 'rgba(60,60,67,0.6)',
+                background: 'rgba(0,0,0,0.12)', border: '1px solid rgba(0,0,0,0.14)', color: 'rgba(44,44,50,0.6)',
                 display: 'flex', alignItems: 'center', justifyContent: 'center' }}><X size={16} /></button></> :
             <button onClick={() => remove(i)} style={{ width: 36, height: 36, borderRadius: RS(8), flexShrink: 0,
               background: 'rgba(216,135,112,0.10)', border: '1px solid rgba(216,135,112,0.25)', color: TOKENS.red,
@@ -1341,11 +1341,11 @@ function BrokerManager({ items, onChange, color, settleOptions = [] }) {
             {editIdx === i &&
           <div style={{ marginTop: SP(10), paddingLeft: SP(38), paddingRight: SP(4), display: 'flex', flexDirection: 'column', gap: SP(8) }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: SP(8) }}>
-                  <span style={{ fontSize: FS(16), color: 'rgba(60,60,67,0.84)', whiteSpace: 'nowrap', flexShrink: 0 }}>幣別</span>
+                  <span style={{ fontSize: FS(16), color: 'rgba(44,44,50,0.84)', whiteSpace: 'nowrap', flexShrink: 0 }}>幣別</span>
                   <CurrencySelect value={edit.currency} onChange={(v) => setEdit({ ...edit, currency: v })} color={color} style={{ flex: 1, minWidth: 0 }} />
                 </div>
                 <div style={{ display: 'flex', alignItems: 'center', gap: SP(8) }}>
-                  <span style={{ fontSize: FS(16), color: 'rgba(60,60,67,0.84)', whiteSpace: 'nowrap', flexShrink: 0 }}>對應交割戶</span>
+                  <span style={{ fontSize: FS(16), color: 'rgba(44,44,50,0.84)', whiteSpace: 'nowrap', flexShrink: 0 }}>對應交割戶</span>
                   <SettleSelect value={edit.settleAccount || ''} onChange={(v) => setEdit({ ...edit, settleAccount: v })} />
                 </div>
               </div>
@@ -1359,16 +1359,16 @@ function BrokerManager({ items, onChange, color, settleOptions = [] }) {
         style={{ width: '100%', height: 38, padding: PAD('0 12px'), borderRadius: RS(10), background: TOKENS.surface,
           border: `1px solid ${color}55`, fontSize: FS(19), color: TOKENS.ink, outline: 'none', marginBottom: SP(8) }} />
           <div style={{ display: 'flex', alignItems: 'center', gap: SP(8), marginBottom: SP(8) }}>
-            <span style={{ fontSize: FS(16), color: 'rgba(60,60,67,0.84)', whiteSpace: 'nowrap' }}>幣別</span>
+            <span style={{ fontSize: FS(16), color: 'rgba(44,44,50,0.84)', whiteSpace: 'nowrap' }}>幣別</span>
             <CurrencySelect value={addV.currency} onChange={(v) => setAddV({ ...addV, currency: v })} color={color} style={{ flex: 1, minWidth: 0, background: TOKENS.surface }} />
           </div>
           <div style={{ display: 'flex', alignItems: 'center', gap: SP(8), marginBottom: SP(10) }}>
-            <span style={{ fontSize: FS(16), color: 'rgba(60,60,67,0.84)', whiteSpace: 'nowrap' }}>對應交割戶</span>
+            <span style={{ fontSize: FS(16), color: 'rgba(44,44,50,0.84)', whiteSpace: 'nowrap' }}>對應交割戶</span>
             <SettleSelect value={addV.settleAccount || ''} onChange={(v) => setAddV({ ...addV, settleAccount: v })} />
           </div>
           <div style={{ display: 'flex', gap: SP(8) }}>
             <button onClick={() => setAdding(false)} style={{ flex: 1, height: 36, borderRadius: RS(10),
-            background: 'rgba(0,0,0,0.08)', border: '1px solid rgba(0,0,0,0.10)', color: 'rgba(60,60,67,0.88)', fontSize: FS(17) }}>取消</button>
+            background: 'rgba(0,0,0,0.08)', border: '1px solid rgba(0,0,0,0.10)', color: 'rgba(44,44,50,0.88)', fontSize: FS(17) }}>取消</button>
             <button onClick={addNew} style={{ flex: 2, height: 36, borderRadius: RS(10),
             background: `linear-gradient(135deg,${color}dd,${color})`, border: 'none', color: TOKENS.surface, fontSize: FS(17), fontWeight: 600 }}>新增</button>
           </div>
@@ -1425,7 +1425,7 @@ function SettleManager({ items, onChange, color, initialBalances = {}, setInitia
           opacity: dragIdx === i ? 0.4 : 1, transition: 'opacity 120ms'
         }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: SP(10) }}>
-              <div style={{ width: 22, flexShrink: 0, color: 'rgba(60,60,67,0.35)', cursor: editIdx === i ? 'default' : 'grab',
+              <div style={{ width: 22, flexShrink: 0, color: 'rgba(44,44,50,0.35)', cursor: editIdx === i ? 'default' : 'grab',
               display: 'flex', alignItems: 'center', justifyContent: 'center' }}><Grip size={18} /></div>
               <div style={{ width: 30, height: 30, borderRadius: RS(8), flexShrink: 0,
               background: `${color}22`, border: `1px solid ${color}40`, color,
@@ -1441,7 +1441,7 @@ function SettleManager({ items, onChange, color, initialBalances = {}, setInitia
                       <CurrencyChip code={it.currency} />
                     </div>
                     <div style={{ display: 'flex', alignItems: 'center', gap: SP(8) }}>
-                      {initialBalances[it.name] ? <span style={{ fontSize: FS(15), color: 'rgba(60,60,67,0.55)', fontFamily: 'JetBrains Mono,monospace' }}>
+                      {initialBalances[it.name] ? <span style={{ fontSize: FS(15), color: 'rgba(44,44,50,0.55)', fontFamily: 'JetBrains Mono,monospace' }}>
                         ${Math.round(initialBalances[it.name]).toLocaleString()}
                       </span> : null}
                     </div>
@@ -1452,7 +1452,7 @@ function SettleManager({ items, onChange, color, initialBalances = {}, setInitia
                 background: `${color}22`, border: `1px solid ${color}55`, color,
                 display: 'flex', alignItems: 'center', justifyContent: 'center' }}><Check size={16} strokeWidth={2.5} /></button>
                     <button onClick={() => setEditIdx(null)} style={{ width: 36, height: 36, borderRadius: RS(8), flexShrink: 0,
-                background: 'rgba(0,0,0,0.12)', border: '1px solid rgba(0,0,0,0.14)', color: 'rgba(60,60,67,0.6)',
+                background: 'rgba(0,0,0,0.12)', border: '1px solid rgba(0,0,0,0.14)', color: 'rgba(44,44,50,0.6)',
                 display: 'flex', alignItems: 'center', justifyContent: 'center' }}><X size={16} /></button></> :
             <button onClick={() => remove(i)} style={{ width: 36, height: 36, borderRadius: RS(8), flexShrink: 0,
               background: 'rgba(216,135,112,0.10)', border: '1px solid rgba(216,135,112,0.25)', color: TOKENS.red,
@@ -1462,11 +1462,11 @@ function SettleManager({ items, onChange, color, initialBalances = {}, setInitia
             {editIdx === i &&
           <div style={{ marginTop: SP(10), paddingLeft: SP(38), paddingRight: SP(4), display: 'flex', flexDirection: 'column', gap: SP(8) }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: SP(8) }}>
-                  <span style={{ fontSize: FS(16), color: 'rgba(60,60,67,0.84)', whiteSpace: 'nowrap', flexShrink: 0 }}>幣別</span>
+                  <span style={{ fontSize: FS(16), color: 'rgba(44,44,50,0.84)', whiteSpace: 'nowrap', flexShrink: 0 }}>幣別</span>
                   <CurrencySelect value={edit.currency} onChange={(v) => setEdit({ ...edit, currency: v })} color={color} style={{ flex: 1, minWidth: 0 }} />
                 </div>
                 <div style={{ display: 'flex', alignItems: 'center', gap: SP(8) }}>
-                  <span style={{ fontSize: FS(16), color: 'rgba(60,60,67,0.84)', whiteSpace: 'nowrap', flexShrink: 0 }}>初始餘額</span>
+                  <span style={{ fontSize: FS(16), color: 'rgba(44,44,50,0.84)', whiteSpace: 'nowrap', flexShrink: 0 }}>初始餘額</span>
                   <input value={edit.initBal} onChange={(e) => setEdit({ ...edit, initBal: e.target.value })} inputMode="decimal" placeholder="0"
               style={{ flex: 1, minWidth: 0, height: 34, padding: PAD('0 10px'), borderRadius: RS(8), background: 'rgba(0,0,0,0.06)',
                 border: `1px solid ${color}40`, fontSize: FS(18), fontFamily: 'JetBrains Mono,monospace', color: TOKENS.ink, outline: 'none' }} />
@@ -1482,18 +1482,18 @@ function SettleManager({ items, onChange, color, initialBalances = {}, setInitia
         style={{ width: '100%', height: 38, padding: PAD('0 12px'), borderRadius: RS(10), background: TOKENS.surface,
           border: `1px solid ${color}55`, fontSize: FS(19), color: TOKENS.ink, outline: 'none', marginBottom: SP(8) }} />
           <div style={{ display: 'flex', alignItems: 'center', gap: SP(8), marginBottom: SP(8) }}>
-            <span style={{ fontSize: FS(16), color: 'rgba(60,60,67,0.84)', whiteSpace: 'nowrap' }}>幣別</span>
+            <span style={{ fontSize: FS(16), color: 'rgba(44,44,50,0.84)', whiteSpace: 'nowrap' }}>幣別</span>
             <CurrencySelect value={addV.currency} onChange={(v) => setAddV({ ...addV, currency: v })} color={color} style={{ flex: 1, minWidth: 0, background: TOKENS.surface }} />
           </div>
           <div style={{ display: 'flex', alignItems: 'center', gap: SP(8), marginBottom: SP(10) }}>
-            <span style={{ fontSize: FS(16), color: 'rgba(60,60,67,0.84)', whiteSpace: 'nowrap' }}>初始餘額</span>
+            <span style={{ fontSize: FS(16), color: 'rgba(44,44,50,0.84)', whiteSpace: 'nowrap' }}>初始餘額</span>
             <input value={addV.initBal} onChange={(e) => setAddV({ ...addV, initBal: e.target.value })} inputMode="decimal" placeholder="0"
           style={{ flex: 1, height: 34, padding: PAD('0 10px'), borderRadius: RS(8), background: TOKENS.surface,
             border: `1px solid ${color}40`, fontSize: FS(18), fontFamily: 'JetBrains Mono,monospace', color: TOKENS.ink, outline: 'none' }} />
           </div>
           <div style={{ display: 'flex', gap: SP(8) }}>
             <button onClick={() => setAdding(false)} style={{ flex: 1, height: 36, borderRadius: RS(10),
-            background: 'rgba(0,0,0,0.08)', border: '1px solid rgba(0,0,0,0.10)', color: 'rgba(60,60,67,0.88)', fontSize: FS(17) }}>取消</button>
+            background: 'rgba(0,0,0,0.08)', border: '1px solid rgba(0,0,0,0.10)', color: 'rgba(44,44,50,0.88)', fontSize: FS(17) }}>取消</button>
             <button onClick={addNew} style={{ flex: 2, height: 36, borderRadius: RS(10),
             background: `linear-gradient(135deg,${color}dd,${color})`, border: 'none', color: TOKENS.surface, fontSize: FS(17), fontWeight: 600 }}>新增</button>
           </div>
@@ -1565,7 +1565,7 @@ function KeyValueManager({ items, onChange, color, fields, placeholders }) {
                   <button onClick={() => setEditingIdx(null)} style={{
                 flex: 1, height: 40, borderRadius: RS(8),
                 background: 'rgba(0,0,0,0.12)', border: '1px solid rgba(0,0,0,0.16)',
-                color: 'rgba(60,60,67,0.7)', fontSize: FS(18)
+                color: 'rgba(44,44,50,0.7)', fontSize: FS(18)
               }}>取消</button>
                   <button onClick={saveEdit} style={{
                 flex: 2, height: 40, borderRadius: RS(8),
@@ -1578,7 +1578,7 @@ function KeyValueManager({ items, onChange, color, fields, placeholders }) {
 
           <div style={{ display: 'flex', alignItems: 'center', gap: SP(10) }}>
                 <div title="拖移排序" style={{
-              width: 22, flexShrink: 0, color: 'rgba(60,60,67,0.35)', cursor: 'grab',
+              width: 22, flexShrink: 0, color: 'rgba(44,44,50,0.35)', cursor: 'grab',
               display: 'flex', alignItems: 'center', justifyContent: 'center'
             }}><Grip size={18} /></div>
                 <div style={{
@@ -1592,7 +1592,7 @@ function KeyValueManager({ items, onChange, color, fields, placeholders }) {
             }}>
                   <div style={{ fontSize: FS(19), fontWeight: 500 }}>{it.name}</div>
                   {it.sub &&
-              <div style={{ fontSize: FS(18), color: 'rgba(60,60,67,0.5)', marginTop: SP(1) }}>{it.sub}</div>
+              <div style={{ fontSize: FS(18), color: 'rgba(44,44,50,0.5)', marginTop: SP(1) }}>{it.sub}</div>
               }
                 </button>
                 <button onClick={() => remove(i)} style={{
@@ -1633,7 +1633,7 @@ function KeyValueManager({ items, onChange, color, fields, placeholders }) {
             <button onClick={() => {setAdding(false);setAddV({ name: '', sub: '' });}} style={{
             flex: 1, height: 44, borderRadius: RS(8),
             background: 'rgba(0,0,0,0.12)', border: '1px solid rgba(0,0,0,0.16)',
-            color: 'rgba(60,60,67,0.7)', fontSize: FS(18)
+            color: 'rgba(44,44,50,0.7)', fontSize: FS(18)
           }}>取消</button>
             <button onClick={addNew} disabled={!addV.name.trim()} style={{
             flex: 2, height: 44, borderRadius: RS(8),
@@ -1683,7 +1683,7 @@ function AppearanceSheet({ open, onClose }) {
     borderBottom: last ? 'none' : '1px solid rgba(0,0,0,0.08)' }}>
       <div style={{ flex: 1, minWidth: 0 }}>
         <div style={{ fontSize: FS(18), fontWeight: 500, color: TOKENS.ink }}>{label}</div>
-        {sub && <div style={{ fontSize: FS(14), color: 'rgba(60,60,67,0.48)', marginTop: SP(1) }}>{sub}</div>}
+        {sub && <div style={{ fontSize: FS(14), color: 'rgba(44,44,50,0.48)', marginTop: SP(1) }}>{sub}</div>}
       </div>
       <div style={{ display: 'flex', alignItems: 'center', gap: SP(8), flexShrink: 0 }}>
         <div style={{ width: 26, height: 26, borderRadius: RS(7),
@@ -1694,7 +1694,7 @@ function AppearanceSheet({ open, onClose }) {
       style={{ width: 34, height: 28, border: '1px solid rgba(0,0,0,0.18)',
         borderRadius: RS(6), padding: 2, cursor: 'pointer', background: 'transparent' }} />
         <span style={{ fontFamily: TOKENS.fontMono, fontSize: FS(13),
-        color: 'rgba(60,60,67,0.4)', minWidth: 56 }}>
+        color: 'rgba(44,44,50,0.4)', minWidth: 56 }}>
           {(tok[k] || '').toUpperCase().slice(0, 7)}
         </span>
       </div>
@@ -1715,7 +1715,7 @@ function AppearanceSheet({ open, onClose }) {
     onChange={(e) => setNum(k, e.target.value)}
     style={{ width: '100%', accentColor: TOKENS.accent, height: 4 }} />
       <div style={{ display: 'flex', justifyContent: 'space-between',
-      fontSize: FS(13), color: 'rgba(60,60,67,0.38)', marginTop: SP(4) }}>
+      fontSize: FS(13), color: 'rgba(44,44,50,0.38)', marginTop: SP(4) }}>
         <span>{fmt ? fmt(min) : min}</span>
         <span>{fmt ? fmt(max) : max}</span>
       </div>
@@ -1724,7 +1724,7 @@ function AppearanceSheet({ open, onClose }) {
 
   const SubHead = ({ label }) =>
   <div style={{ padding: PAD('10px 14px 4px'), fontSize: FS(13),
-    color: 'rgba(60,60,67,0.45)', letterSpacing: 0.8, textTransform: 'uppercase',
+    color: 'rgba(44,44,50,0.45)', letterSpacing: 0.8, textTransform: 'uppercase',
     borderBottom: '1px solid rgba(0,0,0,0.06)', background: 'rgba(0,0,0,0.025)' }}>
       {label}
     </div>;
@@ -1951,14 +1951,14 @@ function BackupSheet({ open, onClose }) {
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: PAD('8px 18px 14px') }}>
           <div>
             <div style={{ fontSize: FS(20), fontWeight: 700, color: TOKENS.ink, display: 'flex', alignItems: 'center', gap: SP(8) }}><Lock size={18} /> 加密備份 / 還原</div>
-            <div style={{ fontSize: FS(16), color: 'rgba(60,60,67,0.5)', marginTop: SP(2) }}>資料只存在你的裝置；備份檔以密碼加密</div>
+            <div style={{ fontSize: FS(16), color: 'rgba(44,44,50,0.5)', marginTop: SP(2) }}>資料只存在你的裝置；備份檔以密碼加密</div>
           </div>
-          <button onClick={onClose} style={{ width: 36, height: 36, borderRadius: RS(18), background: 'rgba(0,0,0,0.14)', border: 'none', color: 'rgba(60,60,67,0.7)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}><X size={18} /></button>
+          <button onClick={onClose} style={{ width: 36, height: 36, borderRadius: RS(18), background: 'rgba(0,0,0,0.14)', border: 'none', color: 'rgba(44,44,50,0.7)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}><X size={18} /></button>
         </div>
 
         <div style={{ flex: 1, overflowY: 'auto', overflowX: 'hidden', padding: PAD('0 18px 28px') }}>
           {/* passphrase */}
-          <div style={{ fontSize: FS(16), color: 'rgba(60,60,67,0.6)', marginBottom: SP(6) }}>備份密碼</div>
+          <div style={{ fontSize: FS(16), color: 'rgba(44,44,50,0.6)', marginBottom: SP(6) }}>備份密碼</div>
           <input type="password" value={pass} onChange={(e) => setPass(e.target.value)} placeholder="設定/輸入密碼（至少 4 字）"
             style={{ width: '100%', height: 50, padding: PAD('0 14px'), borderRadius: RS(14), background: TOKENS.surface, border: '1px solid rgba(0,0,0,0.14)', color: TOKENS.ink, fontSize: FS(17), outline: 'none', boxSizing: 'border-box' }} />
 
@@ -1967,7 +1967,7 @@ function BackupSheet({ open, onClose }) {
             <button disabled={busy} onClick={doExport} style={btn('linear-gradient(135deg, ' + TOKENS.accentLight + ', ' + TOKENS.accent + ')', '#fff')}>
               <Shield size={18} /> 加密匯出備份檔
             </button>
-            <div style={{ fontSize: FS(14), color: 'rgba(60,60,67,0.5)', marginTop: SP(6), lineHeight: 1.5 }}>
+            <div style={{ fontSize: FS(14), color: 'rgba(44,44,50,0.5)', marginTop: SP(6), lineHeight: 1.5 }}>
               匯出一個 .finfolio 檔，可存到 iCloud / Google Drive / 其他裝置。
             </div>
           </div>
@@ -1975,7 +1975,7 @@ function BackupSheet({ open, onClose }) {
           {/* divider */}
           <div style={{ display: 'flex', alignItems: 'center', gap: SP(10), margin: PAD('20px 0') }}>
             <div style={{ flex: 1, height: 1, background: 'rgba(0,0,0,0.12)' }} />
-            <span style={{ fontSize: FS(14), color: 'rgba(60,60,67,0.4)' }}>或從備份還原</span>
+            <span style={{ fontSize: FS(14), color: 'rgba(44,44,50,0.4)' }}>或從備份還原</span>
             <div style={{ flex: 1, height: 1, background: 'rgba(0,0,0,0.12)' }} />
           </div>
 
@@ -1999,7 +1999,7 @@ function BackupSheet({ open, onClose }) {
             </div>
           )}
 
-          <div style={{ marginTop: SP(16), fontSize: FS(14), color: 'rgba(60,60,67,0.45)', lineHeight: 1.6 }}>
+          <div style={{ marginTop: SP(16), fontSize: FS(14), color: 'rgba(44,44,50,0.45)', lineHeight: 1.6 }}>
             ⚠️ 密碼用於加密，<b>忘記密碼將無法還原</b>。備份檔不含密碼，請分開保存。
           </div>
         </div>

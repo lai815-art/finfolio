@@ -39,11 +39,11 @@ function HoldingCard({ item, color, mask, onOpen }) {
           </span>
         </div>
         <div style={{ marginTop: SP(4), display: 'flex', alignItems: 'center', gap: SP(7) }}>
-          <span style={{ ...{ fontFamily: TOKENS.fontMono, fontSize: FS(16), color: 'rgba(60,60,67,0.88)', whiteSpace: 'nowrap', flexShrink: 0 }, fontSize: "15px" }}>
+          <span style={{ ...{ fontFamily: TOKENS.fontMono, fontSize: FS(16), color: 'rgba(44,44,50,0.88)', whiteSpace: 'nowrap', flexShrink: 0 }, fontSize: "15px" }}>
             {item.qty.toLocaleString()} 股
           </span>
           <span style={{ fontSize: FS(16), padding: PAD('1px 6px'), borderRadius: RS(5),
-            background: 'rgba(0,0,0,0.08)', color: 'rgba(60,60,67,0.84)', whiteSpace: 'nowrap', flexShrink: 0,
+            background: 'rgba(0,0,0,0.08)', color: 'rgba(44,44,50,0.84)', whiteSpace: 'nowrap', flexShrink: 0,
             overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: 96 }}>
             {item.assetClass || item.broker}
           </span>
@@ -161,7 +161,7 @@ function InvestDetailSheet({ data, mask, onClose, savedTrades = [], onEditRecord
         <div style={{ minWidth: 0 }}>
           <div style={{ fontSize: FS(21), fontWeight: 700, display: 'flex', alignItems: 'baseline', gap: SP(8) }}>
             <span style={{ fontFamily: TOKENS.fontMono }}>{data.code}</span>
-            <span style={{ fontSize: FS(18), color: 'rgba(60,60,67,0.88)', overflow: 'hidden',
+            <span style={{ fontSize: FS(18), color: 'rgba(44,44,50,0.88)', overflow: 'hidden',
               textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{data.name}</span>
           </div>
           <div style={{ fontSize: FS(16), color: 'rgba(0,0,0,0.82)', marginTop: SP(2),
@@ -204,7 +204,7 @@ function InvestDetailSheet({ data, mask, onClose, savedTrades = [], onEditRecord
           </div>
           <div style={{ position: 'relative', marginTop: SP(10), padding: PAD('9px 14px'), borderRadius: RS(12),
             background: 'rgba(255,255,255,0.92)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-            <div style={{ fontSize: FS(17), color: 'rgba(60,60,67,0.86)' }}>
+            <div style={{ fontSize: FS(17), color: 'rgba(44,44,50,0.86)' }}>
               未實現損益
             </div>
             <div style={{ display: 'flex', alignItems: 'center', gap: SP(6),
@@ -230,7 +230,7 @@ function InvestDetailSheet({ data, mask, onClose, savedTrades = [], onEditRecord
         {stockTrades.length === 0 ?
         <div style={{ padding: PAD('20px 14px'), borderRadius: RS(18), background: TOKENS.surface,
           border: '1px solid rgba(0,0,0,0.12)', textAlign: 'center',
-          fontSize: FS(17), color: 'rgba(60,60,67,0.42)', lineHeight: 1.6 }}>
+          fontSize: FS(17), color: 'rgba(44,44,50,0.42)', lineHeight: 1.6 }}>
             尚無記帳交易紀錄<br />
             <span style={{ fontSize: FS(16) }}>請使用底部「記帳」按鈕新增</span>
           </div> :
@@ -275,7 +275,7 @@ function InvestDetailSheet({ data, mask, onClose, savedTrades = [], onEditRecord
                   <div style={{ fontSize: FS(18), color: TOKENS.ink, fontFamily: TOKENS.fontMono, fontWeight: 500 }}>
                     {parseFloat(shares).toLocaleString()} 股 × {parseFloat(price).toLocaleString()}
                   </div>
-                  <div style={{ fontSize: FS(14), color: 'rgba(60,60,67,0.88)', marginTop: SP(1) }}>
+                  <div style={{ fontSize: FS(14), color: 'rgba(44,44,50,0.88)', marginTop: SP(1) }}>
                     {fmtDate(t.date)}
                   </div>
                 </div>
@@ -284,7 +284,7 @@ function InvestDetailSheet({ data, mask, onClose, savedTrades = [], onEditRecord
                   {isBuy ? '-' : ''}{mask(netAmt)}
                 </div>
                 {editable &&
-                <ChevronRight size={16} style={{ color: 'rgba(60,60,67,0.3)', flexShrink: 0, marginLeft: SP(-4) }} />
+                <ChevronRight size={16} style={{ color: 'rgba(44,44,50,0.3)', flexShrink: 0, marginLeft: SP(-4) }} />
                 }
               </div>);
           })}
@@ -483,7 +483,7 @@ function InvestScreen({ hideAmounts, onOpenDetail, savedTrades = [], computedHol
         {items.length === 0 ?
         <div style={{ ...{ padding: PAD('28px 14px'), borderRadius: RS(20), background: TOKENS.surface,
             border: '1px solid rgba(0,0,0,0.12)', textAlign: 'center',
-            fontSize: FS(17), color: 'rgba(60,60,67,0.86)', lineHeight: 1.7 }, borderRadius: "10px", background: "rgb(248, 247, 243)" }}>
+            fontSize: FS(17), color: 'rgba(44,44,50,0.86)', lineHeight: 1.7 }, borderRadius: "10px", background: "rgb(248, 247, 243)" }}>
             尚無 {validTab} 持倉<br />
             <span style={{ fontSize: FS(16) }}>透過底部「記帳」→「股票買賣」新增</span>
           </div> :
@@ -558,10 +558,10 @@ function InvestBreakdownSheet({ open, onClose, computedHoldings = [], masterData
             display: 'flex', flexDirection: 'column', gap: SP(20) }, padding: "0px 10px 32px" }}>
           {/* 資產配置 */}
           <div style={cardStyle}>
-            <div style={{ fontSize: FS(14), color: 'rgba(0,0,0,0.45)', fontWeight: 700, letterSpacing: 1,
+            <div style={{ fontSize: FS(14), color: 'rgba(0,0,0,0.62)', fontWeight: 700, letterSpacing: 1,
               textTransform: 'uppercase', marginBottom: SP(14), paddingLeft: SP(2) }}>資產配置</div>
             {catTotals.length === 0 ?
-            <div style={{ fontSize: FS(17), color: 'rgba(60,60,67,0.4)', textAlign: 'center', padding: PAD('12px 0') }}>尚無持倉</div> :
+            <div style={{ fontSize: FS(17), color: 'rgba(44,44,50,0.4)', textAlign: 'center', padding: PAD('12px 0') }}>尚無持倉</div> :
             <div style={{ display: 'flex', alignItems: 'center', gap: SP(16) }}>
               <div style={{ flexShrink: 0, position: 'relative' }}>
                 <svg width={DSIZE} height={DSIZE} style={{ transform: 'rotate(-90deg)' }}>
@@ -572,7 +572,7 @@ function InvestBreakdownSheet({ open, onClose, computedHoldings = [], masterData
                   )}
                 </svg>
                 <div style={{ position: 'absolute', inset: 0, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center' }}>
-                  <div style={{ fontSize: FS(15), color: 'rgba(60,60,67,0.55)' }}>市值</div>
+                  <div style={{ fontSize: FS(15), color: 'rgba(44,44,50,0.55)' }}>市值</div>
                   <div style={{ fontSize: FS(19), fontWeight: 700, color: TOKENS.ink, fontFamily: TOKENS.fontMono, marginTop: SP(2) }}>{mask(portfolioMv)}</div>
                 </div>
               </div>
@@ -592,7 +592,7 @@ function InvestBreakdownSheet({ open, onClose, computedHoldings = [], masterData
           {/* 類別明細 */}
           {catTotals.length > 0 &&
           <div style={cardStyle}>
-            <div style={{ fontSize: FS(14), color: 'rgba(0,0,0,0.45)', fontWeight: 700, letterSpacing: 1,
+            <div style={{ fontSize: FS(14), color: 'rgba(0,0,0,0.62)', fontWeight: 700, letterSpacing: 1,
               textTransform: 'uppercase', marginBottom: SP(10), paddingLeft: SP(2) }}>類別明細</div>
             {catTotals.map((c, i) =>
             <div key={c.id} style={{ display: 'flex', alignItems: 'center', gap: SP(12), padding: PAD('11px 2px'),
@@ -696,7 +696,7 @@ function InvestBreakdownSheet({ open, onClose, computedHoldings = [], masterData
                     <ChevronRight size={14} style={{ transform: 'rotate(180deg)' }} />
                   </button>
                   }
-                  <div style={{ fontSize: FS(14), fontWeight: 700, color: 'rgba(0,0,0,0.45)', letterSpacing: 1, whiteSpace: 'nowrap' }}>
+                  <div style={{ fontSize: FS(14), fontWeight: 700, color: 'rgba(0,0,0,0.62)', letterSpacing: 1, whiteSpace: 'nowrap' }}>
                     {needsPaging ? `${years[0]}–${years[years.length - 1]}` : '歷年投資損益'}
                   </div>
                   {needsPaging &&
@@ -714,7 +714,7 @@ function InvestBreakdownSheet({ open, onClose, computedHoldings = [], masterData
                   {[[C_DIV, '股息'], [C_BOND, '債息'], [C_PNL_POS, '損益']].map(([c, l]) =>
                     <div key={l} style={{ display: 'flex', alignItems: 'center', gap: SP(4) }}>
                     <span style={{ width: 8, height: 8, borderRadius: RS(2), background: c, flexShrink: 0 }} />
-                    <span style={{ fontSize: FS(13), color: 'rgba(60,60,67,0.7)' }}>{l}</span>
+                    <span style={{ fontSize: FS(13), color: 'rgba(44,44,50,0.7)' }}>{l}</span>
                   </div>
                     )}
                 </div>
@@ -767,7 +767,7 @@ function InvestBreakdownSheet({ open, onClose, computedHoldings = [], masterData
               {/* per-year row table */}
               <div style={{ borderTop: '1px solid rgba(0,0,0,0.07)', marginTop: SP(8), paddingTop: SP(8) }}>
                 <div style={{ display: 'grid', gridTemplateColumns: '0.8fr 1fr 1fr 1fr 1.05fr', gap: SP(2),
-                    fontSize: FS(14), color: 'rgba(60,60,67,0.5)', textAlign: 'right', padding: PAD('4px 4px') }}>
+                    fontSize: FS(14), color: 'rgba(44,44,50,0.5)', textAlign: 'right', padding: PAD('4px 4px') }}>
                   <span style={{ textAlign: 'left' }}>年份</span>
                   <span>股息</span><span>債息</span><span>損益</span><span>加總</span>
                 </div>
@@ -779,7 +779,7 @@ function InvestBreakdownSheet({ open, onClose, computedHoldings = [], masterData
                       <div key={y} style={{ display: 'grid', gridTemplateColumns: '0.8fr 1fr 1fr 1fr 1.05fr', gap: SP(2),
                         fontSize: FS(15), fontFamily: TOKENS.fontMono, textAlign: 'right',
                         padding: PAD('7px 4px'), borderTop: i > 0 ? '1px solid rgba(0,0,0,0.05)' : 'none' }}>
-                    <span style={{ textAlign: 'left', color: 'rgba(60,60,67,0.7)', fontFamily: 'inherit' }}>{y}</span>
+                    <span style={{ textAlign: 'left', color: 'rgba(44,44,50,0.7)', fontFamily: 'inherit' }}>{y}</span>
                     <span style={{ color: d.div > 0 ? C_DIV : 'rgba(60,60,67,0.35)' }}>{d.div > 0 ? fmtK(d.div) : '—'}</span>
                     <span style={{ color: d.bond > 0 ? C_BOND : 'rgba(60,60,67,0.35)' }}>{d.bond > 0 ? fmtK(d.bond) : '—'}</span>
                     <span style={{ color: d.pnl >= 0 ? C_PNL_POS : C_PNL_NEG, fontWeight: 600 }}>

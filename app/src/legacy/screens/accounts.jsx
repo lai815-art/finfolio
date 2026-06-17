@@ -100,7 +100,7 @@ function MonthlyFlowHero({ savedFlows = [], masterData = {} }) {
       </div>
       {!hasData ?
       <div style={{ height: 150, display: 'flex', alignItems: 'center', justifyContent: 'center',
-        color: 'rgba(60,60,67,0.4)', fontSize: FS(13) }}>尚無記帳資料</div> :
+        color: 'rgba(44,44,50,0.4)', fontSize: FS(13) }}>尚無記帳資料</div> :
 
       <svg width="100%" viewBox={'0 0 ' + W + ' ' + H} style={{ display: 'block', overflow: 'visible', height: 'auto' }}>
           {/* 月收支餘額 柱狀圖 */}
@@ -133,12 +133,12 @@ function MonthlyFlowHero({ savedFlows = [], masterData = {} }) {
         {lines.map((s) =>
         <div key={s.key} style={{ display: 'flex', alignItems: 'center', gap: SP(5), flexShrink: 0 }}>
             <span style={{ borderRadius: RS(2), background: s.color, flexShrink: 0, width: "8px", height: "8px" }}></span>
-            <span style={{ fontSize: FS(13), color: 'rgba(60,60,67,0.85)', whiteSpace: 'nowrap' }}>{s.label}</span>
+            <span style={{ fontSize: FS(13), color: 'rgba(44,44,50,0.85)', whiteSpace: 'nowrap' }}>{s.label}</span>
           </div>
         )}
         <div style={{ display: 'flex', alignItems: 'center', gap: SP(5), flexShrink: 0 }}>
           <span style={{ width: 10, height: 10, borderRadius: RS(3), background: 'rgba(0,0,0,0.20)', flexShrink: 0 }}></span>
-          <span style={{ fontSize: FS(13), color: 'rgba(60,60,67,0.85)', whiteSpace: 'nowrap' }}>收支餘額</span>
+          <span style={{ fontSize: FS(13), color: 'rgba(44,44,50,0.85)', whiteSpace: 'nowrap' }}>收支餘額</span>
         </div>
       </div>
 
@@ -146,7 +146,7 @@ function MonthlyFlowHero({ savedFlows = [], masterData = {} }) {
       {hasData &&
       <div style={{ marginTop: SP(14), borderTop: '1px solid rgba(0,0,0,0.08)', paddingTop: SP(8) }}>
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1.3fr 1.3fr 1.3fr', gap: SP(2),
-          fontSize: FS(13), color: 'rgba(60,60,67,0.55)', letterSpacing: 0.5,
+          fontSize: FS(13), color: 'rgba(44,44,50,0.55)', letterSpacing: 0.5,
           padding: PAD('4px 4px'), textAlign: 'right' }}>
           <span style={{ textAlign: 'left' }}>月份</span>
           <span>收入</span>
@@ -161,7 +161,7 @@ function MonthlyFlowHero({ savedFlows = [], masterData = {} }) {
             <div key={i} style={{ display: 'grid', gridTemplateColumns: '1fr 1.3fr 1.3fr 1.3fr', gap: SP(2),
               fontSize: FS(13), fontFamily: TOKENS.fontMono, textAlign: 'right',
               padding: PAD('5px 4px'), borderTop: i > 0 ? '1px solid rgba(0,0,0,0.05)' : 'none' }}>
-            <span style={{ textAlign: 'left', color: 'rgba(60,60,67,0.7)' }}>{m.label}</span>
+            <span style={{ textAlign: 'left', color: 'rgba(44,44,50,0.7)' }}>{m.label}</span>
             <span style={{ color: inc > 0 ? TOKENS.blue2 : 'rgba(60,60,67,0.35)', fontSize: "13px" }}>{inc > 0 ? fmtAcct(inc) : '—'}</span>
             <span style={{ color: m.exp > 0 ? TOKENS.red : 'rgba(60,60,67,0.35)', fontSize: "13px" }}>{m.exp > 0 ? fmtAcct(m.exp) : '—'}</span>
             <span style={{ fontWeight: 600, color: bal >= 0 ? TOKENS.ink : TOKENS.red, fontSize: "13px" }}>{bal < 0 ? '-' : ''}{fmtAcct(Math.abs(bal))}</span>
@@ -414,7 +414,7 @@ function AccountDetailSheet({ data, mask, onClose, onSaveItem, savedFlows = [], 
                       style={{ display: 'flex', alignItems: 'center', gap: SP(12), padding: PAD('16px 14px'),
                         cursor: 'pointer', background: isActive ? 'rgba(0,0,0,0.04)' : 'transparent' }}>
                         <div style={{ fontFamily: TOKENS.fontMono, fontSize: FS(16),
-                          color: 'rgba(60,60,67,0.86)', flexShrink: 0, width: 42 }}>{date}</div>
+                          color: 'rgba(44,44,50,0.86)', flexShrink: 0, width: 42 }}>{date}</div>
                         <div style={{ flex: 1, fontSize: FS(18), color: TOKENS.ink,
                           overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{displayDesc}</div>
                         {!isZero &&
@@ -424,14 +424,14 @@ function AccountDetailSheet({ data, mask, onClose, onSaveItem, savedFlows = [], 
                             {isInc ? '' : '-'}{mask(Math.abs(displayAmt))}
                           </div>
                         }
-                        <Pencil size={13} style={{ color: 'rgba(60,60,67,0.22)', flexShrink: 0 }} />
+                        <Pencil size={13} style={{ color: 'rgba(44,44,50,0.22)', flexShrink: 0 }} />
                       </div>
                       {isActive &&
                       <div style={{ padding: PAD('10px 16px 14px'), background: 'rgba(0,0,0,0.04)',
                         borderTop: '1px solid rgba(0,0,0,0.08)' }}>
                           <div style={{ display: 'flex', gap: SP(8), marginBottom: SP(8) }}>
                             <div style={{ flex: 1 }}>
-                              <div style={{ fontSize: FS(14), color: 'rgba(60,60,67,0.88)', marginBottom: SP(4) }}>摘要</div>
+                              <div style={{ fontSize: FS(14), color: 'rgba(44,44,50,0.88)', marginBottom: SP(4) }}>摘要</div>
                               <input value={editDesc} onChange={(e) => setEditDesc(e.target.value)}
                             style={{ width: '100%', height: 56, padding: PAD('0 10px'), borderRadius: RS(10),
                               background: TOKENS.surface, border: '1px solid rgba(217,119,87,0.35)',
@@ -439,7 +439,7 @@ function AccountDetailSheet({ data, mask, onClose, onSaveItem, savedFlows = [], 
                             </div>
                             {!isZero &&
                           <div style={{ width: 110 }}>
-                                <div style={{ fontSize: FS(14), color: 'rgba(60,60,67,0.88)', marginBottom: SP(4) }}>金額</div>
+                                <div style={{ fontSize: FS(14), color: 'rgba(44,44,50,0.88)', marginBottom: SP(4) }}>金額</div>
                                 <input value={editAmt} onChange={(e) => setEditAmt(e.target.value)} inputMode="decimal"
                             style={{ width: '100%', height: 56, padding: PAD('0 10px'), borderRadius: RS(10),
                               background: TOKENS.surface, border: '1px solid rgba(217,119,87,0.35)',
@@ -452,7 +452,7 @@ function AccountDetailSheet({ data, mask, onClose, onSaveItem, savedFlows = [], 
                             <button onClick={() => setActiveTxn(null)} style={{
                             flex: 1, height: 46, borderRadius: RS(10),
                             background: 'rgba(0,0,0,0.10)', border: '1px solid rgba(0,0,0,0.12)',
-                            color: 'rgba(60,60,67,0.88)', fontSize: FS(17) }}>取消</button>
+                            color: 'rgba(44,44,50,0.88)', fontSize: FS(17) }}>取消</button>
                             <button onClick={() => saveEdit(origIdx, displayAmt)} style={{
                             flex: 2, height: 46, borderRadius: RS(10),
                             background: TOKENS.gradDark,
@@ -474,7 +474,7 @@ function AccountDetailSheet({ data, mask, onClose, onSaveItem, savedFlows = [], 
         {isCash &&
         <div style={{ marginTop: SP(8), padding: PAD('16px 14px'), borderRadius: RS(16),
           background: 'rgba(168,189,140,0.08)', border: '1px solid rgba(168,189,140,0.20)',
-          fontSize: FS(17), color: 'rgba(60,60,67,0.58)', lineHeight: 1.6 }}>
+          fontSize: FS(17), color: 'rgba(44,44,50,0.58)', lineHeight: 1.6 }}>
             現金資產不記錄電子交易，如需調整餘額請至「記帳」手動新增一筆。
           </div>
         }
@@ -513,7 +513,7 @@ function AssetGroupRow({ group, openId, setOpenId, mask, onOpenDetail }) {
             {group.sign < 0 && sum !== 0 ? '-' : ''}{mask(Math.abs(sum))}
           </div>
         </div>
-        <ChevronDown size={18} style={{ color: 'rgba(60,60,67,0.35)', flexShrink: 0,
+        <ChevronDown size={18} style={{ color: 'rgba(44,44,50,0.35)', flexShrink: 0,
           transition: 'transform 250ms', transform: open ? 'rotate(180deg)' : 'none' }} />
       </button>
 
@@ -558,11 +558,11 @@ function AccountItemRow({ item, group, mask, last, onOpen }) {
         <div style={{ fontFamily: TOKENS.fontMono, fontSize: FS(18), fontWeight: 600, flexShrink: 0, whiteSpace: 'nowrap',
           color: group.sign < 0 ? TOKENS.red : TOKENS.ink }}>
           {item.currency && item.currency !== 'TWD' &&
-          <span style={{ fontSize: FS(13), color: 'rgba(0,0,0,0.45)', marginRight: SP(3) }}>{item.currency}</span>
+          <span style={{ fontSize: FS(13), color: 'rgba(0,0,0,0.62)', marginRight: SP(3) }}>{item.currency}</span>
           }
           {group.sign < 0 && item.amount !== 0 ? '-' : ''}{mask(Math.abs(item.amount))}
         </div>
-        <ChevronRight size={14} style={{ color: 'rgba(60,60,67,0.25)', flexShrink: 0 }} />
+        <ChevronRight size={14} style={{ color: 'rgba(44,44,50,0.25)', flexShrink: 0 }} />
       </div>
       {isCredit && item.extra &&
       <div style={{ marginTop: SP(7), marginLeft: SP(46) }}>

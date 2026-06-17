@@ -185,7 +185,7 @@ function CalendarSheet({ open, date, onPick, onClose }) {
         </div>
         {pickMode ?
         <div style={{ padding: PAD('0 18px') }}>
-          <div style={{ fontSize: FS(15), fontWeight: 600, color: 'rgba(60,60,67,0.5)', letterSpacing: 1, margin: PAD('2px 2px 8px') }}>年份</div>
+          <div style={{ fontSize: FS(15), fontWeight: 600, color: 'rgba(44,44,50,0.5)', letterSpacing: 1, margin: PAD('2px 2px 8px') }}>年份</div>
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4,1fr)', gap: SP(8),
             maxHeight: 156, overflowY: 'auto', overscrollBehavior: 'contain', paddingBottom: SP(4) }}>
             {Array.from({ length: 16 }, (_, i) => year - 10 + i).map((y) => {
@@ -200,7 +200,7 @@ function CalendarSheet({ open, date, onPick, onClose }) {
               }}>{y}</button>);
             })}
           </div>
-          <div style={{ fontSize: FS(15), fontWeight: 600, color: 'rgba(60,60,67,0.5)', letterSpacing: 1, margin: PAD('16px 2px 8px') }}>月份</div>
+          <div style={{ fontSize: FS(15), fontWeight: 600, color: 'rgba(44,44,50,0.5)', letterSpacing: 1, margin: PAD('16px 2px 8px') }}>月份</div>
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4,1fr)', gap: SP(8) }}>
             {Array.from({ length: 12 }, (_, i) => i).map((m) => {
               const msel = m === month;
@@ -255,7 +255,7 @@ function CalendarSheet({ open, date, onPick, onClose }) {
           <button onClick={() => onPick(new Date(TODAY))} style={{
             flex: 1, height: 56, borderRadius: RS(18),
             background: 'rgba(0,0,0,0.12)', border: '1px solid rgba(0,0,0,0.14)',
-            color: 'rgba(60,60,67,0.86)', fontSize: FS(19), fontWeight: 500
+            color: 'rgba(44,44,50,0.86)', fontSize: FS(19), fontWeight: 500
           }}>回到今日</button>
           <button onClick={onClose} style={{
             flex: 1, height: 56, borderRadius: RS(18),
@@ -347,7 +347,7 @@ function DailyView({ date, hideAmounts, extraFlows = [], extraTrades = [], onEdi
           border: '1px solid rgba(0,0,0,0.12)', overflow: 'hidden', width: "382px" }, borderRadius: "11px", background: "rgb(248, 247, 243)" }}>
         {flows.length === 0 &&
         <div style={{ padding: PAD('20px 16px'), textAlign: 'center', fontSize: FS(18),
-          color: 'rgba(60,60,67,0.4)', width: "382px" }}>當日無紀錄</div>
+          color: 'rgba(44,44,50,0.4)', width: "382px" }}>當日無紀錄</div>
         }
         {flows.map((t, i, arr) => {
           const color = t.kind === 'inc' ? TOKENS.typeInc : t.kind === 'xfer' ? TOKENS.typeXfer : TOKENS.typeExp;
@@ -428,7 +428,7 @@ function DailyView({ date, hideAmounts, extraFlows = [], extraTrades = [], onEdi
           border: '1px solid rgba(0,0,0,0.12)', overflow: 'hidden' }, borderRadius: "11px", background: "rgb(248, 247, 243)" }}>
         {trades.length === 0 &&
         <div style={{ padding: PAD('20px 16px'), textAlign: 'center', fontSize: FS(18),
-          color: 'rgba(60,60,67,0.4)', width: "382px" }}>當日無交易</div>
+          color: 'rgba(44,44,50,0.4)', width: "382px" }}>當日無交易</div>
         }
         {trades.map((t, i, arr) => {
           const color = t.side === 'buy' ? TOKENS.typeBuy : TOKENS.typeSell;
@@ -545,7 +545,7 @@ function DashWidget({ which, hideAmounts, accountsPie, stocks }) {
             <div style={{ fontSize: FS(22), fontWeight: 600, marginTop: SP(2),
               color: which === 'accounts' ? TOKENS.green : TOKENS.ink,
               fontFamily: TOKENS.fontMono }}>{centerValue}</div>
-            <div style={{ fontSize: FS(18), color: 'rgba(60,60,67,0.4)' }}>{centerSub}</div>
+            <div style={{ fontSize: FS(18), color: 'rgba(44,44,50,0.4)' }}>{centerSub}</div>
           </div>
         </div>
         <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: SP(10) }}>
@@ -777,7 +777,7 @@ function MonthlyStatsSheet({ open, onClose, savedFlows, masterData, hideAmounts,
           </svg>
           <div style={{ position: 'absolute', inset: 0, display: 'flex', flexDirection: 'column',
             alignItems: 'center', justifyContent: 'center' }}>
-            <div style={{ fontSize: FS(15), color: 'rgba(60,60,67,0.55)' }}>{label}</div>
+            <div style={{ fontSize: FS(15), color: 'rgba(44,44,50,0.55)' }}>{label}</div>
             <div style={{ fontSize: FS(22), fontWeight: 700, color, fontFamily: TOKENS.fontMono, marginTop: SP(2) }}>
               {mask(Math.round(tot))}
             </div>
@@ -789,7 +789,7 @@ function MonthlyStatsSheet({ open, onClose, savedFlows, masterData, hideAmounts,
               <span style={{ width: 8, height: 8, borderRadius: RS(2), background: c.color, flexShrink: 0 }} />
               <span style={{ flex: 1, fontSize: FS(15), color: TOKENS.ink,
               overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{c.name}</span>
-              <span style={{ fontFamily: TOKENS.fontMono, fontSize: FS(14), color: 'rgba(60,60,67,0.7)', flexShrink: 0 }}>
+              <span style={{ fontFamily: TOKENS.fontMono, fontSize: FS(14), color: 'rgba(44,44,50,0.7)', flexShrink: 0 }}>
                 {c.pct.toFixed(0)}%
               </span>
             </div>
@@ -848,7 +848,7 @@ function MonthlyStatsSheet({ open, onClose, savedFlows, masterData, hideAmounts,
             <div style={{ fontSize: FS(14), color: TOKENS.red, fontWeight: 700, letterSpacing: 1,
               textTransform: 'uppercase', margin: PAD('8px 0 12px'), paddingLeft: SP(2) }}>當月支出</div>
             {expCats.length === 0 ?
-            <div style={{ fontSize: FS(17), color: 'rgba(60,60,67,0.4)', textAlign: 'center', padding: PAD('12px 0') }}>本月尚無支出紀錄</div> :
+            <div style={{ fontSize: FS(17), color: 'rgba(44,44,50,0.4)', textAlign: 'center', padding: PAD('12px 0') }}>本月尚無支出紀錄</div> :
             <MiniDonut cats={expCats} total={expTotal} label="支出" color={TOKENS.red} />
             }
 
@@ -859,7 +859,7 @@ function MonthlyStatsSheet({ open, onClose, savedFlows, masterData, hideAmounts,
             <div style={{ fontSize: FS(14), color: TOKENS.incBlue, fontWeight: 700, letterSpacing: 1,
               textTransform: 'uppercase', margin: PAD('16px 0 12px'), paddingLeft: SP(2) }}>當月收入</div>
             {incCats.length === 0 ?
-            <div style={{ fontSize: FS(17), color: 'rgba(60,60,67,0.4)', textAlign: 'center', padding: PAD('12px 0') }}>本月尚無收入紀錄</div> :
+            <div style={{ fontSize: FS(17), color: 'rgba(44,44,50,0.4)', textAlign: 'center', padding: PAD('12px 0') }}>本月尚無收入紀錄</div> :
             <MiniDonut cats={incCats} total={incTotal} label="收入" color={TOKENS.incBlue} />
             }
           </div>
@@ -947,10 +947,10 @@ function NetWorthSheet({ open, onClose, total, computedAcctGroups, computedHoldi
             display: 'flex', flexDirection: 'column', gap: SP(20) }, padding: "0px 10px 32px" }}>
           {/* 資產配置 圓餅 */}
           <div style={cardStyle}>
-            <div style={{ fontSize: FS(14), color: 'rgba(0,0,0,0.45)', fontWeight: 700, letterSpacing: 1,
+            <div style={{ fontSize: FS(14), color: 'rgba(0,0,0,0.62)', fontWeight: 700, letterSpacing: 1,
               textTransform: 'uppercase', marginBottom: SP(14), paddingLeft: SP(2) }}>資產配置</div>
             {assets.length === 0 ?
-            <div style={{ fontSize: FS(17), color: 'rgba(60,60,67,0.4)', textAlign: 'center', padding: PAD('12px 0') }}>尚無資產</div> :
+            <div style={{ fontSize: FS(17), color: 'rgba(44,44,50,0.4)', textAlign: 'center', padding: PAD('12px 0') }}>尚無資產</div> :
             <div style={{ display: 'flex', alignItems: 'center', gap: SP(16) }}>
               <div style={{ flexShrink: 0, position: 'relative' }}>
                 <svg width={DSIZE} height={DSIZE} style={{ transform: 'rotate(-90deg)' }}>
@@ -963,7 +963,7 @@ function NetWorthSheet({ open, onClose, total, computedAcctGroups, computedHoldi
                 </svg>
                 <div style={{ position: 'absolute', inset: 0, display: 'flex', flexDirection: 'column',
                   alignItems: 'center', justifyContent: 'center' }}>
-                  <div style={{ fontSize: FS(15), color: 'rgba(60,60,67,0.55)' }}>資產</div>
+                  <div style={{ fontSize: FS(15), color: 'rgba(44,44,50,0.55)' }}>資產</div>
                   <div style={{ fontSize: FS(20), fontWeight: 700, color: TOKENS.ink,
                     fontFamily: TOKENS.fontMono, marginTop: SP(2) }}>{mask(totalAssets)}</div>
                 </div>
@@ -986,7 +986,7 @@ function NetWorthSheet({ open, onClose, total, computedAcctGroups, computedHoldi
           {/* 資產明細 */}
           {assets.length > 0 &&
           <div style={cardStyle}>
-            <div style={{ fontSize: FS(14), color: 'rgba(0,0,0,0.45)', fontWeight: 700, letterSpacing: 1,
+            <div style={{ fontSize: FS(14), color: 'rgba(0,0,0,0.62)', fontWeight: 700, letterSpacing: 1,
               textTransform: 'uppercase', marginBottom: SP(8), paddingLeft: SP(2) }}>資產明細</div>
             {assets.map((c, i) =>
             <div key={c.name} style={{ display: 'flex', alignItems: 'center', gap: SP(12),
@@ -998,7 +998,7 @@ function NetWorthSheet({ open, onClose, total, computedAcctGroups, computedHoldi
                 <div style={{ fontFamily: TOKENS.fontMono, fontSize: FS(18), fontWeight: 600, color: TOKENS.ink }}>
                   {mask(c.value)}
                 </div>
-                <div style={{ fontSize: FS(14), color: 'rgba(60,60,67,0.5)', marginTop: SP(1) }}>
+                <div style={{ fontSize: FS(14), color: 'rgba(44,44,50,0.5)', marginTop: SP(1) }}>
                   {totalAssets > 0 ? (c.value / totalAssets * 100).toFixed(1) : '0.0'}%
                 </div>
               </div>
@@ -1010,7 +1010,7 @@ function NetWorthSheet({ open, onClose, total, computedAcctGroups, computedHoldi
           {/* 負債明細 */}
           {liabRows.length > 0 &&
           <div style={cardStyle}>
-            <div style={{ fontSize: FS(14), color: 'rgba(0,0,0,0.45)', fontWeight: 700, letterSpacing: 1,
+            <div style={{ fontSize: FS(14), color: 'rgba(0,0,0,0.62)', fontWeight: 700, letterSpacing: 1,
               textTransform: 'uppercase', marginBottom: SP(8), paddingLeft: SP(2) }}>負債明細（已自現金扣除）</div>
             {liabRows.map((c, i) =>
             <div key={c.name} style={{ display: 'flex', alignItems: 'center', gap: SP(12),

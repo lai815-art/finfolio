@@ -187,7 +187,7 @@ function NavHeader({ tab, onSettings, hideAmounts, setHideAmounts }) {
   const headBtn = {
     borderRadius: "20px", marginBottom: SP(2), flexShrink: 0,
     background: 'rgba(0,0,0,0.09)',
-    color: 'rgba(60,60,67,0.88)',
+    color: 'rgba(44,44,50,0.88)',
     display: 'flex', alignItems: 'center', justifyContent: 'center',
     width: "40px", height: "40px", margin: "1px 0px 2px",
     border: "1px solid rgba(0, 0, 0, 0.12)", lineHeight: "1.5"
@@ -374,7 +374,7 @@ function RecordSheet({ open, draft, onClose, onSaved, onDelete, masterData, comp
           <button onClick={onClose} style={{ ...{
               width: 36, height: 46, borderRadius: RS(18), flexShrink: 0,
               background: 'rgba(0,0,0,0.14)', border: 'none',
-              color: 'rgba(60,60,67,0.7)', display: 'flex', alignItems: 'center', justifyContent: 'center'
+              color: 'rgba(44,44,50,0.7)', display: 'flex', alignItems: 'center', justifyContent: 'center'
             }, width: "40px", height: "40px", borderRadius: "18px" }}><X size={18} /></button>
         </div>
         {/* Scrollable body */}
@@ -596,6 +596,7 @@ function App() {
   const [recordDraft, setRecordDraft] = useStateApp(null);
   const [recordReturnTab, setRecordReturnTab] = useStateApp('dashboard');
   const [recordReturnAcctDetail, setRecordReturnAcctDetail] = useStateApp(null);
+  const [recordReturnInvestDetail, setRecordReturnInvestDetail] = useStateApp(null);
   const [listening, setListening] = useStateApp(false);
   const [voiceTurn, setVoiceTurn] = useStateApp(0);
   const [savedFlows, setSavedFlows] = useStateApp(() => {
@@ -681,6 +682,16 @@ function App() {
       setRecordReturnAcctDetail(null);
     }
   }, [computedAcctGroups]); // 只依賴 computedAcctGroups，避免設定時立即觸發
+  // 個股詳情回復：編輯/新增後回到該個股詳情頁（取最新持倉）
+  useEffectApp(() => {
+    if (!recordReturnInvestDetail) return;
+    const code = recordReturnInvestDetail.code;
+    const item = computedHoldings.flatMap((g) => g.items).find((it) => it.code === code);
+    if (item) {
+      setInvestDetail({ item, mask: appMask, savedTrades });
+      setRecordReturnInvestDetail(null);
+    }
+  }, [computedHoldings]);
 
   const FLOW_ICONS = {
     餐飲: '🍔', 交通: '🚕', 生活雜貨: '🛒', 娛樂: '🎬', 醫療: '💊',
@@ -936,6 +947,14 @@ function App() {
           setRecordReturnAcctDetail(null);
           setRecordReturnTab('dashboard');
         }
+        if (recordReturnInvestDetail) {
+          setTab(recordReturnTab);
+          const code = recordReturnInvestDetail.code;
+          const item = computedHoldings.flatMap((g) => g.items).find((it) => it.code === code);
+          if (item) setInvestDetail({ item, mask: appMask, savedTrades });
+          setRecordReturnInvestDetail(null);
+          setRecordReturnTab('dashboard');
+        }
       }}
       onSaved={handleSaved} onDelete={handleDelete} />
       <SettingsOverlay open={settingsOpen} onClose={() => setSettingsOpen(false)}
@@ -996,9 +1015,11 @@ function App() {
             savedTrades={investDetail.savedTrades || []}
             onClose={() => setInvestDetail(null)}
             onEditRecord={(d) => {
+              const code = investDetail.item.code;
               setInvestDetail(null);
               setRecordDraft(d);
               setRecordReturnTab('invest');
+              setRecordReturnInvestDetail({ code });
               setRecordOpen(true);
             }} />}
           </>);

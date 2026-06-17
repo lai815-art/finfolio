@@ -97,7 +97,7 @@ function AdvisorScreen() {
           display: 'flex', gap: SP(6), alignItems: 'center', overflow: 'hidden'
         }}>
         <Shield size={12} style={{ color: TOKENS.sage, flexShrink: 0 }} />
-        <div style={{ fontSize: FS(14), color: 'rgba(45,36,32,0.6)', lineHeight: 1.3,
+        <div style={{ fontSize: FS(14), color: 'rgba(45,36,32,0.72)', lineHeight: 1.3,
             whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', minWidth: 0 }}>
           僅傳送匿名摘要給 AI · 明細留在本機
         </div>
@@ -119,7 +119,7 @@ function AdvisorScreen() {
               border: '1px solid rgba(212, 184, 122,0.3)', whiteSpace: 'nowrap', flexShrink: 0 }}>
             🔍 主動分析
           </div>
-          <div style={{ fontSize: FS(15), color: 'rgba(45,36,32,0.4)', fontFamily: TOKENS.fontMono, whiteSpace: 'nowrap', flexShrink: 0 }}>
+          <div style={{ fontSize: FS(15), color: 'rgba(45,36,32,0.62)', fontFamily: TOKENS.fontMono, whiteSpace: 'nowrap', flexShrink: 0 }}>
             05.27 14:30
           </div>
         </div>
@@ -138,7 +138,7 @@ function AdvisorScreen() {
             </div>
           </div>
           <div>
-            <div style={{ fontSize: FS(15), color: 'rgba(45,36,32,0.55)', letterSpacing: 1,
+            <div style={{ fontSize: FS(15), color: 'rgba(45,36,32,0.82)', letterSpacing: 1,
                 textTransform: 'uppercase' }}>配置健康度</div>
             <div style={{ fontSize: FS(22), fontWeight: 700, color: TOKENS.scrimInk, marginTop: SP(2) }}>{health.level}</div>
           </div>
@@ -155,7 +155,7 @@ function AdvisorScreen() {
           <button style={{
               flex: 1, height: 48, borderRadius: RS(18),
               background: 'rgba(28,26,24,0.12)', border: '1px solid rgba(28,26,24,0.16)',
-              color: 'rgba(45,36,32,0.7)', fontSize: FS(16)
+              color: 'rgba(45,36,32,0.82)', fontSize: FS(16)
             }}>暫不調整</button>
         </div>
       </div>
