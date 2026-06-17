@@ -28,7 +28,7 @@ function HoldingCard({ item, color, mask, onOpen }) {
           fontSize: FS(13), fontWeight: 700,
           textAlign: 'center', lineHeight: 1.2, padding: SP(4)
         }, borderRadius: "25px" }}>
-        {(item.assetClass || item.broker || '—').slice(0, 4)}
+        {(item.assetClass || item.broker || '—').slice(0, 2)}
       </div>
 
       <div style={{ flex: 1, minWidth: 0 }}>
