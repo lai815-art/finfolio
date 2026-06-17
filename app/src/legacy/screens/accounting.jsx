@@ -659,7 +659,11 @@ function StockForm({ state, update, onSaved, onDelete, recordId, masterData, com
   const sh = parseFloat(state.shares) || 0;
   const pr = parseFloat(state.price) || 0;
   const gross = sh * pr;
-  const fee = sh > 0 && pr > 0 ? Math.max(1, Math.round(gross * 0.001425)) : 0;
+  // 手續費折扣：依所選券商設定（折，如 6 = 六折）；空白或 10 = 無折扣
+  const _brokerObj = (md.brokers || []).find((b) => b.name === state.broker);
+  const _feeDisc = _brokerObj && _brokerObj.discount != null && String(_brokerObj.discount).trim() !== '' ? parseFloat(_brokerObj.discount) : 10;
+  const feeMult = _feeDisc > 0 && _feeDisc <= 10 ? _feeDisc / 10 : 1;
+  const fee = sh > 0 && pr > 0 ? Math.max(1, Math.round(gross * 0.001425 * feeMult)) : 0;
   const tax = state.side === 'sell' ? Math.round(gross * 0.003) : 0;
   const net = state.side === 'buy' ? gross + fee : gross - fee - tax;
 
@@ -842,7 +846,7 @@ function StockForm({ state, update, onSaved, onDelete, recordId, masterData, com
         </div>
         <div style={{ marginTop: SP(4), display: 'flex', justifyContent: 'space-between', fontSize: FS(18),
           color: 'rgba(44,44,50,0.6)' }}>
-          <span>手續費 0.1425%</span>
+          <span>手續費 0.1425%{feeMult < 1 ? ` · ${_feeDisc} 折` : ''}</span>
           <span style={{ fontFamily: TOKENS.fontMono, color: TOKENS.ink }}>
             {fee.toLocaleString()}
           </span>

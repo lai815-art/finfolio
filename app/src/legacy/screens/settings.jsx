@@ -1261,9 +1261,9 @@ function AccountsManager({ data, onChange, color, initialBalances, setInitialBal
 function BrokerManager({ items, onChange, color, settleOptions = [] }) {
   const { Plus, X, Check, Grip, Trash, ArrowUpRight } = window.Icons;
   const [editIdx, setEditIdx] = useStateSet(null);
-  const [edit, setEdit] = useStateSet({ name: '', sub: '', settleAccount: '', currency: 'TWD' });
+  const [edit, setEdit] = useStateSet({ name: '', sub: '', settleAccount: '', currency: 'TWD', discount: '' });
   const [adding, setAdding] = useStateSet(false);
-  const [addV, setAddV] = useStateSet({ name: '', sub: '', settleAccount: '', currency: 'TWD' });
+  const [addV, setAddV] = useStateSet({ name: '', sub: '', settleAccount: '', currency: 'TWD', discount: '' });
   const { dragIdx, overIdx, getRowProps } = useDragReorder(items, onChange);
 
   const startEdit = (i) => {setEditIdx(i);setEdit({ ...items[i] });};
@@ -1278,7 +1278,7 @@ function BrokerManager({ items, onChange, color, settleOptions = [] }) {
   const addNew = () => {
     if (addV.name.trim()) {
       onChange([...items, { ...addV, name: addV.name.trim() }]);
-      setAddV({ name: '', sub: '', settleAccount: '' });setAdding(false);
+      setAddV({ name: '', sub: '', settleAccount: '', currency: 'TWD', discount: '' });setAdding(false);
     }
   };
 
@@ -1319,9 +1319,9 @@ function BrokerManager({ items, onChange, color, settleOptions = [] }) {
             <button onClick={() => startEdit(i)} style={{ flex: 1, minWidth: 0, background: 'transparent', border: 'none',
               color: TOKENS.ink, fontSize: FS(19), textAlign: 'left', padding: SP(0), display: 'flex', flexDirection: 'column', gap: SP(2) }}>
                     <span style={{ fontWeight: 500, display: 'flex', alignItems: 'center', gap: SP(6) }}>{it.name}<CurrencyChip code={it.currency} /></span>
-                    {it.settleAccount &&
+                    {(it.settleAccount || (it.discount && parseFloat(it.discount) > 0 && parseFloat(it.discount) < 10)) &&
               <span style={{ fontSize: FS(16), color: 'rgba(44,44,50,0.88)' }}>
-                        交割：{it.settleAccount}
+                        {[it.settleAccount ? `交割：${it.settleAccount}` : '', (it.discount && parseFloat(it.discount) > 0 && parseFloat(it.discount) < 10) ? `手續費 ${it.discount} 折` : ''].filter(Boolean).join(' · ')}
                       </span>
               }
                   </button>
@@ -1348,6 +1348,13 @@ function BrokerManager({ items, onChange, color, settleOptions = [] }) {
                   <span style={{ fontSize: FS(16), color: 'rgba(44,44,50,0.84)', whiteSpace: 'nowrap', flexShrink: 0 }}>對應交割戶</span>
                   <SettleSelect value={edit.settleAccount || ''} onChange={(v) => setEdit({ ...edit, settleAccount: v })} />
                 </div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: SP(8) }}>
+                  <span style={{ fontSize: FS(16), color: 'rgba(44,44,50,0.84)', whiteSpace: 'nowrap', flexShrink: 0 }}>手續費折扣</span>
+                  <input value={edit.discount || ''} onChange={(e) => setEdit({ ...edit, discount: e.target.value })} inputMode="decimal" placeholder="例 6＝六折，空白＝無折扣"
+                    style={{ flex: 1, minWidth: 0, height: 34, padding: PAD('0 10px'), borderRadius: RS(8),
+                      background: 'rgba(0,0,0,0.06)', border: `1px solid ${color}40`, fontSize: FS(17), color: TOKENS.ink, outline: 'none' }} />
+                  <span style={{ fontSize: FS(16), color: 'rgba(44,44,50,0.6)', whiteSpace: 'nowrap', flexShrink: 0 }}>折</span>
+                </div>
               </div>
           }
           </div>
@@ -1365,6 +1372,13 @@ function BrokerManager({ items, onChange, color, settleOptions = [] }) {
           <div style={{ display: 'flex', alignItems: 'center', gap: SP(8), marginBottom: SP(10) }}>
             <span style={{ fontSize: FS(16), color: 'rgba(44,44,50,0.84)', whiteSpace: 'nowrap' }}>對應交割戶</span>
             <SettleSelect value={addV.settleAccount || ''} onChange={(v) => setAddV({ ...addV, settleAccount: v })} />
+          </div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: SP(8), marginBottom: SP(10) }}>
+            <span style={{ fontSize: FS(16), color: 'rgba(44,44,50,0.84)', whiteSpace: 'nowrap' }}>手續費折扣</span>
+            <input value={addV.discount || ''} onChange={(e) => setAddV({ ...addV, discount: e.target.value })} inputMode="decimal" placeholder="例 6＝六折，空白＝無折扣"
+              style={{ flex: 1, minWidth: 0, height: 34, padding: PAD('0 10px'), borderRadius: RS(8),
+                background: TOKENS.surface, border: `1px solid ${color}40`, fontSize: FS(17), color: TOKENS.ink, outline: 'none' }} />
+            <span style={{ fontSize: FS(16), color: 'rgba(44,44,50,0.6)', whiteSpace: 'nowrap' }}>折</span>
           </div>
           <div style={{ display: 'flex', gap: SP(8) }}>
             <button onClick={() => setAdding(false)} style={{ flex: 1, height: 36, borderRadius: RS(10),
