@@ -45,7 +45,7 @@ function mulberry(seed) {
   };
 }
 
-const TODAY = new Date(2026, 4, 27); // May 27, 2026 (anchor)
+const TODAY = new Date(); // 開啟 App 時的當前日期
 
 const EXP_TEMPLATES = [
 { icon: '🍞', cat: '早餐', merchant: '便利商店', account: '信用卡 A', range: [60, 130] },

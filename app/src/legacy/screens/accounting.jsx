@@ -1,7 +1,7 @@
 // Accounting / 智慧記帳 (收支轉帳 + 股票買賣，共用語音 AI)
 const { useState: useStateAcc, useEffect: useEffectAcc, useRef: useRefAcc } = React;
 
-const TODAY_ACC = new Date(2026, 4, 27);
+const TODAY_ACC = new Date();
 
 /* ============= shared DatePicker — 使用全站共用 DateNavBar（高度 45） ============= */
 function DatePicker({ value, onChange }) {

@@ -50,8 +50,12 @@ function AdvisorScreen() {
   '幫我擬一年期投資計劃'];
 
 
+  const pad2 = (x) => String(x).padStart(2, '0');
+  const nowHM = () => `${pad2(new Date().getHours())}:${pad2(new Date().getMinutes())}`;
+  const _n = new Date();
+  const analysedAt = `${pad2(_n.getMonth() + 1)}.${pad2(_n.getDate())} ${pad2(_n.getHours())}:${pad2(_n.getMinutes())}`;
   const initialChat = [
-  { role: 'ai', text: '午安，黃先生。我已讀取你的最新資產配置。要從哪裡開始？', time: '14:30' }];
+  { role: 'ai', text: '午安，黃先生。我已讀取你的最新資產配置。要從哪裡開始？', time: nowHM() }];
 
   const [chat, setChat] = useStateAI(initialChat);
   const [input, setInput] = useStateAI('');
@@ -73,7 +77,7 @@ function AdvisorScreen() {
       if (q.includes('安全') || q.includes('股票')) reply = `台股佔比 ${r1(stockPct)}%，集中於半導體類股；現金部位約 ${r0(cashPct)}%，防禦力充足。若想提高長期報酬，可考慮分批將部分現金投入大盤型 ETF 與投資等級債券。`;else
       if (q.includes('比例') || q.includes('調整')) reply = '建議目標配置：股票 50% / 現金 30% / 債券 ETF 15% / 其他 5%。可分 3 個月逐步調整，避免一次性換股造成稅務與手續費負擔。';else
       if (q.includes('計劃') || q.includes('計畫')) reply = '初步一年計劃：1) 每月定期定額 20,000 入 0050；2) 緊急預備金累積至 300,000；3) Q3 評估是否加入債券 ETF。需要我列入待辦事項嗎？';
-      setChat((c) => [...c, { role: 'ai', text: reply, time: '14:31' }]);
+      setChat((c) => [...c, { role: 'ai', text: reply, time: nowHM() }]);
       setAiTyping(false);
     }, 1100);
   };
@@ -81,7 +85,7 @@ function AdvisorScreen() {
   const send = (text) => {
     const v = (text ?? input).trim();
     if (!v) return;
-    setChat((c) => [...c, { role: 'me', text: v, time: '14:31' }]);
+    setChat((c) => [...c, { role: 'me', text: v, time: nowHM() }]);
     setInput('');
     aiReply(v);
   };
@@ -120,7 +124,7 @@ function AdvisorScreen() {
             🔍 主動分析
           </div>
           <div style={{ fontSize: FS(15), color: 'rgba(45,36,32,0.62)', fontFamily: TOKENS.fontMono, whiteSpace: 'nowrap', flexShrink: 0 }}>
-            05.27 14:30
+            {analysedAt}
           </div>
         </div>
         <div style={{ marginTop: SP(12), display: 'flex', alignItems: 'center', gap: SP(14) }}>

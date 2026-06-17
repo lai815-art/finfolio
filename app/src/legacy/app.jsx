@@ -149,12 +149,18 @@ function computeHoldings(trades, masterData, livePrices = {}) {
 }
 
 function StatusBar() {
+  const [now, setNow] = useStateApp(() => new Date());
+  useEffectApp(() => {
+    const id = setInterval(() => setNow(new Date()), 30000);
+    return () => clearInterval(id);
+  }, []);
+  const clock = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
   return (
     <div style={{
       height: 62, display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between',
       padding: PAD('0 28px 8px'), color: TOKENS.ink, position: 'relative', zIndex: 5
     }}>
-      <span style={{ fontFamily: '-apple-system, "SF Pro", system-ui', fontSize: FS(20), fontWeight: 600 }}>14:32</span>
+      <span style={{ fontFamily: '-apple-system, "SF Pro", system-ui', fontSize: FS(20), fontWeight: 600 }}>{clock}</span>
       <div style={{ display: 'flex', gap: SP(6), alignItems: 'center' }}>
         <svg width="18" height="11" viewBox="0 0 18 11"><g fill={TOKENS.ink}>
           <rect x="0" y="7" width="3" height="4" rx="0.7" />
