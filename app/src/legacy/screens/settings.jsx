@@ -839,15 +839,15 @@ function IncomeGroupManager({ items, onChange, color, groups, groupColors, group
                 <div style={{ display: 'flex', gap: SP(8) }}>
                       <input autoFocus value={editVal} onChange={(e) => setEditVal(e.target.value)}
                   onKeyDown={(e) => e.key === 'Enter' && saveEdit()}
-                  style={{ flex: 1, height: 34, padding: PAD('0 10px'), borderRadius: RS(8),
+                  style={{ flex: 1, minWidth: 0, height: 34, padding: PAD('0 10px'), borderRadius: RS(8),
                     background: 'rgba(0,0,0,0.06)', border: `1px solid ${gc}55`,
                     fontSize: FS(18), color: TOKENS.ink, outline: 'none' }} />
-                      <button onClick={saveEdit} style={{ width: 34, height: 34, borderRadius: RS(8),
+                      <button onClick={saveEdit} style={{ width: 34, height: 34, borderRadius: RS(8), flexShrink: 0,
                     background: `${gc}22`, border: `1px solid ${gc}55`, color: gc,
                     display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                         <Check size={14} strokeWidth={2.5} />
                       </button>
-                      <button onClick={() => setEditing(null)} style={{ width: 34, height: 34, borderRadius: RS(8),
+                      <button onClick={() => setEditing(null)} style={{ width: 34, height: 34, borderRadius: RS(8), flexShrink: 0,
                     background: 'rgba(0,0,0,0.08)', border: '1px solid rgba(0,0,0,0.12)',
                     color: 'rgba(60,60,67,0.84)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                         <X size={14} />
@@ -878,13 +878,13 @@ function IncomeGroupManager({ items, onChange, color, groups, groupColors, group
                 <input autoFocus value={addVal} onChange={(e) => setAddVal(e.target.value)}
               onKeyDown={(e) => e.key === 'Enter' && addItem(g)}
               placeholder={`新增${gl}…`}
-              style={{ flex: 1, height: 36, padding: PAD('0 12px'), borderRadius: RS(10),
+              style={{ flex: 1, minWidth: 0, height: 36, padding: PAD('0 12px'), borderRadius: RS(10),
                 background: TOKENS.surface, border: `1px solid ${gc}55`,
                 fontSize: FS(18), color: TOKENS.ink, outline: 'none' }} />
-                <button onClick={() => addItem(g)} style={{ height: 36, padding: PAD('0 14px'), borderRadius: RS(10),
+                <button onClick={() => addItem(g)} style={{ height: 36, padding: PAD('0 14px'), borderRadius: RS(10), flexShrink: 0,
                 background: `${gc}22`, border: `1px solid ${gc}55`, color: gc,
                 fontSize: FS(17), fontWeight: 600 }}>新增</button>
-                <button onClick={() => {setAdding(null);setAddVal('');}} style={{ height: 36, padding: PAD('0 14px'),
+                <button onClick={() => {setAdding(null);setAddVal('');}} style={{ height: 36, padding: PAD('0 14px'), flexShrink: 0,
                 borderRadius: RS(10), background: 'rgba(0,0,0,0.08)', border: '1px solid rgba(0,0,0,0.12)',
                 color: 'rgba(60,60,67,0.84)', fontSize: FS(17) }}>取消</button>
               </div> :
@@ -1081,7 +1081,7 @@ function StringListManager({ items, onChange, color, placeholder }) {
         onKeyDown={(e) => {if (e.key === 'Enter') add();}}
         placeholder={placeholder}
         style={{
-          flex: 1, height: 44, padding: PAD('0 14px'),
+          flex: 1, minWidth: 0, height: 44, padding: PAD('0 14px'),
           background: 'transparent', border: 'none', outline: 'none',
           color: TOKENS.ink, fontSize: FS(19)
         }} />
@@ -1319,9 +1319,9 @@ function BrokerManager({ items, onChange, color, settleOptions = [] }) {
             <button onClick={() => startEdit(i)} style={{ flex: 1, minWidth: 0, background: 'transparent', border: 'none',
               color: TOKENS.ink, fontSize: FS(19), textAlign: 'left', padding: SP(0), display: 'flex', flexDirection: 'column', gap: SP(2) }}>
                     <span style={{ fontWeight: 500, display: 'flex', alignItems: 'center', gap: SP(6) }}>{it.name}<CurrencyChip code={it.currency} /></span>
-                    {(it.sub || it.settleAccount) &&
+                    {it.settleAccount &&
               <span style={{ fontSize: FS(16), color: 'rgba(60,60,67,0.88)' }}>
-                        {[it.sub, it.settleAccount ? `交割：${it.settleAccount}` : ''].filter(Boolean).join(' · ')}
+                        交割：{it.settleAccount}
                       </span>
               }
                   </button>
@@ -1340,9 +1340,6 @@ function BrokerManager({ items, onChange, color, settleOptions = [] }) {
             </div>
             {editIdx === i &&
           <div style={{ marginTop: SP(10), paddingLeft: SP(38), paddingRight: SP(4), display: 'flex', flexDirection: 'column', gap: SP(8) }}>
-                <input value={edit.sub} onChange={(e) => setEdit({ ...edit, sub: e.target.value })} placeholder="帳號或備註"
-            style={{ width: '100%', height: 34, padding: PAD('0 10px'), borderRadius: RS(8), background: 'rgba(0,0,0,0.06)',
-              border: `1px solid ${color}40`, fontSize: FS(17), color: TOKENS.ink, outline: 'none', boxSizing: 'border-box' }} />
                 <div style={{ display: 'flex', alignItems: 'center', gap: SP(8) }}>
                   <span style={{ fontSize: FS(16), color: 'rgba(60,60,67,0.84)', whiteSpace: 'nowrap', flexShrink: 0 }}>幣別</span>
                   <CurrencySelect value={edit.currency} onChange={(v) => setEdit({ ...edit, currency: v })} color={color} style={{ flex: 1, minWidth: 0 }} />
@@ -1361,9 +1358,6 @@ function BrokerManager({ items, onChange, color, settleOptions = [] }) {
           <input autoFocus value={addV.name} onChange={(e) => setAddV({ ...addV, name: e.target.value })} placeholder="證券戶名稱（券商）"
         style={{ width: '100%', height: 38, padding: PAD('0 12px'), borderRadius: RS(10), background: TOKENS.surface,
           border: `1px solid ${color}55`, fontSize: FS(19), color: TOKENS.ink, outline: 'none', marginBottom: SP(8) }} />
-          <input value={addV.sub} onChange={(e) => setAddV({ ...addV, sub: e.target.value })} placeholder="帳號或備註"
-        style={{ width: '100%', height: 34, padding: PAD('0 10px'), borderRadius: RS(8), background: TOKENS.surface,
-          border: `1px solid ${color}40`, fontSize: FS(17), color: TOKENS.ink, outline: 'none', marginBottom: SP(8) }} />
           <div style={{ display: 'flex', alignItems: 'center', gap: SP(8), marginBottom: SP(8) }}>
             <span style={{ fontSize: FS(16), color: 'rgba(60,60,67,0.84)', whiteSpace: 'nowrap' }}>幣別</span>
             <CurrencySelect value={addV.currency} onChange={(v) => setAddV({ ...addV, currency: v })} color={color} style={{ flex: 1, minWidth: 0, background: TOKENS.surface }} />
@@ -1447,7 +1441,6 @@ function SettleManager({ items, onChange, color, initialBalances = {}, setInitia
                       <CurrencyChip code={it.currency} />
                     </div>
                     <div style={{ display: 'flex', alignItems: 'center', gap: SP(8) }}>
-                      {it.sub && <span style={{ fontSize: FS(15), color: 'rgba(60,60,67,0.55)' }}>{it.sub}</span>}
                       {initialBalances[it.name] ? <span style={{ fontSize: FS(15), color: 'rgba(60,60,67,0.55)', fontFamily: 'JetBrains Mono,monospace' }}>
                         ${Math.round(initialBalances[it.name]).toLocaleString()}
                       </span> : null}
@@ -1468,9 +1461,6 @@ function SettleManager({ items, onChange, color, initialBalances = {}, setInitia
             </div>
             {editIdx === i &&
           <div style={{ marginTop: SP(10), paddingLeft: SP(38), paddingRight: SP(4), display: 'flex', flexDirection: 'column', gap: SP(8) }}>
-                <input value={edit.sub} onChange={(e) => setEdit({ ...edit, sub: e.target.value })} placeholder="備註"
-            style={{ width: '100%', height: 34, padding: PAD('0 10px'), borderRadius: RS(8), background: 'rgba(0,0,0,0.06)',
-              border: `1px solid ${color}40`, fontSize: FS(17), color: TOKENS.ink, outline: 'none', boxSizing: 'border-box' }} />
                 <div style={{ display: 'flex', alignItems: 'center', gap: SP(8) }}>
                   <span style={{ fontSize: FS(16), color: 'rgba(60,60,67,0.84)', whiteSpace: 'nowrap', flexShrink: 0 }}>幣別</span>
                   <CurrencySelect value={edit.currency} onChange={(v) => setEdit({ ...edit, currency: v })} color={color} style={{ flex: 1, minWidth: 0 }} />
@@ -1491,9 +1481,6 @@ function SettleManager({ items, onChange, color, initialBalances = {}, setInitia
           <input autoFocus value={addV.name} onChange={(e) => setAddV({ ...addV, name: e.target.value })} placeholder="交割戶名稱"
         style={{ width: '100%', height: 38, padding: PAD('0 12px'), borderRadius: RS(10), background: TOKENS.surface,
           border: `1px solid ${color}55`, fontSize: FS(19), color: TOKENS.ink, outline: 'none', marginBottom: SP(8) }} />
-          <input value={addV.sub} onChange={(e) => setAddV({ ...addV, sub: e.target.value })} placeholder="備註"
-        style={{ width: '100%', height: 34, padding: PAD('0 10px'), borderRadius: RS(8), background: TOKENS.surface,
-          border: `1px solid ${color}40`, fontSize: FS(17), color: TOKENS.ink, outline: 'none', marginBottom: SP(8) }} />
           <div style={{ display: 'flex', alignItems: 'center', gap: SP(8), marginBottom: SP(8) }}>
             <span style={{ fontSize: FS(16), color: 'rgba(60,60,67,0.84)', whiteSpace: 'nowrap' }}>幣別</span>
             <CurrencySelect value={addV.currency} onChange={(v) => setAddV({ ...addV, currency: v })} color={color} style={{ flex: 1, minWidth: 0, background: TOKENS.surface }} />
