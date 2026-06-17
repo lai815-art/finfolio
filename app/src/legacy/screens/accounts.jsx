@@ -555,7 +555,7 @@ function AccountItemRow({ item, group, mask, last, onOpen }) {
             overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{item.name}</div>
           {item.sub && <div style={{ fontSize: FS(14), color: 'rgba(0,0,0,0.78)', marginTop: SP(1) }}>{item.sub}</div>}
         </div>
-        <div style={{ fontFamily: TOKENS.fontMono, fontSize: FS(18), fontWeight: 600, flexShrink: 0,
+        <div style={{ fontFamily: TOKENS.fontMono, fontSize: FS(18), fontWeight: 600, flexShrink: 0, whiteSpace: 'nowrap',
           color: group.sign < 0 ? TOKENS.red : TOKENS.ink }}>
           {item.currency && item.currency !== 'TWD' &&
           <span style={{ fontSize: FS(13), color: 'rgba(0,0,0,0.45)', marginRight: SP(3) }}>{item.currency}</span>

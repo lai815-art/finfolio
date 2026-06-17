@@ -39,22 +39,23 @@ function HoldingCard({ item, color, mask, onOpen }) {
           </span>
         </div>
         <div style={{ marginTop: SP(4), display: 'flex', alignItems: 'center', gap: SP(7) }}>
-          <span style={{ ...{ fontFamily: TOKENS.fontMono, fontSize: FS(16), color: 'rgba(60,60,67,0.88)' }, fontSize: "15px" }}>
+          <span style={{ ...{ fontFamily: TOKENS.fontMono, fontSize: FS(16), color: 'rgba(60,60,67,0.88)', whiteSpace: 'nowrap', flexShrink: 0 }, fontSize: "15px" }}>
             {item.qty.toLocaleString()} 股
           </span>
           <span style={{ fontSize: FS(16), padding: PAD('1px 6px'), borderRadius: RS(5),
-            background: 'rgba(0,0,0,0.08)', color: 'rgba(60,60,67,0.84)' }}>
+            background: 'rgba(0,0,0,0.08)', color: 'rgba(60,60,67,0.84)', whiteSpace: 'nowrap', flexShrink: 0,
+            overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: 96 }}>
             {item.assetClass || item.broker}
           </span>
         </div>
       </div>
 
       <div style={{ textAlign: 'right', flexShrink: 0 }}>
-        <div style={{ ...{ fontFamily: TOKENS.fontMono, fontSize: FS(20), fontWeight: 600, color: TOKENS.ink, height: "24px" }, fontSize: "16px" }}>
+        <div style={{ ...{ fontFamily: TOKENS.fontMono, fontSize: FS(20), fontWeight: 600, color: TOKENS.ink, height: "24px", whiteSpace: 'nowrap' }, fontSize: "16px" }}>
           {mask(item.mv)}
         </div>
         <div style={{ ...{ marginTop: SP(3), fontFamily: TOKENS.fontMono, fontSize: FS(16), fontWeight: 600,
-            color: item.pnl < 0 ? TOKENS.red : TOKENS.ink2, height: "20px" }, fontSize: "15px", height: "22px" }}>
+            color: item.pnl < 0 ? TOKENS.red : TOKENS.ink2, height: "20px", whiteSpace: 'nowrap' }, fontSize: "15px", height: "22px" }}>
           {up ? '' : '-'}{mask(Math.abs(item.pnl))}
           <span style={{ fontSize: FS(14), fontWeight: 400, opacity: 0.8, marginLeft: SP(2) }}>
             ({up ? '+' : ''}{item.pct.toFixed(1)}%)
