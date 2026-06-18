@@ -788,28 +788,79 @@ function MonthlyStatsSheet({ open, onClose, savedFlows, masterData, hideAmounts,
   const total = view === 'inc' ? incTotal : expTotal;
   const centerLabel = view === 'inc' ? '總收入' : '總支出';
 
-  // 大型甜甜圈
+  // 大型甜甜圈（環外標註類別名稱與 %）
   const Donut = ({ data, tot, label, color }) => {
-    const DR = 84,DT = 26,DSIZE = (DR + DT) * 2 + 4,DC = 2 * Math.PI * DR;
+    const DR = 78,DT = 24,GAP = 60,cx = DR + DT / 2 + GAP,LSIZE = cx * 2,DC = 2 * Math.PI * DR;
     let acc = 0;
-    const arcs = data.map((c) => { const len = c.pct / 100 * DC,off = acc / 100 * DC;acc += c.pct;return { ...c, len, off }; });
+    const arcs = data.map((c) => { const len = c.pct / 100 * DC,off = acc / 100 * DC;acc += c.pct;return { ...c, len, off, mid: (off + len / 2) / DC }; });
+    const labelR = DR + DT / 2 + 18;
     return (
-      <div style={{ position: 'relative', width: DSIZE, height: DSIZE, margin: '0 auto' }}>
-        <svg width={DSIZE} height={DSIZE} style={{ transform: 'rotate(-90deg)' }}>
-          <circle cx={DSIZE / 2} cy={DSIZE / 2} r={DR} fill="none" stroke="rgba(0,0,0,0.06)" strokeWidth={DT} />
-          {arcs.map((a, i) =>
-          <circle key={i} cx={DSIZE / 2} cy={DSIZE / 2} r={DR} fill="none"
-          stroke={a.color} strokeWidth={DT} strokeLinecap="butt"
-          strokeDasharray={a.len + ' ' + DC} strokeDashoffset={-a.off} />
-          )}
+      <div style={{ position: 'relative', width: '100%', maxWidth: LSIZE, margin: '0 auto' }}>
+        <svg width="100%" viewBox={`0 0 ${LSIZE} ${LSIZE}`} style={{ display: 'block' }}>
+          <g transform={`rotate(-90 ${cx} ${cx})`}>
+            <circle cx={cx} cy={cx} r={DR} fill="none" stroke="rgba(0,0,0,0.06)" strokeWidth={DT} />
+            {arcs.map((a, i) =>
+            <circle key={i} cx={cx} cy={cx} r={DR} fill="none"
+            stroke={a.color} strokeWidth={DT}
+            strokeDasharray={a.len + ' ' + DC} strokeDashoffset={-a.off} />
+            )}
+          </g>
+          {arcs.filter((a) => a.pct >= 4).map((a, i) => {
+            const ang = a.mid * 2 * Math.PI;
+            const x = cx + labelR * Math.sin(ang),y = cx - labelR * Math.cos(ang);
+            return (
+              <text key={i} x={x} y={y} textAnchor="middle" dominantBaseline="middle" fill="rgba(44,44,50,0.82)" style={{ fontSize: '13px' }}>
+                <tspan x={x} dy="-0.35em" style={{ fontWeight: 700, fontSize: '14px' }} fill={a.color}>{a.pct.toFixed(1)}%</tspan>
+                <tspan x={x} dy="1.25em">{a.name}</tspan>
+              </text>);
+          })}
         </svg>
-        <div style={{ position: 'absolute', inset: 0, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center' }}>
-          <div style={{ fontSize: FS(17), color: 'rgba(44,44,50,0.55)' }}>{label}</div>
-          <div style={{ fontSize: FS(30), fontWeight: 700, color, fontFamily: TOKENS.fontMono, marginTop: SP(2), letterSpacing: -0.5 }}>
+        <div style={{ position: 'absolute', inset: 0, display: 'flex', flexDirection: 'column',
+          alignItems: 'center', justifyContent: 'center', pointerEvents: 'none' }}>
+          <div style={{ fontSize: FS(16), color: 'rgba(44,44,50,0.55)' }}>{label}</div>
+          <div style={{ fontSize: FS(28), fontWeight: 700, color, fontFamily: TOKENS.fontMono, marginTop: SP(2), letterSpacing: -0.5 }}>
             {mask(Math.round(tot))}
           </div>
         </div>
       </div>);
+  };
+
+  // 年收支折線圖（收入 / 支出）
+  const LineChart = () => {
+    const W = 340,H = 150,pL = 6,pR = 6,pT = 12,pB = 22,n = 12;
+    const maxV = Math.max(1, ...yMonths.map((m) => Math.max(m.inc, m.exp)));
+    const xAt = (i) => pL + (W - pL - pR) * (i / (n - 1));
+    const yAt = (v) => pT + (H - pT - pB) * (1 - v / maxV);
+    const mk = (key) => yMonths.map((m, i) => `${xAt(i).toFixed(1)},${yAt(m[key]).toFixed(1)}`).join(' ');
+    return (
+      <svg width="100%" viewBox={`0 0 ${W} ${H}`} style={{ display: 'block' }}>
+        <line x1={pL} y1={H - pB} x2={W - pR} y2={H - pB} stroke="rgba(0,0,0,0.10)" />
+        <polyline points={mk('inc')} fill="none" stroke={TOKENS.incBlue} strokeWidth="2.5" strokeLinejoin="round" strokeLinecap="round" />
+        <polyline points={mk('exp')} fill="none" stroke={TOKENS.red} strokeWidth="2.5" strokeLinejoin="round" strokeLinecap="round" />
+        {yMonths.map((m, i) => [
+        <circle key={'i' + i} cx={xAt(i)} cy={yAt(m.inc)} r="2.6" fill={TOKENS.incBlue} />,
+        <circle key={'e' + i} cx={xAt(i)} cy={yAt(m.exp)} r="2.6" fill={TOKENS.red} />]
+        )}
+        {yMonths.map((_, i) => <text key={'t' + i} x={xAt(i)} y={H - 6} textAnchor="middle" fill="rgba(44,44,50,0.5)" style={{ fontSize: '10px' }}>{i + 1}</text>)}
+      </svg>);
+  };
+
+  // 年收支：每月結餘柱狀圖（正藍 / 負紅，零基準線置中）
+  const NetBars = () => {
+    const nets = yMonths.map((m) => m.inc - m.exp);
+    const maxAbs = Math.max(1, ...nets.map((v) => Math.abs(v)));
+    const W = 340,H = 150,pT = 10,pB = 22,n = 12;
+    const zeroY = pT + (H - pT - pB) / 2;
+    const bw = W / n * 0.5;
+    return (
+      <svg width="100%" viewBox={`0 0 ${W} ${H}`} style={{ display: 'block' }}>
+        <line x1={0} y1={zeroY} x2={W} y2={zeroY} stroke="rgba(0,0,0,0.14)" />
+        {nets.map((v, i) => {
+          const c = W / n * (i + 0.5),h = Math.abs(v) / maxAbs * ((H - pT - pB) / 2),pos = v >= 0;
+          return <rect key={i} x={c - bw / 2} y={pos ? zeroY - h : zeroY} width={bw} height={h} rx="2" fill={pos ? TOKENS.incBlue : TOKENS.red} />;
+        })}
+        {nets.map((_, i) => <text key={'t' + i} x={W / n * (i + 0.5)} y={H - 6} textAnchor="middle" fill="rgba(44,44,50,0.5)" style={{ fontSize: '10px' }}>{i + 1}</text>)}
+      </svg>);
   };
 
   const segBtn = (id, lbl) => {
@@ -941,9 +992,31 @@ function MonthlyStatsSheet({ open, onClose, savedFlows, masterData, hideAmounts,
           </div>
           }
 
-          {/* 年收支：年收入 / 年支出 / 結餘 + 12 個月長條 */}
+          {/* 年收支：折線圖 + 結餘柱狀圖（置頂）+ 年收入 / 年支出 / 結餘 */}
           {isYear &&
           <>
+            <div style={{ background: TOKENS.surface, borderRadius: RS(20), border: '1px solid rgba(0,0,0,0.07)', padding: PAD('16px 12px') }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: SP(14), marginBottom: SP(8), paddingLeft: SP(2) }}>
+                <span style={{ fontSize: FS(14), color: 'rgba(0,0,0,0.62)', fontWeight: 700, letterSpacing: 1 }}>收入支出</span>
+                <span style={{ display: 'flex', alignItems: 'center', gap: SP(4), fontSize: FS(13), color: 'rgba(44,44,50,0.6)' }}>
+                  <span style={{ width: 12, height: 3, borderRadius: RS(2), background: TOKENS.incBlue }} />收入</span>
+                <span style={{ display: 'flex', alignItems: 'center', gap: SP(4), fontSize: FS(13), color: 'rgba(44,44,50,0.6)' }}>
+                  <span style={{ width: 12, height: 3, borderRadius: RS(2), background: TOKENS.red }} />支出</span>
+              </div>
+              <LineChart />
+            </div>
+
+            <div style={{ background: TOKENS.surface, borderRadius: RS(20), border: '1px solid rgba(0,0,0,0.07)', padding: PAD('16px 12px') }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: SP(14), marginBottom: SP(8), paddingLeft: SP(2) }}>
+                <span style={{ fontSize: FS(14), color: 'rgba(0,0,0,0.62)', fontWeight: 700, letterSpacing: 1 }}>收支餘額</span>
+                <span style={{ display: 'flex', alignItems: 'center', gap: SP(4), fontSize: FS(13), color: 'rgba(44,44,50,0.6)' }}>
+                  <span style={{ width: 9, height: 9, borderRadius: RS(2), background: TOKENS.incBlue }} />結餘</span>
+                <span style={{ display: 'flex', alignItems: 'center', gap: SP(4), fontSize: FS(13), color: 'rgba(44,44,50,0.6)' }}>
+                  <span style={{ width: 9, height: 9, borderRadius: RS(2), background: TOKENS.red }} />透支</span>
+              </div>
+              <NetBars />
+            </div>
+
             <div style={{ background: TOKENS.surface, borderRadius: RS(20), border: '1px solid rgba(0,0,0,0.07)', padding: PAD('16px') }}>
               {[['年收入', yearInc, TOKENS.incBlue, '+'], ['年支出', yearExp, TOKENS.red, '-'], ['結餘', yearNet, yearNet >= 0 ? TOKENS.incBlue : TOKENS.red, yearNet >= 0 ? '+' : '-']].map(([lbl, val, col, sign], i) =>
               <div key={lbl} style={{ display: 'flex', alignItems: 'center', padding: PAD('13px 2px'),
@@ -954,29 +1027,6 @@ function MonthlyStatsSheet({ open, onClose, savedFlows, masterData, hideAmounts,
                 </div>
               </div>
               )}
-            </div>
-
-            <div style={{ background: TOKENS.surface, borderRadius: RS(20), border: '1px solid rgba(0,0,0,0.07)', padding: PAD('16px 12px') }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: SP(14), marginBottom: SP(12), paddingLeft: SP(2) }}>
-                <span style={{ fontSize: FS(14), color: 'rgba(0,0,0,0.62)', fontWeight: 700, letterSpacing: 1 }}>每月收支</span>
-                <span style={{ display: 'flex', alignItems: 'center', gap: SP(4), fontSize: FS(13), color: 'rgba(44,44,50,0.6)' }}>
-                  <span style={{ width: 9, height: 9, borderRadius: RS(2), background: TOKENS.incBlue }} />收入</span>
-                <span style={{ display: 'flex', alignItems: 'center', gap: SP(4), fontSize: FS(13), color: 'rgba(44,44,50,0.6)' }}>
-                  <span style={{ width: 9, height: 9, borderRadius: RS(2), background: TOKENS.red }} />支出</span>
-              </div>
-              <div style={{ display: 'flex', alignItems: 'stretch', gap: SP(3), height: 132 }}>
-                {yMonths.map((m, mo) =>
-                <div key={mo} style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: SP(3) }}>
-                  <div style={{ flex: 1, width: '100%', display: 'flex', alignItems: 'flex-end', justifyContent: 'center', gap: 2 }}>
-                    <div style={{ width: '42%', height: `${m.inc / yMax * 100}%`, minHeight: m.inc > 0 ? 2 : 0,
-                      background: TOKENS.incBlue, borderRadius: '3px 3px 0 0' }} />
-                    <div style={{ width: '42%', height: `${m.exp / yMax * 100}%`, minHeight: m.exp > 0 ? 2 : 0,
-                      background: TOKENS.red, borderRadius: '3px 3px 0 0' }} />
-                  </div>
-                  <div style={{ fontSize: FS(12), color: 'rgba(44,44,50,0.5)' }}>{mo + 1}</div>
-                </div>
-                )}
-              </div>
             </div>
           </>
           }
