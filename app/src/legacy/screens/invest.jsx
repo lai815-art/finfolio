@@ -551,7 +551,7 @@ function InvestBreakdownSheet({ open, onClose, computedHoldings = [], masterData
             display: 'flex', flexDirection: 'column', gap: SP(20) }, padding: "0px 10px 32px" }}>
           {/* 分頁：投資配置 / 歷年投資損益 */}
           <div style={{ display: 'flex', gap: SP(4), padding: SP(4), borderRadius: RS(18), background: 'rgba(0,0,0,0.06)' }}>
-            {[['alloc', '投資配置'], ['pnl', '歷年投資損益']].map(([id, lbl]) => {
+            {[['alloc', '投資配置'], ['pnl', '投資收益']].map(([id, lbl]) => {
               const on = invTab === id;
               return <button key={id} onClick={() => setInvTab(id)} style={{ flex: 1, height: 44, borderRadius: RS(14), border: 'none',
                 background: on ? TOKENS.surface : 'transparent', boxShadow: on ? SH('0 2px 8px rgba(0,0,0,0.12)') : 'none',
@@ -685,7 +685,7 @@ function InvestBreakdownSheet({ open, onClose, computedHoldings = [], masterData
                   </button>
                   }
                   <div style={{ fontSize: FS(14), fontWeight: 700, color: 'rgba(0,0,0,0.62)', letterSpacing: 1, whiteSpace: 'nowrap' }}>
-                    {needsPaging ? `${years[0]}–${years[years.length - 1]}` : '歷年投資損益'}
+                    {needsPaging ? `${years[0]}–${years[years.length - 1]}` : '投資收益'}
                   </div>
                   {needsPaging &&
                   <button onClick={() => setYearPage(effPage - 1)} disabled={effPage === 0} style={{
@@ -764,17 +764,17 @@ function InvestBreakdownSheet({ open, onClose, computedHoldings = [], masterData
                     const empty = d.pnl === 0 && d.div === 0 && d.bond === 0;
                     if (empty) return null;
                     return (
-                      <div key={y} style={{ display: 'grid', gridTemplateColumns: '0.8fr 1fr 1fr 1fr 1.05fr', gap: SP(2),
-                        fontSize: FS(15), fontFamily: TOKENS.fontMono, textAlign: 'right',
-                        padding: PAD('7px 4px'), borderTop: i > 0 ? '1px solid rgba(0,0,0,0.05)' : 'none' }}>
+                      <div key={y} style={{ display: 'grid', gridTemplateColumns: '0.7fr 1fr 1fr 1fr 1.1fr', gap: SP(2),
+                        fontSize: FS(13), fontFamily: TOKENS.fontMono, textAlign: 'right',
+                        padding: PAD('7px 2px'), borderTop: i > 0 ? '1px solid rgba(0,0,0,0.05)' : 'none' }}>
                     <span style={{ textAlign: 'left', color: 'rgba(44,44,50,0.7)', fontFamily: 'inherit' }}>{y}</span>
-                    <span style={{ color: d.div > 0 ? C_DIV : 'rgba(60,60,67,0.35)' }}>{d.div > 0 ? fmtK(d.div) : '—'}</span>
-                    <span style={{ color: d.bond > 0 ? C_BOND : 'rgba(60,60,67,0.35)' }}>{d.bond > 0 ? fmtK(d.bond) : '—'}</span>
+                    <span style={{ color: d.div > 0 ? C_DIV : 'rgba(60,60,67,0.35)' }}>{d.div > 0 ? mask(d.div) : '—'}</span>
+                    <span style={{ color: d.bond > 0 ? C_BOND : 'rgba(60,60,67,0.35)' }}>{d.bond > 0 ? mask(d.bond) : '—'}</span>
                     <span style={{ color: d.pnl >= 0 ? C_PNL_POS : C_PNL_NEG, fontWeight: 600 }}>
-                      {fmtK(d.pnl)}
+                      {d.pnl < 0 ? '-' : ''}{mask(Math.abs(d.pnl))}
                     </span>
                     {(() => {const tot = d.pnl + d.div + d.bond;return (
-                    <span style={{ fontWeight: 700, color: tot < 0 ? C_PNL_NEG : TOKENS.ink }}>{fmtK(tot)}</span>);})()}
+                    <span style={{ fontWeight: 700, color: tot < 0 ? C_PNL_NEG : TOKENS.ink }}>{tot < 0 ? '-' : ''}{mask(Math.abs(tot))}</span>);})()}
                   </div>);
                   })}
               </div>
