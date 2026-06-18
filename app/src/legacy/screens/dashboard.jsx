@@ -989,16 +989,36 @@ function MonthlyStatsSheet({ open, onClose, savedFlows, masterData, hideAmounts,
               <NetBars />
             </div>
 
-            <div style={{ background: TOKENS.surface, borderRadius: RS(20), border: '1px solid rgba(0,0,0,0.07)', padding: PAD('16px') }}>
-              {[['收入', yearInc, TOKENS.incBlue, '+'], ['支出', yearExp, TOKENS.red, '-'], ['餘額', yearNet, yearNet >= 0 ? TOKENS.incBlue : TOKENS.red, yearNet >= 0 ? '+' : '-']].map(([lbl, val, col, sign], i) =>
-              <div key={lbl} style={{ display: 'flex', alignItems: 'center', padding: PAD('13px 2px'),
-                borderBottom: i < 2 ? '1px solid rgba(0,0,0,0.07)' : 'none' }}>
-                <div style={{ flex: 1, fontSize: FS(19), fontWeight: i === 2 ? 700 : 500, color: TOKENS.ink }}>{lbl}</div>
-                <div style={{ fontFamily: TOKENS.fontMono, fontSize: FS(21), fontWeight: 700, color: col }}>
-                  {sign}{mask(Math.abs(val))}
+            {/* 每月 收入 / 支出 / 餘額 表單 */}
+            <div style={{ background: TOKENS.surface, borderRadius: RS(20), border: '1px solid rgba(0,0,0,0.07)', padding: PAD('14px') }}>
+              {!yMonths.some((m) => m.inc > 0 || m.exp > 0) ?
+              <div style={{ fontSize: FS(16), color: 'rgba(44,44,50,0.4)', textAlign: 'center', padding: PAD('16px 0') }}>本年度尚無紀錄</div> :
+              <>
+                <div style={{ display: 'flex', alignItems: 'center', paddingBottom: SP(8), borderBottom: '1px solid rgba(0,0,0,0.10)' }}>
+                  <div style={{ width: 42, fontSize: FS(13), color: 'rgba(44,44,50,0.5)', fontWeight: 700 }}>月</div>
+                  <div style={{ flex: 1, textAlign: 'right', fontSize: FS(13), color: 'rgba(44,44,50,0.5)', fontWeight: 700 }}>收入</div>
+                  <div style={{ flex: 1, textAlign: 'right', fontSize: FS(13), color: 'rgba(44,44,50,0.5)', fontWeight: 700 }}>支出</div>
+                  <div style={{ flex: 1, textAlign: 'right', fontSize: FS(13), color: 'rgba(44,44,50,0.5)', fontWeight: 700 }}>餘額</div>
                 </div>
-              </div>
-              )}
+                {yMonths.map((m, mo) => {
+                  if (m.inc <= 0 && m.exp <= 0) return null;
+                  const net = m.inc - m.exp;
+                  return (
+                  <div key={mo} style={{ display: 'flex', alignItems: 'center', padding: PAD('9px 0'), borderBottom: '1px solid rgba(0,0,0,0.06)' }}>
+                    <div style={{ width: 42, fontSize: FS(16), color: TOKENS.ink }}>{mo + 1}月</div>
+                    <div style={{ flex: 1, textAlign: 'right', fontFamily: TOKENS.fontMono, fontSize: FS(14), color: m.inc > 0 ? TOKENS.incBlue : 'rgba(44,44,50,0.3)' }}>{m.inc > 0 ? mask(m.inc) : '—'}</div>
+                    <div style={{ flex: 1, textAlign: 'right', fontFamily: TOKENS.fontMono, fontSize: FS(14), color: m.exp > 0 ? TOKENS.red : 'rgba(44,44,50,0.3)' }}>{m.exp > 0 ? mask(m.exp) : '—'}</div>
+                    <div style={{ flex: 1, textAlign: 'right', fontFamily: TOKENS.fontMono, fontSize: FS(14), fontWeight: 600, color: net >= 0 ? TOKENS.incBlue : TOKENS.red }}>{net >= 0 ? '+' : '-'}{mask(Math.abs(net))}</div>
+                  </div>);
+                })}
+                <div style={{ display: 'flex', alignItems: 'center', paddingTop: SP(11), marginTop: SP(2), borderTop: '1px solid rgba(0,0,0,0.12)' }}>
+                  <div style={{ width: 42, fontSize: FS(16), fontWeight: 700, color: TOKENS.ink }}>合計</div>
+                  <div style={{ flex: 1, textAlign: 'right', fontFamily: TOKENS.fontMono, fontSize: FS(14), fontWeight: 700, color: TOKENS.incBlue }}>{mask(yearInc)}</div>
+                  <div style={{ flex: 1, textAlign: 'right', fontFamily: TOKENS.fontMono, fontSize: FS(14), fontWeight: 700, color: TOKENS.red }}>{mask(yearExp)}</div>
+                  <div style={{ flex: 1, textAlign: 'right', fontFamily: TOKENS.fontMono, fontSize: FS(14), fontWeight: 700, color: yearNet >= 0 ? TOKENS.incBlue : TOKENS.red }}>{yearNet >= 0 ? '+' : '-'}{mask(Math.abs(yearNet))}</div>
+                </div>
+              </>
+              }
             </div>
           </>
           }

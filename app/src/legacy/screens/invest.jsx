@@ -498,6 +498,7 @@ function InvestScreen({ hideAmounts, onOpenDetail, savedTrades = [], computedHol
 function InvestBreakdownSheet({ open, onClose, computedHoldings = [], masterData = {}, mask, savedTrades = [], savedFlows = [] }) {
   const { ChevronRight } = window.Icons;
   const [yearPage, setYearPage] = useStateInv(null);
+  const [invTab, setInvTab] = useStateInv('alloc'); // alloc | pnl
   if (!open) return null;
 
   const TAB_COLORS_INV = [TOKENS.incBlue, TOKENS.orange, TOKENS.green, TOKENS.indigo, TOKENS.red, TOKENS.teal, TOKENS.gold2, TOKENS.gray3];
@@ -548,7 +549,18 @@ function InvestBreakdownSheet({ open, onClose, computedHoldings = [], masterData
 
         <div style={{ ...{ flex: 1, overflowY: 'auto', overflowX: 'hidden', padding: PAD('0 18px 32px'),
             display: 'flex', flexDirection: 'column', gap: SP(20) }, padding: "0px 10px 32px" }}>
+          {/* 分頁：投資配置 / 歷年投資損益 */}
+          <div style={{ display: 'flex', gap: SP(4), padding: SP(4), borderRadius: RS(18), background: 'rgba(0,0,0,0.06)' }}>
+            {[['alloc', '投資配置'], ['pnl', '歷年投資損益']].map(([id, lbl]) => {
+              const on = invTab === id;
+              return <button key={id} onClick={() => setInvTab(id)} style={{ flex: 1, height: 44, borderRadius: RS(14), border: 'none',
+                background: on ? TOKENS.surface : 'transparent', boxShadow: on ? SH('0 2px 8px rgba(0,0,0,0.12)') : 'none',
+                color: on ? TOKENS.ink : 'rgba(44,44,50,0.55)', fontSize: FS(17), fontWeight: on ? 700 : 500, cursor: 'pointer' }}>{lbl}</button>;
+            })}
+          </div>
+
           {/* 投資配置（依股票類別）+ 類別明細 */}
+          {invTab === 'alloc' &&
           <div style={{ ...cardStyle, padding: PAD('20px 16px') }}>
             <div style={{ fontSize: FS(14), color: 'rgba(0,0,0,0.62)', fontWeight: 700, letterSpacing: 1,
               textTransform: 'uppercase', marginBottom: SP(6), paddingLeft: SP(2) }}>投資配置</div>
@@ -591,9 +603,10 @@ function InvestBreakdownSheet({ open, onClose, computedHoldings = [], masterData
             </>
             }
           </div>
+          }
 
           {/* 每年投資損益 / 股息 / 債息 疊加柱狀圖 */}
-          {(() => {
+          {invTab === 'pnl' && (() => {
             // ── collect years ──
             const ySet = new Set();
             savedTrades.forEach((t) => {if (t.date) ySet.add(new Date(t.date).getFullYear());});
