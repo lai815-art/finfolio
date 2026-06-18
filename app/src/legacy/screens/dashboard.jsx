@@ -714,94 +714,123 @@ function DashboardScreen({ hideAmounts, setHideAmounts, savedFlows = [], savedTr
 }
 
 /* ── MonthlyStatsSheet ─────────────────────────────────────────────── */
+const STAT_CAT_ICON = {
+  餐飲: '🍔', 飲食: '🍴', 交通: '🚕', 生活雜貨: '🛒', 日常: '🛒', 娛樂: '🎬',
+  醫療: '💊', '醫療&健康': '🏥', 健康: '🏥', 住房: '🏠', 住家: '🏠', 居住: '🏠',
+  教育: '📚', 旅遊: '🌴', 購物: '🛍️', 保險: '🛡️', 通訊: '📱', 寵物: '🐾',
+  美容: '💅', 運動: '🏃', 稅: '🧾', 孝親: '🎁',
+  薪資: '💼', 獎金: '💰', 股利: '📈', 股息: '📈', 利息: '🏦', 紅利回饋: '🎁',
+  投資: '📊', 租金: '🏘️', 兼職: '🧑‍💻', 退款: '↩️', 轉帳: '↔️', 其他: '📝'
+};
+const statIconOf = (name) => STAT_CAT_ICON[name] || '📝';
+
 function MonthlyStatsSheet({ open, onClose, savedFlows, masterData, hideAmounts, nowDate, mask }) {
   const { X, ChevronRight } = window.Icons;
   const [shown, setShown] = useStateDash(false);
+  const [view, setView] = useStateDash('exp'); // exp | inc | year
   const [monthOffset, setMonthOffset] = useStateDash(0);
+  const [yearOffset, setYearOffset] = useStateDash(0);
   const [pickOpen, setPickOpen] = useStateDash(false);
   const [pickYear, setPickYear] = useStateDash((nowDate || new Date()).getFullYear());
   useEffectDash(() => {
-    if (open) {setMonthOffset(0);setPickOpen(false);const t = setTimeout(() => setShown(true), 20);return () => clearTimeout(t);}
+    if (open) {setMonthOffset(0);setYearOffset(0);setPickOpen(false);setView('exp');const t = setTimeout(() => setShown(true), 20);return () => clearTimeout(t);}
     setShown(false);
   }, [open]);
 
   if (!open) return null;
 
+  const isYear = view === 'year';
   const viewDate = new Date(nowDate.getFullYear(), nowDate.getMonth() + monthOffset, 1);
   const thisY = viewDate.getFullYear(),thisM = viewDate.getMonth();
+  const viewYear = nowDate.getFullYear() + yearOffset;
   const canNext = monthOffset < 0;
+  const canNextYear = yearOffset < 0;
+
   const curFlows = savedFlows.filter((f) => {
     const d = f.date instanceof Date ? f.date : new Date(f.date);
     return d.getFullYear() === thisY && d.getMonth() === thisM;
   });
-
-  // 支出類別圓餅
-  const expMap = {};
-  curFlows.filter((f) => f.kind === 'exp').forEach((f) => {
-    const k = f.cat || '其他';expMap[k] = (expMap[k] || 0) + f.amount;
+  const yearFlows = savedFlows.filter((f) => {
+    const d = f.date instanceof Date ? f.date : new Date(f.date);
+    return d.getFullYear() === viewYear;
   });
-  const expTotal = Object.values(expMap).reduce((a, v) => a + v, 0);
-  // 暖色調：紅 → 橙 → 金
+
+  // 暖色調（支出）/ 冷色調（收入）
   const EXP_COLORS = [TOKENS.red, TOKENS.orange, TOKENS.gold, TOKENS.red2, TOKENS.gold2, '#A85638', '#D9A05B', TOKENS.gray4];
-  const expCats = Object.entries(expMap).sort((a, b) => b[1] - a[1]).map(([k, v], i) => ({
-    name: k, value: v, color: EXP_COLORS[i % EXP_COLORS.length],
-    pct: expTotal > 0 ? v / expTotal * 100 : 0
-  }));
-
-  // 收入類別圓餅
-  const incMap = {};
-  curFlows.filter((f) => f.kind === 'inc').forEach((f) => {
-    const k = f.cat || '其他';incMap[k] = (incMap[k] || 0) + f.amount;
-  });
-  const incTotal = Object.values(incMap).reduce((a, v) => a + v, 0);
-  // 冷色調：藍 → 青 → 綠 → 靛
   const INC_COLORS = [TOKENS.blue2, TOKENS.teal, TOKENS.green, TOKENS.indigo, TOKENS.blue, TOKENS.green2, '#3E6E8C', TOKENS.gray4];
-  const incCats = Object.entries(incMap).sort((a, b) => b[1] - a[1]).map(([k, v], i) => ({
-    name: k, value: v, color: INC_COLORS[i % INC_COLORS.length],
-    pct: incTotal > 0 ? v / incTotal * 100 : 0
-  }));
+  const buildCats = (flows, kind, palette) => {
+    const m = {};
+    flows.filter((f) => f.kind === kind).forEach((f) => { const k = f.cat || '其他'; m[k] = (m[k] || 0) + f.amount; });
+    const total = Object.values(m).reduce((a, v) => a + v, 0);
+    const cats = Object.entries(m).sort((a, b) => b[1] - a[1]).map(([k, v], i) => ({
+      name: k, value: v, color: palette[i % palette.length], pct: total > 0 ? v / total * 100 : 0
+    }));
+    return { cats, total };
+  };
+  const { cats: expCats, total: expTotal } = buildCats(curFlows, 'exp', EXP_COLORS);
+  const { cats: incCats, total: incTotal } = buildCats(curFlows, 'inc', INC_COLORS);
 
-  // 圓餅圖 SVG
-  const MiniDonut = ({ cats, total: tot, label, color }) => {
-    const DR = 72,DT = 18,DSIZE = (DR + DT) * 2 + 4,DC = 2 * Math.PI * DR;
+  // 年收支：12 個月的收入 / 支出
+  const yMonths = Array.from({ length: 12 }, (_, mo) => ({ inc: 0, exp: 0 }));
+  yearFlows.forEach((f) => {
+    const d = f.date instanceof Date ? f.date : new Date(f.date);
+    const mo = d.getMonth();
+    if (f.kind === 'inc') yMonths[mo].inc += f.amount;
+    else if (f.kind === 'exp') yMonths[mo].exp += f.amount;
+  });
+  const yearInc = yMonths.reduce((a, m) => a + m.inc, 0);
+  const yearExp = yMonths.reduce((a, m) => a + m.exp, 0);
+  const yearNet = yearInc - yearExp;
+  const yMax = Math.max(1, ...yMonths.map((m) => Math.max(m.inc, m.exp)));
+
+  const accent = view === 'inc' ? TOKENS.incBlue : TOKENS.red;
+  const cats = view === 'inc' ? incCats : expCats;
+  const total = view === 'inc' ? incTotal : expTotal;
+  const centerLabel = view === 'inc' ? '總收入' : '總支出';
+
+  // 大型甜甜圈
+  const Donut = ({ data, tot, label, color }) => {
+    const DR = 84,DT = 26,DSIZE = (DR + DT) * 2 + 4,DC = 2 * Math.PI * DR;
     let acc = 0;
-    const arcs = cats.map((c) => {
-      const len = c.pct / 100 * DC,off = acc / 100 * DC;acc += c.pct;
-      return { ...c, len, off };
-    });
+    const arcs = data.map((c) => { const len = c.pct / 100 * DC,off = acc / 100 * DC;acc += c.pct;return { ...c, len, off }; });
     return (
-      <div style={{ display: 'flex', alignItems: 'center', gap: SP(16) }}>
-        <div style={{ flexShrink: 0, position: 'relative' }}>
-          <svg width={DSIZE} height={DSIZE} style={{ transform: 'rotate(-90deg)' }}>
-            <circle cx={DSIZE / 2} cy={DSIZE / 2} r={DR} fill="none" stroke="rgba(0,0,0,0.08)" strokeWidth={DT} />
-            {arcs.map((a, i) =>
-            <circle key={i} cx={DSIZE / 2} cy={DSIZE / 2} r={DR} fill="none"
-            stroke={a.color} strokeWidth={DT}
-            strokeDasharray={a.len + ' ' + DC} strokeDashoffset={-a.off} />
-            )}
-          </svg>
-          <div style={{ position: 'absolute', inset: 0, display: 'flex', flexDirection: 'column',
-            alignItems: 'center', justifyContent: 'center' }}>
-            <div style={{ fontSize: FS(15), color: 'rgba(44,44,50,0.55)' }}>{label}</div>
-            <div style={{ fontSize: FS(22), fontWeight: 700, color, fontFamily: TOKENS.fontMono, marginTop: SP(2) }}>
-              {mask(Math.round(tot))}
-            </div>
-          </div>
-        </div>
-        <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: SP(6) }}>
-          {cats.slice(0, 5).map((c) =>
-          <div key={c.name} style={{ display: 'flex', alignItems: 'center', gap: SP(7) }}>
-              <span style={{ width: 8, height: 8, borderRadius: RS(2), background: c.color, flexShrink: 0 }} />
-              <span style={{ flex: 1, fontSize: FS(15), color: TOKENS.ink,
-              overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{c.name}</span>
-              <span style={{ fontFamily: TOKENS.fontMono, fontSize: FS(14), color: 'rgba(44,44,50,0.7)', flexShrink: 0 }}>
-                {c.pct.toFixed(0)}%
-              </span>
-            </div>
+      <div style={{ position: 'relative', width: DSIZE, height: DSIZE, margin: '0 auto' }}>
+        <svg width={DSIZE} height={DSIZE} style={{ transform: 'rotate(-90deg)' }}>
+          <circle cx={DSIZE / 2} cy={DSIZE / 2} r={DR} fill="none" stroke="rgba(0,0,0,0.06)" strokeWidth={DT} />
+          {arcs.map((a, i) =>
+          <circle key={i} cx={DSIZE / 2} cy={DSIZE / 2} r={DR} fill="none"
+          stroke={a.color} strokeWidth={DT} strokeLinecap="butt"
+          strokeDasharray={a.len + ' ' + DC} strokeDashoffset={-a.off} />
           )}
+        </svg>
+        <div style={{ position: 'absolute', inset: 0, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center' }}>
+          <div style={{ fontSize: FS(17), color: 'rgba(44,44,50,0.55)' }}>{label}</div>
+          <div style={{ fontSize: FS(30), fontWeight: 700, color, fontFamily: TOKENS.fontMono, marginTop: SP(2), letterSpacing: -0.5 }}>
+            {mask(Math.round(tot))}
+          </div>
         </div>
       </div>);
   };
+
+  const segBtn = (id, lbl) => {
+    const on = view === id;
+    return (
+      <button key={id} onClick={() => { setView(id); setPickOpen(false); }} style={{
+        flex: 1, height: 44, borderRadius: RS(14), border: 'none',
+        background: on ? TOKENS.surface : 'transparent',
+        boxShadow: on ? SH('0 2px 8px rgba(0,0,0,0.12)') : 'none',
+        color: on ? TOKENS.ink : 'rgba(44,44,50,0.55)', fontSize: FS(17), fontWeight: on ? 700 : 500,
+        cursor: 'pointer' }}>{lbl}</button>);
+  };
+
+  const stepperBtn = (onClick, enabled, flip) =>
+  <button onClick={onClick} disabled={!enabled} style={{
+    width: 38, height: 38, borderRadius: RS(12), flexShrink: 0,
+    background: TOKENS.surface, border: '1px solid rgba(0,0,0,0.12)', color: TOKENS.ink,
+    opacity: enabled ? 1 : 0.35, cursor: enabled ? 'pointer' : 'default',
+    display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+    <ChevronRight size={18} style={flip ? { transform: 'rotate(180deg)' } : undefined} />
+  </button>;
 
   return (
     <div style={{
@@ -810,12 +839,12 @@ function MonthlyStatsSheet({ open, onClose, savedFlows, masterData, hideAmounts,
     }}>
       <div style={{ flex: 1, display: 'flex', flexDirection: 'column', minHeight: 0 }}>
         <div style={{ height: 62, flexShrink: 0 }} />
-        <div style={{ ...{ display: 'flex', alignItems: 'center', gap: SP(12), padding: PAD('3px 13px 8px') }, padding: "3px 10px 8px" }}>
-          <button onClick={onClose} style={{ ...{
-              width: 45, height: 46, borderRadius: RS(20), flexShrink: 0,
-              background: 'rgba(0,0,0,0.09)', border: '1px solid rgba(0,0,0,0.12)',
-              color: 'rgba(60,60,67,0.88)', display: 'flex', alignItems: 'center', justifyContent: 'center'
-            }, borderRadius: "30px" }}><ChevronRight size={20} style={{ transform: 'rotate(180deg)' }} /></button>
+        <div style={{ display: 'flex', alignItems: 'center', gap: SP(12), padding: "3px 10px 8px" }}>
+          <button onClick={onClose} style={{
+            width: 45, height: 46, borderRadius: "30px", flexShrink: 0,
+            background: 'rgba(0,0,0,0.09)', border: '1px solid rgba(0,0,0,0.12)',
+            color: 'rgba(60,60,67,0.88)', display: 'flex', alignItems: 'center', justifyContent: 'center'
+          }}><ChevronRight size={20} style={{ transform: 'rotate(180deg)' }} /></button>
           <div style={{ flex: 1, minWidth: 0 }}>
             <div style={{ fontSize: FS(28), fontWeight: 700, color: TOKENS.ink, letterSpacing: -0.5, lineHeight: 1.3 }}>
               收支統計
@@ -823,92 +852,134 @@ function MonthlyStatsSheet({ open, onClose, savedFlows, masterData, hideAmounts,
           </div>
         </div>
 
-        <div style={{ ...{ flex: 1, overflowY: 'auto', padding: PAD('0 18px 32px'), display: 'flex', flexDirection: 'column', gap: SP(20) }, padding: "0px 10px 32px" }}>
-          {/* 收入 + 支出 圓餅（同一區塊，含月份切換） */}
-          <div style={{ background: TOKENS.surface, borderRadius: RS(20), border: '1px solid rgba(0,0,0,0.07)', padding: PAD('16px') }}>
-            {/* 月份切換列 */}
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-              gap: SP(8), paddingBottom: SP(14), marginBottom: SP(4),
-              borderBottom: '1px solid rgba(0,0,0,0.07)' }}>
-              <button onClick={() => setMonthOffset(monthOffset - 1)} style={{
-                width: 34, height: 34, borderRadius: RS(10), flexShrink: 0,
-                background: TOKENS.bg, border: '1px solid rgba(0,0,0,0.12)',
-                color: TOKENS.ink, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer' }}>
-                <ChevronRight size={17} style={{ transform: 'rotate(180deg)' }} />
-              </button>
-              <button onClick={() => { setPickYear(thisY); setPickOpen((o) => !o); }} style={{
-                background: 'transparent', border: 'none', cursor: 'pointer',
-                fontFamily: TOKENS.fontMono, fontSize: FS(17), fontWeight: 700, color: TOKENS.ink, letterSpacing: 0.5,
-                display: 'flex', alignItems: 'center', gap: SP(6) }}>
-                {thisY} / {(thisM + 1).toString().padStart(2, '0')}
-                {window.Icons.ChevronDown && <window.Icons.ChevronDown size={15} style={{ transform: pickOpen ? 'rotate(180deg)' : 'none', color: 'rgba(44,44,50,0.5)' }} />}
-              </button>
-              <button onClick={() => canNext && setMonthOffset(monthOffset + 1)} disabled={!canNext} style={{
-                width: 34, height: 34, borderRadius: RS(10), flexShrink: 0,
-                background: TOKENS.bg, border: '1px solid rgba(0,0,0,0.12)',
-                color: TOKENS.ink, opacity: canNext ? 1 : 0.35,
-                cursor: canNext ? 'pointer' : 'default',
+        {/* 月支出 / 月收入 / 年收支 切換 */}
+        <div style={{ padding: "0 10px 10px" }}>
+          <div style={{ display: 'flex', gap: SP(4), padding: SP(4), borderRadius: RS(18),
+            background: 'rgba(0,0,0,0.06)' }}>
+            {segBtn('exp', '月支出')}{segBtn('inc', '月收入')}{segBtn('year', '年收支')}
+          </div>
+        </div>
+
+        <div style={{ flex: 1, overflowY: 'auto', padding: "0px 10px 32px", display: 'flex', flexDirection: 'column', gap: SP(16) }}>
+
+          {/* 期間切換 */}
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: SP(16), paddingTop: SP(4) }}>
+            {isYear ? stepperBtn(() => setYearOffset(yearOffset - 1), true, true) : stepperBtn(() => setMonthOffset(monthOffset - 1), true, true)}
+            <button onClick={() => { if (!isYear) { setPickYear(thisY); setPickOpen((o) => !o); } }} style={{
+              background: 'transparent', border: 'none', cursor: isYear ? 'default' : 'pointer',
+              fontSize: FS(21), fontWeight: 700, color: TOKENS.ink, letterSpacing: 0.3,
+              display: 'flex', alignItems: 'center', gap: SP(6) }}>
+              {isYear ? `${viewYear} 年` : `${thisY} 年 ${thisM + 1} 月`}
+              {!isYear && window.Icons.ChevronDown && <window.Icons.ChevronDown size={16} style={{ transform: pickOpen ? 'rotate(180deg)' : 'none', color: 'rgba(44,44,50,0.5)' }} />}
+            </button>
+            {isYear ? stepperBtn(() => canNextYear && setYearOffset(yearOffset + 1), canNextYear) : stepperBtn(() => canNext && setMonthOffset(monthOffset + 1), canNext)}
+          </div>
+
+          {/* 月份快選 */}
+          {!isYear && pickOpen &&
+          <div style={{ background: TOKENS.surface, borderRadius: RS(18), border: '1px solid rgba(0,0,0,0.07)', padding: PAD('12px') }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: SP(16), marginBottom: SP(10) }}>
+              <button onClick={() => setPickYear(pickYear - 1)} style={{ width: 30, height: 30, borderRadius: RS(8),
+                background: TOKENS.bg, border: '1px solid rgba(0,0,0,0.12)', color: TOKENS.ink,
                 display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                <ChevronRight size={17} />
+                <ChevronRight size={15} style={{ transform: 'rotate(180deg)' }} />
+              </button>
+              <span style={{ fontFamily: TOKENS.fontMono, fontSize: FS(18), fontWeight: 700, color: TOKENS.ink }}>{pickYear} 年</span>
+              <button onClick={() => pickYear < nowDate.getFullYear() && setPickYear(pickYear + 1)} disabled={pickYear >= nowDate.getFullYear()} style={{ width: 30, height: 30, borderRadius: RS(8),
+                background: TOKENS.bg, border: '1px solid rgba(0,0,0,0.12)', color: TOKENS.ink,
+                opacity: pickYear >= nowDate.getFullYear() ? 0.35 : 1,
+                display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                <ChevronRight size={15} />
               </button>
             </div>
-            {pickOpen &&
-            <div style={{ paddingBottom: SP(12), marginBottom: SP(8), borderBottom: '1px solid rgba(0,0,0,0.07)' }}>
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: SP(16), marginBottom: SP(10) }}>
-                <button onClick={() => setPickYear(pickYear - 1)} style={{ width: 30, height: 30, borderRadius: RS(8),
-                  background: TOKENS.bg, border: '1px solid rgba(0,0,0,0.12)', color: TOKENS.ink,
-                  display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                  <ChevronRight size={15} style={{ transform: 'rotate(180deg)' }} />
-                </button>
-                <span style={{ fontFamily: TOKENS.fontMono, fontSize: FS(18), fontWeight: 700, color: TOKENS.ink }}>{pickYear} 年</span>
-                <button onClick={() => pickYear < nowDate.getFullYear() && setPickYear(pickYear + 1)} disabled={pickYear >= nowDate.getFullYear()} style={{ width: 30, height: 30, borderRadius: RS(8),
-                  background: TOKENS.bg, border: '1px solid rgba(0,0,0,0.12)', color: TOKENS.ink,
-                  opacity: pickYear >= nowDate.getFullYear() ? 0.35 : 1,
-                  display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                  <ChevronRight size={15} />
-                </button>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4,1fr)', gap: SP(6) }}>
+              {Array.from({ length: 12 }, (_, m) => m).map((m) => {
+                const off = (pickYear - nowDate.getFullYear()) * 12 + (m - nowDate.getMonth());
+                const future = off > 0;
+                const sel = pickYear === thisY && m === thisM;
+                return (
+                <button key={m} disabled={future} onClick={() => { setMonthOffset(off); setPickOpen(false); }} style={{
+                  height: 38, borderRadius: RS(10),
+                  background: sel ? TOKENS.accent : future ? 'transparent' : TOKENS.bg,
+                  border: sel ? 'none' : '1px solid rgba(0,0,0,0.12)',
+                  color: sel ? TOKENS.surface : future ? 'rgba(44,44,50,0.25)' : TOKENS.ink,
+                  fontSize: FS(15), fontWeight: sel ? 700 : 500, cursor: future ? 'default' : 'pointer' }}>{m + 1}月</button>);
+              })}
+            </div>
+          </div>
+          }
+
+          {/* 月支出 / 月收入：甜甜圈 + 類別清單 */}
+          {!isYear &&
+          <div style={{ background: TOKENS.surface, borderRadius: RS(20), border: '1px solid rgba(0,0,0,0.07)', padding: PAD('20px 16px') }}>
+            {cats.length === 0 ?
+            <div style={{ fontSize: FS(17), color: 'rgba(44,44,50,0.4)', textAlign: 'center', padding: PAD('24px 0') }}>
+              {view === 'inc' ? '本月尚無收入紀錄' : '本月尚無支出紀錄'}
+            </div> :
+            <>
+              <Donut data={cats} tot={total} label={centerLabel} color={accent} />
+              <div style={{ marginTop: SP(18), display: 'flex', flexDirection: 'column' }}>
+                {cats.map((c, i) =>
+                <div key={c.name} style={{ display: 'flex', alignItems: 'center', gap: SP(12), padding: PAD('12px 2px'),
+                  borderTop: i === 0 ? '1px solid rgba(0,0,0,0.07)' : 'none',
+                  borderBottom: '1px solid rgba(0,0,0,0.07)' }}>
+                  <div style={{ width: 40, height: 40, borderRadius: RS(12), flexShrink: 0,
+                    background: `${c.color}22`, border: `1px solid ${c.color}55`,
+                    display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: FS(20) }}>{statIconOf(c.name)}</div>
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ fontSize: FS(19), fontWeight: 500, color: TOKENS.ink,
+                      overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{c.name}</div>
+                    <div style={{ fontSize: FS(14), color: 'rgba(44,44,50,0.5)', marginTop: SP(1) }}>{c.pct.toFixed(1)}%</div>
+                  </div>
+                  <div style={{ fontFamily: TOKENS.fontMono, fontSize: FS(19), fontWeight: 600, flexShrink: 0,
+                    color: accent }}>{view === 'inc' ? '+' : '-'}{mask(c.value)}</div>
+                </div>
+                )}
               </div>
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4,1fr)', gap: SP(6) }}>
-                {Array.from({ length: 12 }, (_, m) => m).map((m) => {
-                  const off = (pickYear - nowDate.getFullYear()) * 12 + (m - nowDate.getMonth());
-                  const future = off > 0;
-                  const sel = pickYear === thisY && m === thisM;
-                  return (
-                  <button key={m} disabled={future} onClick={() => { setMonthOffset(off); setPickOpen(false); }} style={{
-                    height: 38, borderRadius: RS(10),
-                    background: sel ? TOKENS.accent : future ? 'transparent' : TOKENS.bg,
-                    border: sel ? 'none' : '1px solid rgba(0,0,0,0.12)',
-                    color: sel ? TOKENS.surface : future ? 'rgba(44,44,50,0.25)' : TOKENS.ink,
-                    fontSize: FS(15), fontWeight: sel ? 700 : 500, cursor: future ? 'default' : 'pointer' }}>{m + 1}月</button>);
-                })}
+            </>
+            }
+          </div>
+          }
+
+          {/* 年收支：年收入 / 年支出 / 結餘 + 12 個月長條 */}
+          {isYear &&
+          <>
+            <div style={{ background: TOKENS.surface, borderRadius: RS(20), border: '1px solid rgba(0,0,0,0.07)', padding: PAD('16px') }}>
+              {[['年收入', yearInc, TOKENS.incBlue, '+'], ['年支出', yearExp, TOKENS.red, '-'], ['結餘', yearNet, yearNet >= 0 ? TOKENS.incBlue : TOKENS.red, yearNet >= 0 ? '+' : '-']].map(([lbl, val, col, sign], i) =>
+              <div key={lbl} style={{ display: 'flex', alignItems: 'center', padding: PAD('13px 2px'),
+                borderBottom: i < 2 ? '1px solid rgba(0,0,0,0.07)' : 'none' }}>
+                <div style={{ flex: 1, fontSize: FS(19), fontWeight: i === 2 ? 700 : 500, color: TOKENS.ink }}>{lbl}</div>
+                <div style={{ fontFamily: TOKENS.fontMono, fontSize: FS(21), fontWeight: 700, color: col }}>
+                  {sign}{mask(Math.abs(val))}
+                </div>
+              </div>
+              )}
+            </div>
+
+            <div style={{ background: TOKENS.surface, borderRadius: RS(20), border: '1px solid rgba(0,0,0,0.07)', padding: PAD('16px 12px') }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: SP(14), marginBottom: SP(12), paddingLeft: SP(2) }}>
+                <span style={{ fontSize: FS(14), color: 'rgba(0,0,0,0.62)', fontWeight: 700, letterSpacing: 1 }}>每月收支</span>
+                <span style={{ display: 'flex', alignItems: 'center', gap: SP(4), fontSize: FS(13), color: 'rgba(44,44,50,0.6)' }}>
+                  <span style={{ width: 9, height: 9, borderRadius: RS(2), background: TOKENS.incBlue }} />收入</span>
+                <span style={{ display: 'flex', alignItems: 'center', gap: SP(4), fontSize: FS(13), color: 'rgba(44,44,50,0.6)' }}>
+                  <span style={{ width: 9, height: 9, borderRadius: RS(2), background: TOKENS.red }} />支出</span>
+              </div>
+              <div style={{ display: 'flex', alignItems: 'stretch', gap: SP(3), height: 132 }}>
+                {yMonths.map((m, mo) =>
+                <div key={mo} style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: SP(3) }}>
+                  <div style={{ flex: 1, width: '100%', display: 'flex', alignItems: 'flex-end', justifyContent: 'center', gap: 2 }}>
+                    <div style={{ width: '42%', height: `${m.inc / yMax * 100}%`, minHeight: m.inc > 0 ? 2 : 0,
+                      background: TOKENS.incBlue, borderRadius: '3px 3px 0 0' }} />
+                    <div style={{ width: '42%', height: `${m.exp / yMax * 100}%`, minHeight: m.exp > 0 ? 2 : 0,
+                      background: TOKENS.red, borderRadius: '3px 3px 0 0' }} />
+                  </div>
+                  <div style={{ fontSize: FS(12), color: 'rgba(44,44,50,0.5)' }}>{mo + 1}</div>
+                </div>
+                )}
               </div>
             </div>
-            }
-
-            {/* 支出 */}
-            <div style={{ fontSize: FS(14), color: TOKENS.red, fontWeight: 700, letterSpacing: 1,
-              textTransform: 'uppercase', margin: PAD('8px 0 12px'), paddingLeft: SP(2) }}>當月支出</div>
-            {expCats.length === 0 ?
-            <div style={{ fontSize: FS(17), color: 'rgba(44,44,50,0.4)', textAlign: 'center', padding: PAD('12px 0') }}>本月尚無支出紀錄</div> :
-            <MiniDonut cats={expCats} total={expTotal} label="支出" color={TOKENS.red} />
-            }
-
-            {/* 分隔線 */}
-            <div style={{ borderTop: '1px solid rgba(0,0,0,0.07)', margin: PAD('16px 0 0') }} />
-
-            {/* 收入 */}
-            <div style={{ fontSize: FS(14), color: TOKENS.incBlue, fontWeight: 700, letterSpacing: 1,
-              textTransform: 'uppercase', margin: PAD('16px 0 12px'), paddingLeft: SP(2) }}>當月收入</div>
-            {incCats.length === 0 ?
-            <div style={{ fontSize: FS(17), color: 'rgba(44,44,50,0.4)', textAlign: 'center', padding: PAD('12px 0') }}>本月尚無收入紀錄</div> :
-            <MiniDonut cats={incCats} total={incTotal} label="收入" color={TOKENS.incBlue} />
-            }
-          </div>
-
-          {/* 6 個月折線圖 */}
-          <div style={{ background: TOKENS.surface, borderRadius: RS(20), border: '1px solid rgba(0,0,0,0.07)', padding: PAD('16px') }}>
-            {(() => {const MFH = window.MonthlyFlowHero;return MFH ? <MFH savedFlows={savedFlows} masterData={masterData} /> : null;})()}
-          </div>
+          </>
+          }
         </div>
       </div>
     </div>);
