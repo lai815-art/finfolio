@@ -400,6 +400,7 @@ function AccountDetailSheet({ data, mask, onClose, onSaveItem, savedFlows = [], 
                           apply: { kind: origData.kind, amount: String(origData.amount),
                             category: origData.cat, account: origData.account || '',
                             fromAccount: origData.fromAccount || '', toAccount: origData.toAccount || '',
+                            xferFee: origData.xferFee != null ? String(origData.xferFee) : '',
                             date: origData.date instanceof Date ? origData.date : new Date(origData.date),
                             note: origData.merchant || '' },
                           text: '', summary: [] });

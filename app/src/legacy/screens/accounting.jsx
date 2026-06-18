@@ -93,6 +93,7 @@ function AccountingScreen({ onSaved, onDelete, initialDraft, masterData, compute
       account: firstAcct,
       fromAccount: firstFrom,
       toAccount: firstTo,
+      xferFee: '',
       date: new Date(window.TODAY_DATE || TODAY_ACC), note: '',
       ...(draftFlow || {})
     };
@@ -515,11 +516,26 @@ function FlowForm({ state, update, onSaved, onDelete, recordId, masterData }) {
             icon={<Wallet size={16} />} />
             </div>
           </div>
-          <SectionLabel>轉帳分類</SectionLabel>
-          <DropField label="分類" value={state.category}
-        options={categoriesByKind.xfer.length ? categoriesByKind.xfer : ['日常轉帳', '投資轉入', '繳卡費']}
-        onChange={(v) => update({ category: v })}
-        icon={<Tag size={16} />} />
+          <SectionLabel>轉帳分類 / 手續費</SectionLabel>
+          <div style={{ display: 'flex', alignItems: 'center', gap: SP(8) }}>
+            <div style={{ flex: 1, minWidth: 0 }}>
+              <DropField label="分類" value={state.category}
+            options={categoriesByKind.xfer.length ? categoriesByKind.xfer : ['日常轉帳', '投資轉入', '繳卡費']}
+            onChange={(v) => update({ category: v })}
+            icon={<Tag size={16} />} />
+            </div>
+            <div style={{ flex: '0 0 128px', minWidth: 0, overflow: 'hidden', height: 60, padding: PAD('0 14px'),
+            borderRadius: RS(18), background: TOKENS.surface, border: '1px solid rgba(0,0,0,0.12)',
+            display: 'flex', flexDirection: 'column', justifyContent: 'center' }}>
+              <div style={{ fontSize: FS(15), color: 'rgba(44,44,50,0.5)', letterSpacing: 0.5, whiteSpace: 'nowrap' }}>轉帳手續費</div>
+              <input value={state.xferFee || ''} onChange={(e) => update({ xferFee: e.target.value })}
+              placeholder="0" inputMode="decimal"
+              style={{
+                marginTop: SP(1), width: '100%', background: 'transparent', border: 'none', outline: 'none',
+                fontSize: FS(20), fontWeight: 500, color: TOKENS.ink, fontFamily: TOKENS.fontMono, minWidth: 0
+              }} />
+            </div>
+          </div>
         </> :
 
       state.kind === 'exp' ?

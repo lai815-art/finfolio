@@ -31,7 +31,8 @@ function computeAccounts(accounts, settleList, flows, trades, initialBalances) {
     if (f.kind === 'exp') {if (bal[f.account] !== undefined) bal[f.account] -= f.amount;} else
     if (f.kind === 'inc') {if (bal[f.account] !== undefined) bal[f.account] += f.amount;} else
     if (f.kind === 'xfer') {
-      if (bal[f.fromAccount] !== undefined) bal[f.fromAccount] -= f.amount;
+      const xfee = parseFloat(f.xferFee) || 0; // 手續費由轉出帳戶額外負擔
+      if (bal[f.fromAccount] !== undefined) bal[f.fromAccount] -= f.amount + xfee;
       if (bal[f.toAccount] !== undefined) bal[f.toAccount] += f.amount;
     }
   });
@@ -734,6 +735,7 @@ function App() {
           account: isXfer ? `${data.fromAccount} → ${data.toAccount}` : data.account,
           fromAccount: isXfer ? data.fromAccount : undefined,
           toAccount: isXfer ? data.toAccount : undefined,
+          xferFee: isXfer ? parseFloat(data.xferFee) || 0 : undefined,
           date: data.date,
           icon: isXfer ? '↔️' : FLOW_ICONS[data.category] || (data.kind === 'inc' ? '💰' : '📝')
         };

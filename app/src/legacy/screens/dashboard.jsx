@@ -358,7 +358,10 @@ function DailyView({ date, hideAmounts, extraFlows = [], extraTrades = [], onEdi
             <div key={i} onClick={() => { if (t._autoGen) return; onEditRecord && onEditRecord({
               intent: 'flow', edit: true, recordId: t._id,
               apply: t.kind === 'xfer' ?
-              { kind: 'xfer', amount: String(t.amount), category: '轉帳', note: t.note || t.merchant || '' } :
+              { kind: 'xfer', amount: String(t.amount), category: t.cat || '轉帳',
+                fromAccount: t.fromAccount, toAccount: t.toAccount,
+                xferFee: t.xferFee != null ? String(t.xferFee) : '',
+                note: t.note || t.merchant || '' } :
               { kind: t.kind, amount: String(t.amount), category: t.cat, account: t.account, note: t.note || t.merchant || '' }
             }); }} style={{ ...{
                 cursor: t._autoGen ? 'default' : 'pointer',
