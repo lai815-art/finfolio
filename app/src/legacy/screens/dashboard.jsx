@@ -391,7 +391,7 @@ function DailyView({ date, hideAmounts, extraFlows = [], extraTrades = [], onEdi
                 <>
                   <div style={{ display: 'flex', alignItems: 'center', gap: SP(6), minWidth: 0 }}>
                     <span style={{ ...{ fontSize: FS(20), fontWeight: 500, overflow: 'hidden',
-                        textOverflow: 'ellipsis', whiteSpace: 'nowrap', flex: 1, minWidth: 0 }, fontSize: "18px" }}>
+                        textOverflow: 'ellipsis', whiteSpace: 'nowrap' }, fontSize: "18px" }}>
                       {t._autoGen && (t.merchant === '投資獲利' || t.merchant === '投資損失') ? t.merchant : t.cat}
                     </span>
                     {t._autoGen && <span style={{ fontSize: FS(13), fontWeight: 600, color: TOKENS.gray3, background: 'rgba(0,0,0,0.06)', padding: '1px 6px', borderRadius: RS(6), whiteSpace: 'nowrap', flexShrink: 0 }}>系統自動</span>}
@@ -650,7 +650,7 @@ function DashboardScreen({ hideAmounts, setHideAmounts, savedFlows = [], savedTr
         background: TOKENS.gradDark,
         boxShadow: SH('0 12px 28px rgba(0,0,0,0.25)')
       }}>
-        <div style={{ position: 'absolute', top: -30, right: -20, width: 110, height: 110,
+        <div style={{ position: 'absolute', top: -30, left: -20, width: 110, height: 110,
           borderRadius: '50%', background: 'rgba(255,255,255,0.10)', pointerEvents: 'none' }} />
         <div style={{ position: 'relative', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
           <div>
@@ -808,8 +808,8 @@ function MonthlyStatsSheet({ open, onClose, savedFlows, masterData, hideAmounts,
         <div style={{ ...{ display: 'flex', alignItems: 'center', gap: SP(12), padding: PAD('3px 13px 8px') }, padding: "3px 10px 8px" }}>
           <button onClick={onClose} style={{ ...{
               width: 45, height: 46, borderRadius: RS(20), flexShrink: 0,
-              background: TOKENS.surface, border: '1px solid rgba(0,0,0,0.12)',
-              color: TOKENS.ink, display: 'flex', alignItems: 'center', justifyContent: 'center'
+              background: 'rgba(0,0,0,0.09)', border: '1px solid rgba(0,0,0,0.12)',
+              color: 'rgba(60,60,67,0.88)', display: 'flex', alignItems: 'center', justifyContent: 'center'
             }, borderRadius: "30px" }}><ChevronRight size={20} style={{ transform: 'rotate(180deg)' }} /></button>
           <div style={{ flex: 1, minWidth: 0 }}>
             <div style={{ fontSize: FS(28), fontWeight: 700, color: TOKENS.ink, letterSpacing: -0.5, lineHeight: 1.3 }}>
@@ -935,8 +935,8 @@ function NetWorthSheet({ open, onClose, total, computedAcctGroups, computedHoldi
         <div style={{ ...{ display: 'flex', alignItems: 'center', gap: SP(12), padding: PAD('3px 13px 8px') }, padding: "3px 10px 8px" }}>
           <button onClick={onClose} style={{
             width: 45, height: 46, borderRadius: RS(20), flexShrink: 0,
-            background: TOKENS.surface, border: '1px solid rgba(0,0,0,0.12)',
-            color: TOKENS.ink, display: 'flex', alignItems: 'center', justifyContent: 'center'
+            background: 'rgba(0,0,0,0.09)', border: '1px solid rgba(0,0,0,0.12)',
+            color: 'rgba(60,60,67,0.88)', display: 'flex', alignItems: 'center', justifyContent: 'center'
           }}><ChevronRight size={20} style={{ transform: 'rotate(180deg)' }} /></button>
           <div>
             <div style={{ fontSize: FS(28), fontWeight: 700, color: TOKENS.ink, letterSpacing: -0.5, lineHeight: 1.3 }}>資產淨額明細</div>

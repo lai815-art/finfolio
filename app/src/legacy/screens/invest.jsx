@@ -95,7 +95,8 @@ function InvestDetailSheet({ data, mask, onClose, savedTrades = [], onEditRecord
   const fmtDate = (d) => {const dt = d instanceof Date ? d : new Date(d);return `${dt.getFullYear()}/${dt.getMonth() + 1}/${dt.getDate()}`;};
 
   // Filter savedTrades for this stock
-  const stockTrades = savedTrades.filter((t) => t.code === data.code);
+  const stockTrades = savedTrades.filter((t) => t.code === data.code)
+    .slice().sort((a, b) => { const d = new Date(b.date) - new Date(a.date); return d !== 0 ? d : (b._justAdded || 0) - (a._justAdded || 0); });
 
   // Compute position purely from recorded trades (FIFO)——data.qty 已含這些交易，不可重複疊加
   let adjQty, adjCost;
@@ -147,11 +148,11 @@ function InvestDetailSheet({ data, mask, onClose, savedTrades = [], onEditRecord
     }}>
       <div style={{ height: 62, flexShrink: 0 }} />
       {/* Header */}
-      <div style={{ display: 'flex', alignItems: 'center', gap: SP(12), padding: PAD('4px 16px 12px') }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: SP(12), padding: PAD('4px 10px 12px') }}>
         <button onClick={onClose} style={{
-          width: 40, height: 50, borderRadius: RS(14), flexShrink: 0,
-          background: TOKENS.surface, border: '1px solid rgba(0,0,0,0.12)',
-          color: TOKENS.ink, display: 'flex', alignItems: 'center', justifyContent: 'center'
+          width: 40, height: 40, borderRadius: RS(20), flexShrink: 0,
+          background: 'rgba(0,0,0,0.09)', border: '1px solid rgba(0,0,0,0.12)',
+          color: 'rgba(60,60,67,0.88)', display: 'flex', alignItems: 'center', justifyContent: 'center'
         }}><ChevronRight size={20} style={{ transform: 'rotate(180deg)' }} /></button>
         <div style={{ minWidth: 0 }}>
           <div style={{ fontSize: FS(21), fontWeight: 700, display: 'flex', alignItems: 'baseline', gap: SP(8) }}>
@@ -166,7 +167,7 @@ function InvestDetailSheet({ data, mask, onClose, savedTrades = [], onEditRecord
         </div>
       </div>
 
-      <div style={{ flex: 1, overflowY: 'auto', overflowX: 'hidden', padding: PAD('0 18px 28px') }}>
+      <div style={{ flex: 1, overflowY: 'auto', overflowX: 'hidden', padding: PAD('0 10px 28px') }}>
 
         {/* 部位摘要 */}
         <div style={{
@@ -175,7 +176,7 @@ function InvestDetailSheet({ data, mask, onClose, savedTrades = [], onEditRecord
           boxShadow: SH('0 8px 20px rgba(0,0,0,0.18)'),
           position: 'relative', overflow: 'hidden'
         }}>
-          <div style={{ position: 'absolute', top: -35, right: -25, width: 110, height: 110,
+          <div style={{ position: 'absolute', top: -35, left: -25, width: 110, height: 110,
             borderRadius: '50%', background: 'rgba(255,255,255,0.10)', pointerEvents: 'none' }} />
           <div style={{ position: 'relative', fontSize: FS(16), color: 'rgba(255,255,255,0.78)',
             letterSpacing: 1, textTransform: 'uppercase', marginBottom: SP(10) }}>部位摘要</div>
@@ -397,7 +398,7 @@ function InvestScreen({ hideAmounts, onOpenDetail, savedTrades = [], computedHol
           boxShadow: SH('0 12px 28px rgba(0,0,0,0.20)'),
           position: 'relative', overflow: 'hidden'
         }, borderRadius: "14px", padding: "15px" }}>
-        <div style={{ position: 'absolute', top: -40, right: -30, width: 140, height: 140,
+        <div style={{ position: 'absolute', top: -40, left: -30, width: 140, height: 140,
           borderRadius: '50%', background: 'rgba(255,255,255,0.10)', pointerEvents: 'none' }} />
         <div style={{ position: 'relative' }}>
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', lineHeight: "1.4" }}>
@@ -540,7 +541,7 @@ function InvestBreakdownSheet({ open, onClose, computedHoldings = [], masterData
         <div style={{ height: 62, flexShrink: 0 }} />
         <div style={{ ...{ display: 'flex', alignItems: 'center', gap: SP(12), padding: PAD('3px 13px 8px') }, padding: "3px 10px 8px" }}>
           <button onClick={onClose} style={{ width: 45, height: 46, borderRadius: RS(20), flexShrink: 0,
-            background: TOKENS.surface, border: '1px solid rgba(0,0,0,0.12)', color: TOKENS.ink,
+            background: 'rgba(0,0,0,0.09)', border: '1px solid rgba(0,0,0,0.12)', color: 'rgba(60,60,67,0.88)',
             display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
             <ChevronRight size={20} style={{ transform: 'rotate(180deg)' }} />
           </button>

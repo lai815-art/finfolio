@@ -511,8 +511,8 @@ function SettingsOverlay({ open, onClose, masterData, setMasterData, dashWidget,
       <div style={{ ...{ display: 'flex', alignItems: 'center', gap: SP(12), padding: PAD('4px 16px 10px'), height: "60px" }, padding: "3px 13px 4px" }}>
         <button onClick={onClose} style={{ ...{
             width: 40, borderRadius: RS(14), flexShrink: 0,
-            background: TOKENS.surface, border: '1px solid rgba(0,0,0,0.12)',
-            color: TOKENS.ink, display: 'flex', alignItems: 'center', justifyContent: 'center', height: "40px"
+            background: 'rgba(0,0,0,0.09)', border: '1px solid rgba(0,0,0,0.12)',
+            color: 'rgba(60,60,67,0.88)', display: 'flex', alignItems: 'center', justifyContent: 'center', height: "40px"
           }, height: "46px", width: "45px", borderRadius: "30px" }}><ChevronRight size={20} style={{ transform: 'rotate(180deg)' }} /></button>
         <div style={{ fontSize: FS(30), fontWeight: 700, color: TOKENS.ink, letterSpacing: -0.5, lineHeight: "1.4" }}>設定</div>
       </div>
@@ -722,7 +722,7 @@ function App() {
     return x;
   };
 
-  const handleSaved = (kind, data) => {
+  const handleSaved = (kind, data, keepOpen) => {
     try {
       if (kind === 'flow') {
         const isXfer = data.kind === 'xfer';
@@ -845,10 +845,12 @@ function App() {
           }
         }
       }
-      setRecordOpen(false);
-      setRecordDraft(null);
-      setTab(recordReturnTab);
-      setRecordReturnTab('dashboard');
+      if (!keepOpen) {
+        setRecordOpen(false);
+        setRecordDraft(null);
+        setTab(recordReturnTab);
+        setRecordReturnTab('dashboard');
+      }
     } catch (e) {
       console.error('[handleSaved crash]', e);
       alert('\u5132\u5b58\u6642\u767c\u751f\u932f\u8aa4\uff1a' + e.message);

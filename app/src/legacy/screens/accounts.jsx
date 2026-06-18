@@ -246,24 +246,24 @@ function AccountDetailSheet({ data, mask, onClose, onSaveItem, savedFlows = [], 
   const realFlows = savedFlows.
   filter((f) => matchAcct(f.account) || matchAcct(f.fromAccount) || matchAcct(f.toAccount)).
   map((f) => ({
-    date: fmtDate(f.date), desc: f.merchant || f.cat,
+    date: fmtDate(f.date), _ts: new Date(f.date).getTime(), desc: f.merchant || f.cat,
     amount: f.kind === 'inc' ? f.amount :
     f.kind === 'xfer' ? matchAcct(f.toAccount) ? f.amount : -f.amount :
     -f.amount,
     source: 'real', _orig: f
-  })).
-  sort((a, b) => b.date.localeCompare(a.date));
+  }));
 
   const realTrades = isBrokerage ?
   savedTrades.filter((t) => brokerMatch(t.broker)).map((t) => ({
-    date: fmtDate(t.date),
+    date: fmtDate(t.date), _ts: new Date(t.date).getTime(),
     desc: `${t.side === 'buy' ? '買進' : '賣出'} ${t.code} ${t.name} ${t.shares}股`,
     amount: t.side === 'buy' ? -(t.shares * t.price) : t.shares * t.price,
     source: 'real', _orig: t, _isTrade: true
-  })).sort((a, b) => b.date.localeCompare(a.date)) :
+  })) :
   [];
 
-  const allReal = [...realFlows, ...realTrades];
+  // 依交易/執行日期排序（新到舊）
+  const allReal = [...realFlows, ...realTrades].sort((a, b) => b._ts - a._ts);
 
   // Mock fallback (only shown when no real data, labelled clearly)
   const mockTxns = genTxns(group, item);
@@ -289,11 +289,11 @@ function AccountDetailSheet({ data, mask, onClose, onSaveItem, savedFlows = [], 
       <div style={{ height: 62, flexShrink: 0 }} />
 
       {/* Header row */}
-      <div style={{ display: 'flex', alignItems: 'center', gap: SP(10), padding: PAD('4px 16px 12px') }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: SP(10), padding: PAD('4px 10px 12px') }}>
         <button onClick={onClose} style={{
-          width: 40, height: 50, borderRadius: RS(14), flexShrink: 0,
-          background: TOKENS.surface, border: '1px solid rgba(0,0,0,0.12)',
-          color: TOKENS.ink, display: 'flex', alignItems: 'center', justifyContent: 'center'
+          width: 40, height: 40, borderRadius: RS(20), flexShrink: 0,
+          background: 'rgba(0,0,0,0.09)', border: '1px solid rgba(0,0,0,0.12)',
+          color: 'rgba(60,60,67,0.88)', display: 'flex', alignItems: 'center', justifyContent: 'center'
         }}><ChevronRight size={20} style={{ transform: 'rotate(180deg)' }} /></button>
 
         <div style={{ flex: 1, minWidth: 0 }}>
@@ -303,7 +303,7 @@ function AccountDetailSheet({ data, mask, onClose, onSaveItem, savedFlows = [], 
         </div>
       </div>
 
-      <div style={{ flex: 1, overflowY: 'auto', overflowX: 'hidden', padding: PAD('0 18px 28px') }}>
+      <div style={{ flex: 1, overflowY: 'auto', overflowX: 'hidden', padding: PAD('0 10px 28px') }}>
 
         {/* Balance hero card */}
         <div style={{
@@ -312,7 +312,7 @@ function AccountDetailSheet({ data, mask, onClose, onSaveItem, savedFlows = [], 
           boxShadow: SH(`0 8px 20px ${color}44`),
           position: 'relative', overflow: 'hidden'
         }}>
-          <div style={{ position: 'absolute', top: -35, right: -25, width: 110, height: 110,
+          <div style={{ position: 'absolute', top: -35, left: -25, width: 110, height: 110,
             borderRadius: '50%', background: 'rgba(255,255,255,0.12)', pointerEvents: 'none' }} />
           <div style={{ position: 'relative' }}>
             <div style={{ fontSize: FS(16), color: 'rgba(255,255,255,0.78)', letterSpacing: 1, textTransform: 'uppercase' }}>
@@ -508,10 +508,15 @@ function AssetGroupRow({ group, openId, setOpenId, mask, onOpenDetail }) {
           <div style={{ fontSize: FS(16), color: 'rgba(0,0,0,0.80)', marginTop: SP(2) }}>{group.items.length} 個帳戶</div>
         </div>
         <div style={{ textAlign: 'right', marginRight: SP(4) }}>
+          {(() => {
+            const sv = group.sign < 0 ? -Math.abs(sum) : sum;
+            const neg = sv < 0;
+            return (
           <div style={{ fontFamily: TOKENS.fontMono, fontSize: FS(22), fontWeight: 700, whiteSpace: 'nowrap', flexShrink: 0,
-            color: group.sign < 0 ? TOKENS.red : TOKENS.ink }}>
-            {group.sign < 0 && sum !== 0 ? '-' : ''}{mask(Math.abs(sum))}
-          </div>
+            color: neg ? TOKENS.red : TOKENS.ink }}>
+            {neg ? '-' : ''}{mask(Math.abs(sv))}
+          </div>);
+          })()}
         </div>
         <ChevronDown size={18} style={{ color: 'rgba(44,44,50,0.35)', flexShrink: 0,
           transition: 'transform 250ms', transform: open ? 'rotate(180deg)' : 'none' }} />
@@ -555,13 +560,18 @@ function AccountItemRow({ item, group, mask, last, onOpen }) {
             overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{item.name}</div>
           {item.sub && <div style={{ fontSize: FS(14), color: 'rgba(0,0,0,0.78)', marginTop: SP(1) }}>{item.sub}</div>}
         </div>
+        {(() => {
+          const av = group.sign < 0 ? -Math.abs(item.amount) : item.amount; // signed display value
+          const neg = av < 0;
+          return (
         <div style={{ fontFamily: TOKENS.fontMono, fontSize: FS(18), fontWeight: 600, flexShrink: 0, whiteSpace: 'nowrap',
-          color: group.sign < 0 ? TOKENS.red : TOKENS.ink }}>
+          color: neg ? TOKENS.red : TOKENS.ink }}>
           {item.currency && item.currency !== 'TWD' &&
           <span style={{ fontSize: FS(13), color: 'rgba(0,0,0,0.62)', marginRight: SP(3) }}>{item.currency}</span>
           }
-          {group.sign < 0 && item.amount !== 0 ? '-' : ''}{mask(Math.abs(item.amount))}
-        </div>
+          {neg ? '-' : ''}{mask(Math.abs(av))}
+        </div>);
+        })()}
         <ChevronRight size={14} style={{ color: 'rgba(44,44,50,0.25)', flexShrink: 0 }} />
       </div>
       {isCredit && item.extra &&
@@ -656,7 +666,7 @@ function AccountsScreen({ hideAmounts, onOpenDetail, computedAcctGroups = [], co
         boxShadow: SH('0 8px 20px rgba(0,0,0,0.20)'),
         position: 'relative', overflow: 'hidden'
       }}>
-        <div style={{ position: 'absolute', top: -30, right: -20, width: 110, height: 110,
+        <div style={{ position: 'absolute', top: -30, left: -20, width: 110, height: 110,
           borderRadius: '50%', background: 'rgba(255,255,255,0.10)', pointerEvents: 'none' }} />
         <div style={{ position: 'relative', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
           <div>

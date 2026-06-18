@@ -604,6 +604,18 @@ function FlowForm({ state, update, onSaved, onDelete, recordId, masterData }) {
           }, color: "rgb(255, 255, 255)" }}>
           <Plus size={20} strokeWidth={2.5} /> {recordId ? '更新' : '儲存'}{active.label}
         </button>
+        {!recordId &&
+        <button onClick={() => {
+          if (!state.amount || parseFloat(state.amount) <= 0) return;
+          onSaved && onSaved('flow', { ...state }, true);
+          update({ amount: '', note: '' });
+        }} style={{
+          flex: '0 0 auto', padding: PAD('0 16px'), height: 60, borderRadius: RS(18),
+          background: 'transparent', border: `1px solid ${active.color}`,
+          color: active.color, fontSize: FS(17), fontWeight: 600, whiteSpace: 'nowrap',
+          display: 'flex', alignItems: 'center', justifyContent: 'center'
+        }}>再記一筆</button>
+        }
       </div>
     </div>);
 
@@ -719,27 +731,31 @@ function StockForm({ state, update, onSaved, onDelete, recordId, masterData, com
 
       {/* Stock picker */}
       <SectionLabel>標的</SectionLabel>
-      <div style={{
-        padding: PAD('4px 14px'), borderRadius: RS(18), background: TOKENS.surface,
-        border: '1px solid rgba(0,0,0,0.20)',
-        display: 'flex', alignItems: 'center', gap: SP(10)
-      }}>
-        <Search size={18} style={{ color: 'rgba(44,44,50,0.5)', flexShrink: 0 }} />
-        <input value={state.code} onChange={(e) => update({ code: e.target.value.toUpperCase(), name: '' })}
-        onFocus={() => state.side === 'sell' && allHoldings.length > 0 && setShowHoldings(true)}
-        onBlur={() => setTimeout(() => setShowHoldings(false), 200)}
-        placeholder="代號" style={{
-          background: 'transparent', border: 'none', outline: 'none',
-          fontSize: FS(21), fontWeight: 600, color: TOKENS.ink,
-          fontFamily: TOKENS.fontMono, width: "91px"
-        }} />
-        <input value={state.name} onChange={(e) => update({ name: e.target.value })}
-        placeholder="或股票名稱"
-        style={{
-          flex: 1, minWidth: 0, background: 'transparent', border: 'none', outline: 'none',
-          fontSize: FS(20), color: 'rgba(44,44,50,0.85)',
-          paddingTop: SP(4), paddingBottom: SP(4)
-        }} />
+      <div style={{ display: 'flex', gap: SP(8) }}>
+        <div style={{ flex: '0 0 132px', padding: PAD('7px 12px'), borderRadius: RS(18),
+          background: TOKENS.surface, border: '1px solid rgba(0,0,0,0.20)' }}>
+          <div style={{ fontSize: FS(14), color: 'rgba(44,44,50,0.55)', letterSpacing: 0.5 }}>代號</div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: SP(6), marginTop: SP(2) }}>
+            <Search size={15} style={{ color: 'rgba(44,44,50,0.5)', flexShrink: 0 }} />
+            <input value={state.code} onChange={(e) => update({ code: e.target.value.toUpperCase(), name: '' })}
+            onFocus={() => state.side === 'sell' && allHoldings.length > 0 && setShowHoldings(true)}
+            onBlur={() => setTimeout(() => setShowHoldings(false), 200)}
+            placeholder="2330" style={{
+              flex: 1, minWidth: 0, background: 'transparent', border: 'none', outline: 'none',
+              fontSize: FS(20), fontWeight: 600, color: TOKENS.ink, fontFamily: TOKENS.fontMono
+            }} />
+          </div>
+        </div>
+        <div style={{ flex: 1, minWidth: 0, padding: PAD('7px 12px'), borderRadius: RS(18),
+          background: TOKENS.surface, border: '1px solid rgba(0,0,0,0.20)' }}>
+          <div style={{ fontSize: FS(14), color: 'rgba(44,44,50,0.55)', letterSpacing: 0.5 }}>名稱</div>
+          <input value={state.name} onChange={(e) => update({ name: e.target.value })}
+          placeholder="台積電"
+          style={{
+            marginTop: SP(2), width: '100%', background: 'transparent', border: 'none', outline: 'none',
+            fontSize: FS(20), color: TOKENS.ink, minWidth: 0
+          }} />
+        </div>
       </div>
       {/* Holdings dropdown (sell mode, focus) */}
       {state.side === 'sell' && showHoldings && allHoldings.length > 0 && !state.code &&
@@ -821,15 +837,19 @@ function StockForm({ state, update, onSaved, onDelete, recordId, masterData, com
           </div>
         )}
       </div>
-      <div style={{ marginTop: SP(10), display: 'flex', gap: SP(6) }}>
-        {[100, 500, 1000].map((n) =>
-        <button key={n} onClick={() => update({ shares: String(n) })} style={{ ...{
+      <div style={{ marginTop: SP(10), display: 'flex', gap: SP(6), alignItems: 'center' }}>
+        {[10, 100, 1000].map((n) =>
+        <button key={n} onClick={() => update({ shares: String((parseFloat(state.shares) || 0) + n) })} style={{ ...{
             flex: 1, height: 40, borderRadius: RS(8),
             background: 'rgba(0,0,0,0.12)', border: '1px solid rgba(0,0,0,0.14)',
             color: 'rgba(44,44,50,0.7)', fontFamily: TOKENS.fontMono,
             fontSize: FS(18), fontWeight: 500
-          }, fontSize: "17px" }}>{n.toLocaleString()} 股</button>
+          }, fontSize: "17px" }}>+{n.toLocaleString()}</button>
         )}
+        <button onClick={() => update({ shares: '' })} style={{
+          flex: '0 0 auto', padding: PAD('0 12px'), height: 40, borderRadius: RS(8),
+          background: 'transparent', border: '1px solid rgba(0,0,0,0.14)',
+          color: 'rgba(44,44,50,0.6)', fontSize: FS(16) }}>清除</button>
       </div>
 
       {/* Calc */}
@@ -929,6 +949,18 @@ function StockForm({ state, update, onSaved, onDelete, recordId, masterData, com
           }, color: "rgb(255, 255, 255)" }}>
           <Plus size={20} strokeWidth={2.5} /> {recordId ? '更新' : '儲存'}{state.side === 'buy' ? '買進' : '賣出'}紀錄
         </button>
+        {!recordId &&
+        <button onClick={() => {
+          if (!state.code || !state.shares || !state.price) return;
+          onSaved && onSaved('stock', { ...state, fee, tax, net }, true);
+          update({ code: '', name: '', shares: '', price: '', note: '' });
+        }} style={{
+          flex: '0 0 auto', padding: PAD('0 16px'), height: 60, borderRadius: RS(18),
+          background: 'transparent', border: `1px solid ${accent}`,
+          color: accent, fontSize: FS(17), fontWeight: 600, whiteSpace: 'nowrap',
+          display: 'flex', alignItems: 'center', justifyContent: 'center'
+        }}>再記一筆</button>
+        }
       </div>
     </div>);
 

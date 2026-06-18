@@ -244,7 +244,7 @@ function SettingsScreen({ masterData, setMasterData, dashWidget, setDashWidget, 
         border: 'none',
         boxShadow: SH('0 12px 28px rgba(0,0,0,0.25)')
       }}>
-        <div style={{ position: 'absolute', top: -45, right: -30, width: 150, height: 150,
+        <div style={{ position: 'absolute', top: -45, left: -30, width: 150, height: 150,
           borderRadius: '50%', background: 'rgba(255,255,255,0.10)', pointerEvents: 'none' }} />
         <div style={{ position: 'relative', display: 'flex', alignItems: 'flex-start', gap: SP(14) }}>
           <div style={{
@@ -843,7 +843,7 @@ function IncomeGroupManager({ items, onChange, color, groups, groupColors, group
                     background: 'rgba(0,0,0,0.06)', border: `1px solid ${gc}55`,
                     fontSize: FS(18), color: TOKENS.ink, outline: 'none' }} />
                       <button onClick={saveEdit} style={{ width: 34, height: 34, borderRadius: RS(8), flexShrink: 0,
-                    background: `${gc}22`, border: `1px solid ${gc}55`, color: gc,
+                    background: gc, border: 'none', color: TOKENS.surface,
                     display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                         <Check size={14} strokeWidth={2.5} />
                       </button>
@@ -882,7 +882,7 @@ function IncomeGroupManager({ items, onChange, color, groups, groupColors, group
                 background: TOKENS.surface, border: `1px solid ${gc}55`,
                 fontSize: FS(18), color: TOKENS.ink, outline: 'none' }} />
                 <button onClick={() => addItem(g)} style={{ height: 36, padding: PAD('0 14px'), borderRadius: RS(10), flexShrink: 0,
-                background: `${gc}22`, border: `1px solid ${gc}55`, color: gc,
+                background: gc, border: 'none', color: TOKENS.surface,
                 fontSize: FS(17), fontWeight: 600 }}>新增</button>
                 <button onClick={() => {setAdding(null);setAddVal('');}} style={{ height: 36, padding: PAD('0 14px'), flexShrink: 0,
                 borderRadius: RS(10), background: 'rgba(0,0,0,0.08)', border: '1px solid rgba(0,0,0,0.12)',
@@ -1051,8 +1051,8 @@ function StringListManager({ items, onChange, color, placeholder }) {
           <>
                 <button onClick={saveEdit} style={{
               width: 36, height: 36, borderRadius: RS(8), flexShrink: 0,
-              background: `${color}22`, border: `1px solid ${color}55`,
-              color, display: 'flex', alignItems: 'center', justifyContent: 'center'
+              background: color, border: 'none',
+              color: TOKENS.surface, display: 'flex', alignItems: 'center', justifyContent: 'center'
             }}><Check size={16} strokeWidth={2.5} /></button>
                 <button onClick={() => setEditingIdx(null)} style={{
               width: 36, height: 36, borderRadius: RS(8), flexShrink: 0,
@@ -1188,7 +1188,7 @@ function AccountsManager({ data, onChange, color, initialBalances, setInitialBal
                   }
                     {editingIdx === i ?
                   <><button onClick={saveEdit} style={{ width: 34, height: 34, borderRadius: RS(8), flexShrink: 0,
-                      background: `${kc}22`, border: `1px solid ${kc}55`, color: kc,
+                      background: kc, border: 'none', color: TOKENS.surface,
                       display: 'flex', alignItems: 'center', justifyContent: 'center' }}><Check size={15} strokeWidth={2.5} /></button>
                         <button onClick={() => setEditingIdx(null)} style={{ width: 34, height: 34, borderRadius: RS(8), flexShrink: 0,
                       background: 'rgba(0,0,0,0.10)', border: '1px solid rgba(0,0,0,0.12)', color: 'rgba(44,44,50,0.7)',
@@ -1328,7 +1328,7 @@ function BrokerManager({ items, onChange, color, settleOptions = [] }) {
             }
               {editIdx === i ?
             <><button onClick={saveEdit} style={{ width: 36, height: 36, borderRadius: RS(8), flexShrink: 0,
-                background: `${color}22`, border: `1px solid ${color}55`, color,
+                background: color, border: 'none', color: TOKENS.surface,
                 display: 'flex', alignItems: 'center', justifyContent: 'center' }}><Check size={16} strokeWidth={2.5} /></button>
                     <button onClick={() => setEditIdx(null)} style={{ width: 36, height: 36, borderRadius: RS(8), flexShrink: 0,
                 background: 'rgba(0,0,0,0.12)', border: '1px solid rgba(0,0,0,0.14)', color: 'rgba(44,44,50,0.6)',
@@ -1463,7 +1463,7 @@ function SettleManager({ items, onChange, color, initialBalances = {}, setInitia
             }
               {editIdx === i ?
             <><button onClick={saveEdit} style={{ width: 36, height: 36, borderRadius: RS(8), flexShrink: 0,
-                background: `${color}22`, border: `1px solid ${color}55`, color,
+                background: color, border: 'none', color: TOKENS.surface,
                 display: 'flex', alignItems: 'center', justifyContent: 'center' }}><Check size={16} strokeWidth={2.5} /></button>
                     <button onClick={() => setEditIdx(null)} style={{ width: 36, height: 36, borderRadius: RS(8), flexShrink: 0,
                 background: 'rgba(0,0,0,0.12)', border: '1px solid rgba(0,0,0,0.14)', color: 'rgba(44,44,50,0.6)',
