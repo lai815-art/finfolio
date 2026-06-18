@@ -464,10 +464,6 @@ function FlowForm({ state, update, onSaved, onDelete, recordId, masterData }) {
               fontSize: FS(20), fontWeight: on ? 700 : 500, gap: SP(2),
               boxShadow: SH('none'), height: "55px", lineHeight: "1"
             }}>
-              <span style={{
-                fontSize: FS(18), fontFamily: TOKENS.fontMono,
-                letterSpacing: 1, opacity: on ? 0.7 : 0.55, width: "15px", height: "15px"
-              }}>{{ exp: '-', inc: '+', xfer: '↔' }[k.id]}</span>
               {k.label}
             </button>);
 
@@ -582,16 +578,6 @@ function FlowForm({ state, update, onSaved, onDelete, recordId, masterData }) {
 
       {/* Submit */}
       <div style={{ marginTop: SP(18), display: 'flex', gap: SP(10) }}>
-        {recordId &&
-        <button onClick={() => onDelete && onDelete(recordId)} style={{
-          flex: '0 0 auto', padding: PAD('0 22px'), height: 60, borderRadius: RS(18),
-          background: 'transparent', border: '1px solid rgba(216,135,112,0.4)',
-          color: TOKENS.red, fontSize: FS(20), fontWeight: 600,
-          display: 'flex', alignItems: 'center', justifyContent: 'center', gap: SP(8)
-        }}>
-            <Trash size={20} strokeWidth={2.2} /> 刪除
-          </button>
-        }
         <button onClick={() => {
           if (!state.amount || parseFloat(state.amount) <= 0) return;
           onSaved && onSaved('flow', { ...state, recordId });
@@ -604,6 +590,16 @@ function FlowForm({ state, update, onSaved, onDelete, recordId, masterData }) {
           }, color: "rgb(255, 255, 255)" }}>
           <Plus size={20} strokeWidth={2.5} /> {recordId ? '更新' : '儲存'}{active.label}
         </button>
+        {recordId &&
+        <button onClick={() => onDelete && onDelete(recordId)} style={{
+          flex: '0 0 auto', padding: PAD('0 22px'), height: 60, borderRadius: RS(18),
+          background: 'transparent', border: '1px solid rgba(216,135,112,0.4)',
+          color: TOKENS.red, fontSize: FS(20), fontWeight: 600,
+          display: 'flex', alignItems: 'center', justifyContent: 'center', gap: SP(8)
+        }}>
+            <Trash size={20} strokeWidth={2.2} /> 刪除
+          </button>
+        }
         {!recordId &&
         <button onClick={() => {
           if (!state.amount || parseFloat(state.amount) <= 0) return;
@@ -671,11 +667,13 @@ function StockForm({ state, update, onSaved, onDelete, recordId, masterData, com
   const sh = parseFloat(state.shares) || 0;
   const pr = parseFloat(state.price) || 0;
   const gross = sh * pr;
-  // 手續費折扣：依所選券商設定（折，如 6 = 六折）；空白或 10 = 無折扣
+  // 手續費：依所選券商設定。費率預設 0.1425%，可為 0（部分美股券商免手續費）；
+  // 折扣以「折」表示（如 6 = 六折）；空白或 10 = 無折扣。
   const _brokerObj = (md.brokers || []).find((b) => b.name === state.broker);
+  const _feeRate = _brokerObj && _brokerObj.feeRate != null && String(_brokerObj.feeRate).trim() !== '' ? parseFloat(_brokerObj.feeRate) : 0.1425;
   const _feeDisc = _brokerObj && _brokerObj.discount != null && String(_brokerObj.discount).trim() !== '' ? parseFloat(_brokerObj.discount) : 10;
   const feeMult = _feeDisc > 0 && _feeDisc <= 10 ? _feeDisc / 10 : 1;
-  const fee = sh > 0 && pr > 0 ? Math.max(1, Math.round(gross * 0.001425 * feeMult)) : 0;
+  const fee = sh > 0 && pr > 0 && _feeRate > 0 ? Math.max(1, Math.round(gross * (_feeRate / 100) * feeMult)) : 0;
   const tax = state.side === 'sell' ? Math.round(gross * 0.003) : 0;
   const net = state.side === 'buy' ? gross + fee : gross - fee - tax;
 
@@ -721,7 +719,6 @@ function StockForm({ state, update, onSaved, onDelete, recordId, masterData, com
               display: 'flex', alignItems: 'center', justifyContent: 'center', gap: SP(8),
               fontSize: FS(20), fontWeight: on ? 700 : 500, height: "55px", lineHeight: "1.25"
             }}>
-              <s.Icon size={18} strokeWidth={on ? 2.2 : 1.8} />
               {s.label}
             </button>);
 
@@ -866,7 +863,7 @@ function StockForm({ state, update, onSaved, onDelete, recordId, masterData, com
         </div>
         <div style={{ marginTop: SP(4), display: 'flex', justifyContent: 'space-between', fontSize: FS(18),
           color: 'rgba(44,44,50,0.6)' }}>
-          <span>手續費 0.1425%{feeMult < 1 ? ` · ${_feeDisc} 折` : ''}</span>
+          <span>手續費 {_feeRate}%{feeMult < 1 ? ` · ${_feeDisc} 折` : ''}</span>
           <span style={{ fontFamily: TOKENS.fontMono, color: TOKENS.ink }}>
             {fee.toLocaleString()}
           </span>
@@ -927,16 +924,6 @@ function StockForm({ state, update, onSaved, onDelete, recordId, masterData, com
 
       {/* Submit */}
       <div style={{ marginTop: SP(18), display: 'flex', gap: SP(10) }}>
-        {recordId &&
-        <button onClick={() => onDelete && onDelete(recordId)} style={{
-          flex: '0 0 auto', padding: PAD('0 22px'), height: 60, borderRadius: RS(18),
-          background: 'transparent', border: '1px solid rgba(216,135,112,0.4)',
-          color: TOKENS.red, fontSize: FS(20), fontWeight: 600,
-          display: 'flex', alignItems: 'center', justifyContent: 'center', gap: SP(8)
-        }}>
-            <Trash size={20} strokeWidth={2.2} /> 刪除
-          </button>
-        }
         <button onClick={() => {
           if (!state.code || !state.shares || !state.price) return;
           onSaved && onSaved('stock', { ...state, fee, tax, net, recordId });
@@ -949,6 +936,16 @@ function StockForm({ state, update, onSaved, onDelete, recordId, masterData, com
           }, color: "rgb(255, 255, 255)" }}>
           <Plus size={20} strokeWidth={2.5} /> {recordId ? '更新' : '儲存'}{state.side === 'buy' ? '買進' : '賣出'}紀錄
         </button>
+        {recordId &&
+        <button onClick={() => onDelete && onDelete(recordId)} style={{
+          flex: '0 0 auto', padding: PAD('0 22px'), height: 60, borderRadius: RS(18),
+          background: 'transparent', border: '1px solid rgba(216,135,112,0.4)',
+          color: TOKENS.red, fontSize: FS(20), fontWeight: 600,
+          display: 'flex', alignItems: 'center', justifyContent: 'center', gap: SP(8)
+        }}>
+            <Trash size={20} strokeWidth={2.2} /> 刪除
+          </button>
+        }
         {!recordId &&
         <button onClick={() => {
           if (!state.code || !state.shares || !state.price) return;
