@@ -187,6 +187,7 @@ function AccountDetailSheet({ data, mask, onClose, onSaveItem, savedFlows = [], 
   const [activeTxn, setActiveTxn] = useStateAcct(null);
   const [editDesc, setEditDesc] = useStateAcct('');
   const [editAmt, setEditAmt] = useStateAcct('');
+  const [monthOff, setMonthOff] = useStateAcct(0); // 0 = 當月，負值往前
 
   React.useEffect(() => {
     if (data) {
@@ -268,6 +269,23 @@ function AccountDetailSheet({ data, mask, onClose, onSaveItem, savedFlows = [], 
   // Mock fallback (only shown when no real data, labelled clearly)
   const mockTxns = genTxns(group, item);
   const hasReal = allReal.length > 0;
+
+  // ── 月份切換（以每月為單位顯示交易）──
+  const nowD = new Date(window.TODAY_DATE || Date.now());
+  const selDate = new Date(nowD.getFullYear(), nowD.getMonth() + monthOff, 1);
+  const selY = selDate.getFullYear(), selM = selDate.getMonth();
+  const inSelMonth = (ts) => {const d = new Date(ts);return d.getFullYear() === selY && d.getMonth() === selM;};
+  // 開啟帳戶時，預設跳到最近一筆交易所在的月份
+  React.useEffect(() => {
+    if (allReal.length) {
+      const d = new Date(allReal[0]._ts);
+      setMonthOff((d.getFullYear() - nowD.getFullYear()) * 12 + (d.getMonth() - nowD.getMonth()));
+    } else {
+      setMonthOff(0);
+    }
+  }, [data]);
+  const monthReal = allReal.filter((r) => inSelMonth(r._ts));
+  const monthNet = monthReal.reduce((s, r) => s + (r.amount || 0), 0);
 
   const openEdit = (i, desc, amt) => {
     setActiveTxn(i);setEditDesc(desc);setEditAmt(String(Math.abs(amt)));
@@ -354,11 +372,36 @@ function AccountDetailSheet({ data, mask, onClose, onSaveItem, savedFlows = [], 
           </div>
         </div>
 
+        {/* 月份切換（以每月為單位顯示交易） */}
+        {hasReal &&
+        <div style={{ display: 'flex', alignItems: 'center', gap: SP(8), marginBottom: SP(12) }}>
+          <button onClick={() => setMonthOff((m) => m - 1)} style={{
+            width: 40, height: 40, borderRadius: RS(20), flexShrink: 0,
+            background: TOKENS.surface, border: '1px solid rgba(0,0,0,0.12)',
+            color: 'rgba(60,60,67,0.88)', display: 'flex', alignItems: 'center', justifyContent: 'center'
+          }}><ChevronRight size={18} style={{ transform: 'rotate(180deg)' }} /></button>
+          <div style={{ flex: 1, textAlign: 'center' }}>
+            <div style={{ fontSize: FS(18), fontWeight: 700, color: TOKENS.ink }}>{selY} 年 {selM + 1} 月</div>
+            <div style={{ fontSize: FS(14), color: 'rgba(0,0,0,0.5)', marginTop: SP(1) }}>
+              本月變動 <span style={{ fontFamily: TOKENS.fontMono,
+                color: monthNet > 0 ? TOKENS.incBlue : monthNet < 0 ? TOKENS.red : 'rgba(0,0,0,0.5)' }}>
+                {monthNet > 0 ? '+' : monthNet < 0 ? '-' : ''}{mask(Math.abs(monthNet))}</span>
+            </div>
+          </div>
+          <button onClick={() => setMonthOff((m) => Math.min(0, m + 1))} disabled={monthOff >= 0} style={{
+            width: 40, height: 40, borderRadius: RS(20), flexShrink: 0,
+            background: TOKENS.surface, border: '1px solid rgba(0,0,0,0.12)',
+            color: 'rgba(60,60,67,0.88)', display: 'flex', alignItems: 'center', justifyContent: 'center',
+            opacity: monthOff >= 0 ? 0.35 : 1, cursor: monthOff >= 0 ? 'default' : 'pointer'
+          }}><ChevronRight size={18} /></button>
+        </div>
+        }
+
         {/* Transactions — real data first, mock fallback */}
         {(hasReal || mockTxns.length > 0) && (() => {
           const displayList = hasReal ?
-          allReal.map((r, i) => [r.date, r.desc, r.amount, i, r._orig, r._isTrade]) :
-          mockTxns.map(([d, desc, amt], i) => [d, desc, amt, i, null, false]);
+          allReal.map((r, i) => [r.date, r.desc, r.amount, i, r._orig, r._isTrade, r._ts]).filter((row) => inSelMonth(row[6])) :
+          mockTxns.map(([d, desc, amt], i) => [d, desc, amt, i, null, false, 0]);
           const sectionLabel = hasReal ? `已記帳交易 · ${displayList.length} 筆` : `近期交易 · ${displayList.length} 筆`;
           const isMock = !hasReal;
 
@@ -375,6 +418,10 @@ function AccountDetailSheet({ data, mask, onClose, onSaveItem, savedFlows = [], 
               </div>
               <div style={{ background: TOKENS.surface, borderRadius: RS(18),
                 border: '1px solid rgba(0,0,0,0.12)', overflow: 'hidden' }}>
+                {displayList.length === 0 &&
+                <div style={{ padding: PAD('28px 14px'), textAlign: 'center',
+                  color: 'rgba(0,0,0,0.4)', fontSize: FS(17) }}>本月無交易</div>
+                }
                 {displayList.map(([date, desc, amt, origIdx, origData, isTrade]) => {
                   const override = txnEdits[origIdx];
                   const displayDesc = override?.desc !== undefined ? override.desc : desc;
