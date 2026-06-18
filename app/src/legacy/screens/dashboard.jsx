@@ -715,8 +715,10 @@ function MonthlyStatsSheet({ open, onClose, savedFlows, masterData, hideAmounts,
   const { X, ChevronRight } = window.Icons;
   const [shown, setShown] = useStateDash(false);
   const [monthOffset, setMonthOffset] = useStateDash(0);
+  const [pickOpen, setPickOpen] = useStateDash(false);
+  const [pickYear, setPickYear] = useStateDash((nowDate || new Date()).getFullYear());
   useEffectDash(() => {
-    if (open) {setMonthOffset(0);const t = setTimeout(() => setShown(true), 20);return () => clearTimeout(t);}
+    if (open) {setMonthOffset(0);setPickOpen(false);const t = setTimeout(() => setShown(true), 20);return () => clearTimeout(t);}
     setShown(false);
   }, [open]);
 
@@ -831,9 +833,13 @@ function MonthlyStatsSheet({ open, onClose, savedFlows, masterData, hideAmounts,
                 color: TOKENS.ink, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer' }}>
                 <ChevronRight size={17} style={{ transform: 'rotate(180deg)' }} />
               </button>
-              <div style={{ fontFamily: TOKENS.fontMono, fontSize: FS(17), fontWeight: 700, color: TOKENS.ink, letterSpacing: 0.5 }}>
+              <button onClick={() => { setPickYear(thisY); setPickOpen((o) => !o); }} style={{
+                background: 'transparent', border: 'none', cursor: 'pointer',
+                fontFamily: TOKENS.fontMono, fontSize: FS(17), fontWeight: 700, color: TOKENS.ink, letterSpacing: 0.5,
+                display: 'flex', alignItems: 'center', gap: SP(6) }}>
                 {thisY} / {(thisM + 1).toString().padStart(2, '0')}
-              </div>
+                {window.Icons.ChevronDown && <window.Icons.ChevronDown size={15} style={{ transform: pickOpen ? 'rotate(180deg)' : 'none', color: 'rgba(44,44,50,0.5)' }} />}
+              </button>
               <button onClick={() => canNext && setMonthOffset(monthOffset + 1)} disabled={!canNext} style={{
                 width: 34, height: 34, borderRadius: RS(10), flexShrink: 0,
                 background: TOKENS.bg, border: '1px solid rgba(0,0,0,0.12)',
@@ -843,6 +849,38 @@ function MonthlyStatsSheet({ open, onClose, savedFlows, masterData, hideAmounts,
                 <ChevronRight size={17} />
               </button>
             </div>
+            {pickOpen &&
+            <div style={{ paddingBottom: SP(12), marginBottom: SP(8), borderBottom: '1px solid rgba(0,0,0,0.07)' }}>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: SP(16), marginBottom: SP(10) }}>
+                <button onClick={() => setPickYear(pickYear - 1)} style={{ width: 30, height: 30, borderRadius: RS(8),
+                  background: TOKENS.bg, border: '1px solid rgba(0,0,0,0.12)', color: TOKENS.ink,
+                  display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                  <ChevronRight size={15} style={{ transform: 'rotate(180deg)' }} />
+                </button>
+                <span style={{ fontFamily: TOKENS.fontMono, fontSize: FS(18), fontWeight: 700, color: TOKENS.ink }}>{pickYear} 年</span>
+                <button onClick={() => pickYear < nowDate.getFullYear() && setPickYear(pickYear + 1)} disabled={pickYear >= nowDate.getFullYear()} style={{ width: 30, height: 30, borderRadius: RS(8),
+                  background: TOKENS.bg, border: '1px solid rgba(0,0,0,0.12)', color: TOKENS.ink,
+                  opacity: pickYear >= nowDate.getFullYear() ? 0.35 : 1,
+                  display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                  <ChevronRight size={15} />
+                </button>
+              </div>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4,1fr)', gap: SP(6) }}>
+                {Array.from({ length: 12 }, (_, m) => m).map((m) => {
+                  const off = (pickYear - nowDate.getFullYear()) * 12 + (m - nowDate.getMonth());
+                  const future = off > 0;
+                  const sel = pickYear === thisY && m === thisM;
+                  return (
+                  <button key={m} disabled={future} onClick={() => { setMonthOffset(off); setPickOpen(false); }} style={{
+                    height: 38, borderRadius: RS(10),
+                    background: sel ? TOKENS.accent : future ? 'transparent' : TOKENS.bg,
+                    border: sel ? 'none' : '1px solid rgba(0,0,0,0.12)',
+                    color: sel ? TOKENS.surface : future ? 'rgba(44,44,50,0.25)' : TOKENS.ink,
+                    fontSize: FS(15), fontWeight: sel ? 700 : 500, cursor: future ? 'default' : 'pointer' }}>{m + 1}月</button>);
+                })}
+              </div>
+            </div>
+            }
 
             {/* 支出 */}
             <div style={{ fontSize: FS(14), color: TOKENS.red, fontWeight: 700, letterSpacing: 1,

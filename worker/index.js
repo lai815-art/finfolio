@@ -140,12 +140,41 @@ async function getUS(codes, env) {
   return out;
 }
 
+// Full Taiwan securities list (code → name), incl. ETFs/bonds — cached ~12h.
+async function getTWList(ctx) {
+  const cache = caches.default;
+  const key = new Request(`https://ff-cache.local/twlist/v1/${todayStr()}`);
+  const hit = await cache.match(key);
+  if (hit) return hit.json();
+  const map = {};
+  const add = (code, name) => { if (code && name && !map[code]) map[code] = name; };
+  try {
+    const r = await fetch('https://openapi.twse.com.tw/v1/exchangeReport/STOCK_DAY_ALL', { cf: { cacheTtl: 21600 } });
+    if (r.ok) { const arr = await r.json(); (Array.isArray(arr) ? arr : []).forEach((s) => add(s.Code, (s.Name || '').trim())); }
+  } catch (e) { /* ignore */ }
+  try {
+    const r = await fetch('https://www.tpex.org.tw/openapi/v1/tpex_mainboard_daily_close_quotes', { cf: { cacheTtl: 21600 } });
+    if (r.ok) { const arr = await r.json(); (Array.isArray(arr) ? arr : []).forEach((s) => add(s.SecuritiesCompanyCode || s.Code, (s.CompanyName || s.Name || '').trim())); }
+  } catch (e) { /* ignore */ }
+  const list = Object.keys(map).map((code) => ({ code, name: map[code], class: '台股' }));
+  if (list.length > 50) {
+    ctx.waitUntil(cache.put(key, new Response(JSON.stringify(list), {
+      headers: { 'Content-Type': 'application/json', 'Cache-Control': 'public, max-age=43200' },
+    })));
+  }
+  return list;
+}
+
 export default {
   async fetch(request, env, ctx) {
     if (request.method === 'OPTIONS') return new Response(null, { status: 204, headers: CORS });
     const url = new URL(request.url);
+    if (url.pathname === '/stocks') {
+      const list = await getTWList(ctx);
+      return json({ stocks: list });
+    }
     if (url.pathname !== '/quotes') {
-      return new Response('FinFolio price service · /quotes?codes=2330,0050', { status: url.pathname === '/' ? 200 : 404, headers: CORS });
+      return new Response('FinFolio price service · /quotes?codes=2330,0050 · /stocks', { status: url.pathname === '/' ? 200 : 404, headers: CORS });
     }
     const codes = (url.searchParams.get('codes') || '').split(',').map((s) => s.trim()).filter(Boolean);
     const twCodes = codes.filter(isTW);

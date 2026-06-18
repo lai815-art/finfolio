@@ -202,6 +202,20 @@ window.loadTWStocks = async function () {
       return cached.data;
   } catch {}
 
+  // Preferred: the CORS-enabled price Worker returns the full TW list (incl. ETFs/bonds).
+  try {
+    if (window.FF_PRICE_API) {
+      const r = await fetch(window.FF_PRICE_API + '/stocks');
+      if (r.ok) {
+        const d = await r.json();
+        if (d && Array.isArray(d.stocks) && d.stocks.length > 50) {
+          try { localStorage.setItem(TW_CACHE_KEY, JSON.stringify({ ts: Date.now(), data: d.stocks })); } catch {}
+          return d.stocks;
+        }
+      }
+    }
+  } catch {}
+
   const seen = new Set();
   const stocks = [];
   const add = (code, name, cls) => {
