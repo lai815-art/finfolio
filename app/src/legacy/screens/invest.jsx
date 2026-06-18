@@ -523,14 +523,10 @@ function InvestBreakdownSheet({ open, onClose, computedHoldings = [], masterData
   const portCost = catTotals.reduce((a, c) => a + c.cost, 0);
   const portPct = portCost > 0 ? portPnl / portCost * 100 : 0;
 
-  const DR = 72,DT = 18,DSIZE = (DR + DT) * 2 + 4,DC = 2 * Math.PI * DR;
-  let acc = 0;
-  const arcs = catTotals.map((c) => {
-    const pct = portfolioMv > 0 ? c.mv / portfolioMv * 100 : 0;
-    const len = pct / 100 * DC,off = acc / 100 * DC;acc += pct;
-    return { ...c, pct, len, off };
-  });
+  const catData = catTotals.map((c) => ({ name: c.name, color: c.color, pct: portfolioMv > 0 ? c.mv / portfolioMv * 100 : 0 }));
   const holdings = allItems.filter((it) => it.mvT > 0).sort((a, b) => b.mvT - a.mvT);
+  const StatDonut = window.StatDonut;
+  const assetIconName = window.assetIconName || (() => 'TrendUp');
 
   const cardStyle = { background: TOKENS.surface, borderRadius: RS(20), border: '1px solid rgba(0,0,0,0.07)', padding: PAD('16px') };
   const upColor = (v) => v < 0 ? TOKENS.red : TOKENS.incBlue;
@@ -552,66 +548,49 @@ function InvestBreakdownSheet({ open, onClose, computedHoldings = [], masterData
 
         <div style={{ ...{ flex: 1, overflowY: 'auto', overflowX: 'hidden', padding: PAD('0 18px 32px'),
             display: 'flex', flexDirection: 'column', gap: SP(20) }, padding: "0px 10px 32px" }}>
-          {/* 資產配置 */}
-          <div style={cardStyle}>
+          {/* 投資配置（依股票類別）+ 類別明細 */}
+          <div style={{ ...cardStyle, padding: PAD('20px 16px') }}>
             <div style={{ fontSize: FS(14), color: 'rgba(0,0,0,0.62)', fontWeight: 700, letterSpacing: 1,
-              textTransform: 'uppercase', marginBottom: SP(14), paddingLeft: SP(2) }}>資產配置</div>
+              textTransform: 'uppercase', marginBottom: SP(6), paddingLeft: SP(2) }}>投資配置</div>
             {catTotals.length === 0 ?
             <div style={{ fontSize: FS(17), color: 'rgba(44,44,50,0.4)', textAlign: 'center', padding: PAD('12px 0') }}>尚無持倉</div> :
-            <div style={{ display: 'flex', alignItems: 'center', gap: SP(16) }}>
-              <div style={{ flexShrink: 0, position: 'relative' }}>
-                <svg width={DSIZE} height={DSIZE} style={{ transform: 'rotate(-90deg)' }}>
-                  <circle cx={DSIZE / 2} cy={DSIZE / 2} r={DR} fill="none" stroke="rgba(0,0,0,0.08)" strokeWidth={DT} />
-                  {arcs.map((a, i) =>
-                  <circle key={i} cx={DSIZE / 2} cy={DSIZE / 2} r={DR} fill="none" stroke={a.color} strokeWidth={DT}
-                  strokeDasharray={a.len + ' ' + DC} strokeDashoffset={-a.off} />
-                  )}
-                </svg>
-                <div style={{ position: 'absolute', inset: 0, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center' }}>
-                  <div style={{ fontSize: FS(15), color: 'rgba(44,44,50,0.55)' }}>市值</div>
-                  <div style={{ fontSize: FS(19), fontWeight: 700, color: TOKENS.ink, fontFamily: TOKENS.fontMono, marginTop: SP(2) }}>{mask(portfolioMv)}</div>
+            <>
+              {StatDonut && <StatDonut data={catData} total={portfolioMv} label="市值" color={TOKENS.ink} mask={mask} />}
+              <div style={{ marginTop: SP(14), display: 'flex', flexDirection: 'column' }}>
+                {catTotals.map((c, i) => {
+                  const pct = portfolioMv > 0 ? c.mv / portfolioMv * 100 : 0;
+                  const Ico = window.Icons[assetIconName(c.name)] || window.Icons.TrendUp;
+                  return (
+                  <div key={c.id} style={{ display: 'flex', alignItems: 'center', gap: SP(12), padding: PAD('12px 2px'),
+                    borderTop: i === 0 ? '1px solid rgba(0,0,0,0.07)' : 'none',
+                    borderBottom: '1px solid rgba(0,0,0,0.07)' }}>
+                    <div style={{ width: 40, height: 40, borderRadius: RS(12), flexShrink: 0,
+                      background: `${c.color}22`, border: `1px solid ${c.color}55`,
+                      display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                      <Ico size={20} style={{ color: c.color }} />
+                    </div>
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div style={{ fontSize: FS(19), fontWeight: 500, color: TOKENS.ink }}>{c.name}</div>
+                      <div style={{ fontSize: FS(14), color: 'rgba(44,44,50,0.5)', marginTop: SP(1) }}>{pct.toFixed(1)}%</div>
+                    </div>
+                    <div style={{ textAlign: 'right', flexShrink: 0 }}>
+                      <div style={{ fontFamily: TOKENS.fontMono, fontSize: FS(19), fontWeight: 600, color: TOKENS.ink }}>{mask(c.mv)}</div>
+                      <div style={{ fontSize: FS(14), marginTop: SP(1), fontFamily: TOKENS.fontMono, color: upColor(c.pnl) }}>
+                        {c.pnl < 0 ? '-' : '+'}{mask(Math.abs(c.pnl))}
+                      </div>
+                    </div>
+                  </div>);
+                })}
+                <div style={{ display: 'flex', alignItems: 'center', gap: SP(12), padding: PAD('12px 2px') }}>
+                  <div style={{ flex: 1, fontSize: FS(18), fontWeight: 600, color: TOKENS.ink }}>未實現損益</div>
+                  <div style={{ fontFamily: TOKENS.fontMono, fontSize: FS(18), fontWeight: 700, color: upColor(portPnl) }}>
+                    {portPnl < 0 ? '-' : '+'}{mask(Math.abs(portPnl))} ({portPnl < 0 ? '' : '+'}{portPct.toFixed(1)}%)
+                  </div>
                 </div>
               </div>
-              <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: SP(8) }}>
-                {arcs.map((c) =>
-                <div key={c.id} style={{ display: 'flex', alignItems: 'center', gap: SP(8) }}>
-                  <span style={{ width: 10, height: 10, borderRadius: RS(3), background: c.color, flexShrink: 0 }} />
-                  <span style={{ flex: 1, fontSize: FS(16), color: TOKENS.ink, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{c.name}</span>
-                  <span style={{ fontSize: FS(16), fontFamily: TOKENS.fontMono, color: TOKENS.ink, flexShrink: 0 }}>{c.pct.toFixed(1)}%</span>
-                </div>
-                )}
-              </div>
-            </div>
+            </>
             }
           </div>
-
-          {/* 類別明細 */}
-          {catTotals.length > 0 &&
-          <div style={cardStyle}>
-            <div style={{ fontSize: FS(14), color: 'rgba(0,0,0,0.62)', fontWeight: 700, letterSpacing: 1,
-              textTransform: 'uppercase', marginBottom: SP(10), paddingLeft: SP(2) }}>類別明細</div>
-            {catTotals.map((c, i) =>
-            <div key={c.id} style={{ display: 'flex', alignItems: 'center', gap: SP(12), padding: PAD('11px 2px'),
-              borderBottom: i < catTotals.length - 1 ? '1px solid rgba(0,0,0,0.07)' : 'none' }}>
-              <div style={{ width: 10, height: 10, borderRadius: RS(3), background: c.color, flexShrink: 0 }} />
-              <div style={{ flex: 1, fontSize: FS(18), fontWeight: 500, color: TOKENS.ink }}>{c.name}</div>
-              <div style={{ textAlign: 'right', flexShrink: 0 }}>
-                <div style={{ fontFamily: TOKENS.fontMono, fontSize: FS(18), fontWeight: 600, color: TOKENS.ink }}>{mask(c.mv)}</div>
-                <div style={{ fontSize: FS(14), marginTop: SP(1), fontFamily: TOKENS.fontMono, color: upColor(c.pnl) }}>
-                  {c.pnl < 0 ? '-' : ''}{mask(Math.abs(c.pnl))}
-                </div>
-              </div>
-            </div>
-            )}
-            <div style={{ display: 'flex', alignItems: 'center', gap: SP(12), padding: PAD('11px 2px'),
-              borderTop: '1px solid rgba(0,0,0,0.10)', marginTop: SP(2) }}>
-              <div style={{ flex: 1, fontSize: FS(18), fontWeight: 600, color: TOKENS.ink }}>未實現損益</div>
-              <div style={{ fontFamily: TOKENS.fontMono, fontSize: FS(18), fontWeight: 700, color: upColor(portPnl) }}>
-                {portPnl < 0 ? '-' : ''}{mask(Math.abs(portPnl))} ({portPnl < 0 ? '' : '+'}{portPct.toFixed(1)}%)
-              </div>
-            </div>
-          </div>
-          }
 
           {/* 每年投資損益 / 股息 / 債息 疊加柱狀圖 */}
           {(() => {

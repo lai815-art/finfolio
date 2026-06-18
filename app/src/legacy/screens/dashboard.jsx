@@ -713,6 +713,57 @@ function DashboardScreen({ hideAmounts, setHideAmounts, savedFlows = [], savedTr
 
 }
 
+/* ── 共用大型甜甜圈（環外標註名稱與 %，中央顯示總額）─────────────── */
+function StatDonut({ data, total, label, color, mask }) {
+  const DR = 74,DT = 22,GAP = 86,cx = DR + DT / 2 + GAP,LSIZE = cx * 2,DC = 2 * Math.PI * DR;
+  let acc = 0;
+  const arcs = data.map((c) => { const len = c.pct / 100 * DC,off = acc / 100 * DC;acc += c.pct;return { ...c, len, off, mid: (off + len / 2) / DC }; });
+  const labelR = DR + DT / 2 + 34;
+  return (
+    <div style={{ position: 'relative', width: '100%', maxWidth: LSIZE, margin: '0 auto' }}>
+      <svg width="100%" viewBox={`0 0 ${LSIZE} ${LSIZE}`} style={{ display: 'block' }}>
+        <g transform={`rotate(-90 ${cx} ${cx})`}>
+          <circle cx={cx} cy={cx} r={DR} fill="none" stroke="rgba(0,0,0,0.06)" strokeWidth={DT} />
+          {arcs.map((a, i) =>
+          <circle key={i} cx={cx} cy={cx} r={DR} fill="none"
+          stroke={a.color} strokeWidth={DT}
+          strokeDasharray={a.len + ' ' + DC} strokeDashoffset={-a.off} />
+          )}
+        </g>
+        {arcs.filter((a) => a.pct >= 4).map((a, i) => {
+          const ang = a.mid * 2 * Math.PI;
+          const x = cx + labelR * Math.sin(ang),y = cx - labelR * Math.cos(ang);
+          return (
+            <text key={i} x={x} y={y} textAnchor="middle" dominantBaseline="middle" fill="rgba(44,44,50,0.82)" style={{ fontSize: '13px' }}>
+              <tspan x={x} dy="-0.35em" style={{ fontWeight: 700, fontSize: '14px' }} fill={a.color}>{a.pct.toFixed(1)}%</tspan>
+              <tspan x={x} dy="1.25em">{a.name}</tspan>
+            </text>);
+        })}
+      </svg>
+      <div style={{ position: 'absolute', inset: 0, display: 'flex', flexDirection: 'column',
+        alignItems: 'center', justifyContent: 'center', pointerEvents: 'none' }}>
+        <div style={{ fontSize: FS(16), color: 'rgba(44,44,50,0.55)' }}>{label}</div>
+        <div style={{ fontSize: FS(28), fontWeight: 700, color, fontFamily: TOKENS.fontMono, marginTop: SP(2), letterSpacing: -0.5 }}>
+          {mask(Math.round(total))}
+        </div>
+      </div>
+    </div>);
+}
+window.StatDonut = StatDonut;
+
+// 資產 / 投資類別 → 看板風格的 Lucide 圖示名稱
+const ASSET_ICON = { '現金': 'Wallet', '股票': 'TrendUp', '美股': 'Banknote', '債券': 'Receipt',
+  '市值 ETF': 'ChartPie', '主動 ETF': 'ChartPie', 'ETF': 'ChartPie', '特別股': 'PiggyBank' };
+function assetIconName(n) {
+  if (ASSET_ICON[n]) return ASSET_ICON[n];
+  if (/ETF/.test(n)) return 'ChartPie';
+  if (/債/.test(n)) return 'Receipt';
+  if (/美|US/i.test(n)) return 'Banknote';
+  if (/現金|存款|錢/.test(n)) return 'Wallet';
+  return 'TrendUp';
+}
+window.assetIconName = assetIconName;
+
 /* ── MonthlyStatsSheet ─────────────────────────────────────────────── */
 function MonthlyStatsSheet({ open, onClose, savedFlows, masterData, hideAmounts, nowDate, mask }) {
   const { X, ChevronRight } = window.Icons;
@@ -777,43 +828,6 @@ function MonthlyStatsSheet({ open, onClose, savedFlows, masterData, hideAmounts,
   const cats = view === 'inc' ? incCats : expCats;
   const total = view === 'inc' ? incTotal : expTotal;
   const centerLabel = view === 'inc' ? '總收入' : '總支出';
-
-  // 大型甜甜圈（環外標註類別名稱與 %）
-  const Donut = ({ data, tot, label, color }) => {
-    const DR = 74,DT = 22,GAP = 86,cx = DR + DT / 2 + GAP,LSIZE = cx * 2,DC = 2 * Math.PI * DR;
-    let acc = 0;
-    const arcs = data.map((c) => { const len = c.pct / 100 * DC,off = acc / 100 * DC;acc += c.pct;return { ...c, len, off, mid: (off + len / 2) / DC }; });
-    const labelR = DR + DT / 2 + 34;
-    return (
-      <div style={{ position: 'relative', width: '100%', maxWidth: LSIZE, margin: '0 auto' }}>
-        <svg width="100%" viewBox={`0 0 ${LSIZE} ${LSIZE}`} style={{ display: 'block' }}>
-          <g transform={`rotate(-90 ${cx} ${cx})`}>
-            <circle cx={cx} cy={cx} r={DR} fill="none" stroke="rgba(0,0,0,0.06)" strokeWidth={DT} />
-            {arcs.map((a, i) =>
-            <circle key={i} cx={cx} cy={cx} r={DR} fill="none"
-            stroke={a.color} strokeWidth={DT}
-            strokeDasharray={a.len + ' ' + DC} strokeDashoffset={-a.off} />
-            )}
-          </g>
-          {arcs.filter((a) => a.pct >= 4).map((a, i) => {
-            const ang = a.mid * 2 * Math.PI;
-            const x = cx + labelR * Math.sin(ang),y = cx - labelR * Math.cos(ang);
-            return (
-              <text key={i} x={x} y={y} textAnchor="middle" dominantBaseline="middle" fill="rgba(44,44,50,0.82)" style={{ fontSize: '13px' }}>
-                <tspan x={x} dy="-0.35em" style={{ fontWeight: 700, fontSize: '14px' }} fill={a.color}>{a.pct.toFixed(1)}%</tspan>
-                <tspan x={x} dy="1.25em">{a.name}</tspan>
-              </text>);
-          })}
-        </svg>
-        <div style={{ position: 'absolute', inset: 0, display: 'flex', flexDirection: 'column',
-          alignItems: 'center', justifyContent: 'center', pointerEvents: 'none' }}>
-          <div style={{ fontSize: FS(16), color: 'rgba(44,44,50,0.55)' }}>{label}</div>
-          <div style={{ fontSize: FS(28), fontWeight: 700, color, fontFamily: TOKENS.fontMono, marginTop: SP(2), letterSpacing: -0.5 }}>
-            {mask(Math.round(tot))}
-          </div>
-        </div>
-      </div>);
-  };
 
   // 年收支折線圖（收入 / 支出）
   const LineChart = () => {
@@ -920,7 +934,7 @@ function MonthlyStatsSheet({ open, onClose, savedFlows, masterData, hideAmounts,
               {view === 'inc' ? '本月尚無收入紀錄' : '本月尚無支出紀錄'}
             </div> :
             <>
-              <Donut data={cats} tot={total} label={centerLabel} color={accent} />
+              <StatDonut data={cats} total={total} label={centerLabel} color={accent} mask={mask} />
               <div style={{ marginTop: SP(18), display: 'flex', flexDirection: 'column' }}>
                 {cats.map((c, i) =>
                 <div key={c.name} style={{ display: 'flex', alignItems: 'center', gap: SP(12), padding: PAD('12px 2px'),
@@ -1029,16 +1043,7 @@ function NetWorthSheet({ open, onClose, total, computedAcctGroups, computedHoldi
   const assets = cats.filter((c) => c.value > 0);
   const totalAssets = assets.reduce((a, c) => a + c.value, 0);
 
-  // Donut (large, 與收支統計一致)
-  const DR = 72,DT = 18,DSIZE = (DR + DT) * 2 + 4,DC = 2 * Math.PI * DR;
-  let accPct = 0;
-  const arcs = assets.map((c) => {
-    const pct = totalAssets > 0 ? c.value / totalAssets * 100 : 0;
-    const len = pct / 100 * DC,off = accPct / 100 * DC;
-    accPct += pct;
-    return { ...c, pct, len, off };
-  });
-
+  const assetData = assets.map((c) => ({ name: c.name, color: c.color, pct: totalAssets > 0 ? c.value / totalAssets * 100 : 0 }));
   const cardStyle = { background: TOKENS.surface, borderRadius: RS(20), border: '1px solid rgba(0,0,0,0.07)', padding: PAD('16px') };
 
   return (
@@ -1062,66 +1067,36 @@ function NetWorthSheet({ open, onClose, total, computedAcctGroups, computedHoldi
         <div style={{ ...{ flex: 1, overflowY: 'auto', overflowX: 'hidden', padding: PAD('0 18px 32px'),
             display: 'flex', flexDirection: 'column', gap: SP(20) }, padding: "0px 10px 32px" }}>
           {/* 資產配置 圓餅 */}
-          <div style={cardStyle}>
+          <div style={{ ...cardStyle, padding: PAD('20px 16px') }}>
             <div style={{ fontSize: FS(14), color: 'rgba(0,0,0,0.62)', fontWeight: 700, letterSpacing: 1,
-              textTransform: 'uppercase', marginBottom: SP(14), paddingLeft: SP(2) }}>資產配置</div>
+              textTransform: 'uppercase', marginBottom: SP(6), paddingLeft: SP(2) }}>資產配置</div>
             {assets.length === 0 ?
             <div style={{ fontSize: FS(17), color: 'rgba(44,44,50,0.4)', textAlign: 'center', padding: PAD('12px 0') }}>尚無資產</div> :
-            <div style={{ display: 'flex', alignItems: 'center', gap: SP(16) }}>
-              <div style={{ flexShrink: 0, position: 'relative' }}>
-                <svg width={DSIZE} height={DSIZE} style={{ transform: 'rotate(-90deg)' }}>
-                  <circle cx={DSIZE / 2} cy={DSIZE / 2} r={DR} fill="none" stroke="rgba(0,0,0,0.08)" strokeWidth={DT} />
-                  {arcs.map((a, i) =>
-                  <circle key={i} cx={DSIZE / 2} cy={DSIZE / 2} r={DR} fill="none"
-                  stroke={a.color} strokeWidth={DT}
-                  strokeDasharray={a.len + ' ' + DC} strokeDashoffset={-a.off} />
-                  )}
-                </svg>
-                <div style={{ position: 'absolute', inset: 0, display: 'flex', flexDirection: 'column',
-                  alignItems: 'center', justifyContent: 'center' }}>
-                  <div style={{ fontSize: FS(15), color: 'rgba(44,44,50,0.55)' }}>資產</div>
-                  <div style={{ fontSize: FS(20), fontWeight: 700, color: TOKENS.ink,
-                    fontFamily: TOKENS.fontMono, marginTop: SP(2) }}>{mask(totalAssets)}</div>
-                </div>
-              </div>
-              <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: SP(8) }}>
-                {arcs.map((c) =>
-                <div key={c.name} style={{ display: 'flex', alignItems: 'center', gap: SP(8) }}>
-                  <span style={{ width: 10, height: 10, borderRadius: RS(3), background: c.color, flexShrink: 0 }} />
-                  <span style={{ flex: 1, fontSize: FS(16), color: TOKENS.ink,
-                    overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{c.name}</span>
-                  <span style={{ fontSize: FS(16), fontFamily: TOKENS.fontMono, color: TOKENS.ink,
-                    flexShrink: 0 }}>{c.pct.toFixed(1)}%</span>
+            <>
+              <StatDonut data={assetData} total={totalAssets} label="資產" color={TOKENS.ink} mask={mask} />
+              <div style={{ marginTop: SP(14), display: 'flex', flexDirection: 'column' }}>
+                {assets.map((c, i) =>
+                <div key={c.name} style={{ display: 'flex', alignItems: 'center', gap: SP(12), padding: PAD('12px 2px'),
+                  borderTop: i === 0 ? '1px solid rgba(0,0,0,0.07)' : 'none',
+                  borderBottom: '1px solid rgba(0,0,0,0.07)' }}>
+                  <div style={{ width: 40, height: 40, borderRadius: RS(12), flexShrink: 0,
+                    background: `${c.color}22`, border: `1px solid ${c.color}55`,
+                    display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                    {(() => { const Ico = window.Icons[assetIconName(c.name)] || window.Icons.Wallet; return <Ico size={20} style={{ color: c.color }} />; })()}
+                  </div>
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ fontSize: FS(19), fontWeight: 500, color: TOKENS.ink }}>{c.name}</div>
+                    <div style={{ fontSize: FS(14), color: 'rgba(44,44,50,0.5)', marginTop: SP(1) }}>{totalAssets > 0 ? (c.value / totalAssets * 100).toFixed(1) : '0.0'}%</div>
+                  </div>
+                  <div style={{ fontFamily: TOKENS.fontMono, fontSize: FS(19), fontWeight: 600, flexShrink: 0, color: TOKENS.ink }}>
+                    {mask(c.value)}
+                  </div>
                 </div>
                 )}
               </div>
-            </div>
+            </>
             }
           </div>
-
-          {/* 資產明細 */}
-          {assets.length > 0 &&
-          <div style={cardStyle}>
-            <div style={{ fontSize: FS(14), color: 'rgba(0,0,0,0.62)', fontWeight: 700, letterSpacing: 1,
-              textTransform: 'uppercase', marginBottom: SP(8), paddingLeft: SP(2) }}>資產明細</div>
-            {assets.map((c, i) =>
-            <div key={c.name} style={{ display: 'flex', alignItems: 'center', gap: SP(12),
-              padding: PAD('11px 2px'),
-              borderBottom: i < assets.length - 1 ? '1px solid rgba(0,0,0,0.07)' : 'none' }}>
-              <div style={{ width: 10, height: 10, borderRadius: RS(3), background: c.color, flexShrink: 0 }} />
-              <div style={{ flex: 1, fontSize: FS(18), fontWeight: 500, color: TOKENS.ink }}>{c.name}</div>
-              <div style={{ textAlign: 'right', flexShrink: 0 }}>
-                <div style={{ fontFamily: TOKENS.fontMono, fontSize: FS(18), fontWeight: 600, color: TOKENS.ink }}>
-                  {mask(c.value)}
-                </div>
-                <div style={{ fontSize: FS(14), color: 'rgba(44,44,50,0.5)', marginTop: SP(1) }}>
-                  {totalAssets > 0 ? (c.value / totalAssets * 100).toFixed(1) : '0.0'}%
-                </div>
-              </div>
-            </div>
-            )}
-          </div>
-          }
 
           {/* 負債明細 */}
           {liabRows.length > 0 &&
