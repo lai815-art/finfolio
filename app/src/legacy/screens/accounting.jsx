@@ -732,10 +732,10 @@ function StockForm({ state, update, onSaved, onDelete, recordId, masterData, com
       {/* Stock picker */}
       <SectionLabel>標的</SectionLabel>
       <div style={{ display: 'flex', gap: SP(8) }}>
-        <div style={{ flex: '0 0 132px', padding: PAD('7px 12px'), borderRadius: RS(18),
+        <div style={{ flex: '0 0 128px', minWidth: 0, overflow: 'hidden', padding: PAD('7px 12px'), borderRadius: RS(18),
           background: TOKENS.surface, border: '1px solid rgba(0,0,0,0.20)' }}>
           <div style={{ fontSize: FS(14), color: 'rgba(44,44,50,0.55)', letterSpacing: 0.5 }}>代號</div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: SP(6), marginTop: SP(2) }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: SP(6), marginTop: SP(2), minWidth: 0 }}>
             <Search size={15} style={{ color: 'rgba(44,44,50,0.5)', flexShrink: 0 }} />
             <input value={state.code} onChange={(e) => update({ code: e.target.value.toUpperCase(), name: '' })}
             onFocus={() => state.side === 'sell' && allHoldings.length > 0 && setShowHoldings(true)}
