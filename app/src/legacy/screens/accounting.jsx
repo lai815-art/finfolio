@@ -657,7 +657,13 @@ function StockForm({ state, update, onSaved, onDelete, recordId, masterData, com
   useEffectAcc(() => {
     const p = window._twStockPromise || (window.loadTWStocks ? window.loadTWStocks() : Promise.resolve([]));
     p.then((twStocks) => {
-      if (twStocks.length > 0) setStockUniverse([...twStocks, ...(window.US_STOCK_LIST || [])]);
+      // 去重（代號優先），台股清單 + Worker 提供的完整美股清單 + 精選美股
+      const seen = new Set();
+      const merged = [];
+      [...twStocks, ...(window.US_STOCK_LIST_EXTRA || []), ...(window.US_STOCK_LIST || [])].forEach((s) => {
+        if (s && s.code && !seen.has(s.code)) { seen.add(s.code); merged.push(s); }
+      });
+      if (merged.length > 0) setStockUniverse(merged);
     });
   }, []);
 

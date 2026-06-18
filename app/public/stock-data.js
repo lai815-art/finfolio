@@ -184,8 +184,21 @@ window.TW_STOCK_FALLBACK = [
 ];
 
 /* ── 台股：從 TWSE / TPEX 完整清單 API 抓取 + 24h 快取 ── */
-const TW_CACHE_KEY = 'ff_tw_stocks_v5';
+const TW_CACHE_KEY = 'ff_tw_stocks_v6';
 const TW_CACHE_TTL = 24 * 60 * 60 * 1000;
+
+// 永遠把靜態清單併入結果：API / Worker 的「當日成交」清單常缺少低成交量的
+// 債券 ETF（如 00720B）等，靜態清單可保證這些代號一定查得到，且名稱以靜態為準。
+function mergeFallback(list) {
+  const out = Array.isArray(list) ? list.slice() : [];
+  const idx = new Map();
+  out.forEach((s, i) => { if (s && s.code) idx.set(s.code, i); });
+  (window.TW_STOCK_FALLBACK || []).forEach((s) => {
+    if (idx.has(s.code)) out[idx.get(s.code)].name = s.name; // 靜態名稱覆蓋
+    else { out.push({ code: s.code, name: s.name, class: s.class }); idx.set(s.code, out.length - 1); }
+  });
+  return out;
+}
 
 function extractName(s) {
   return (s.Name || s.name || s.CompanyName || s.company_name ||
@@ -199,7 +212,7 @@ window.loadTWStocks = async function () {
   try {
     const cached = JSON.parse(localStorage.getItem(TW_CACHE_KEY) || 'null');
     if (cached && Date.now() - cached.ts < TW_CACHE_TTL && cached.data.length > 50)
-      return cached.data;
+      return mergeFallback(cached.data);
   } catch {}
 
   // Preferred: the CORS-enabled price Worker returns the full TW list (incl. ETFs/bonds).
@@ -209,8 +222,10 @@ window.loadTWStocks = async function () {
       if (r.ok) {
         const d = await r.json();
         if (d && Array.isArray(d.stocks) && d.stocks.length > 50) {
+          // Worker may also return a full US symbol list (when Finnhub key set).
+          if (Array.isArray(d.us) && d.us.length) window.US_STOCK_LIST_EXTRA = d.us;
           try { localStorage.setItem(TW_CACHE_KEY, JSON.stringify({ ts: Date.now(), data: d.stocks })); } catch {}
-          return d.stocks;
+          return mergeFallback(d.stocks);
         }
       }
     }
@@ -259,7 +274,7 @@ window.loadTWStocks = async function () {
 
   const result = stocks.length > 50 ? stocks : (window.TW_STOCK_FALLBACK || []);
   try { localStorage.setItem(TW_CACHE_KEY, JSON.stringify({ ts: Date.now(), data: result })); } catch {}
-  return result;
+  return mergeFallback(result);
 };
 
 window._twStockPromise = window.loadTWStocks();

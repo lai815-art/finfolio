@@ -140,26 +140,85 @@ async function getUS(codes, env) {
   return out;
 }
 
+// Authoritative full securities list from the TWSE ISIN service (Big5 HTML),
+// strMode=2 上市 / strMode=4 上櫃. Includes stocks, ETFs, bond ETFs (債券ETF),
+// ETNs, 受益證券, TDRs, 特別股 — everything except warrants (excluded as noise).
+async function getISINList(strMode) {
+  const out = [];
+  try {
+    const r = await fetch(`https://isin.twse.com.tw/isin/C_public.jsp?strMode=${strMode}`, {
+      headers: { 'User-Agent': 'Mozilla/5.0' }, cf: { cacheTtl: 21600 },
+    });
+    if (!r.ok) return out;
+    const html = new TextDecoder('big5').decode(await r.arrayBuffer());
+    let cat = '';
+    const SKIP = /權證|認購|認售|牛證|熊證/;
+    for (const row of html.split('<tr')) {
+      const hdr = row.match(/colspan[^>]*>\s*<b>\s*([^<]+?)\s*<\/b>/i);
+      if (hdr) { cat = hdr[1].trim(); continue; }
+      if (SKIP.test(cat)) continue;
+      const m = row.match(/<td[^>]*>\s*([0-9A-Z]{4,6})　([^<]+?)\s*<\/td>/);
+      if (m) out.push({ code: m[1].trim(), name: m[2].trim() });
+    }
+  } catch (e) { /* Big5 unsupported / network — fall back to OpenAPI below */ }
+  return out;
+}
+
 // Full Taiwan securities list (code → name), incl. ETFs/bonds — cached ~12h.
 async function getTWList(ctx) {
   const cache = caches.default;
-  const key = new Request(`https://ff-cache.local/twlist/v1/${todayStr()}`);
+  const key = new Request(`https://ff-cache.local/twlist/v2/${todayStr()}`);
   const hit = await cache.match(key);
   if (hit) return hit.json();
   const map = {};
-  const add = (code, name) => { if (code && name && !map[code]) map[code] = name; };
-  try {
-    const r = await fetch('https://openapi.twse.com.tw/v1/exchangeReport/STOCK_DAY_ALL', { cf: { cacheTtl: 21600 } });
-    if (r.ok) { const arr = await r.json(); (Array.isArray(arr) ? arr : []).forEach((s) => add(s.Code, (s.Name || '').trim())); }
-  } catch (e) { /* ignore */ }
-  try {
-    const r = await fetch('https://www.tpex.org.tw/openapi/v1/tpex_mainboard_daily_close_quotes', { cf: { cacheTtl: 21600 } });
-    if (r.ok) { const arr = await r.json(); (Array.isArray(arr) ? arr : []).forEach((s) => add(s.SecuritiesCompanyCode || s.Code, (s.CompanyName || s.Name || '').trim())); }
-  } catch (e) { /* ignore */ }
+  const add = (code, name) => { code = (code || '').trim(); name = (name || '').trim(); if (code && name && !map[code]) map[code] = name; };
+
+  // 1) Authoritative ISIN list (complete, incl. ETFs / bond ETFs).
+  const [listed, otc] = await Promise.all([getISINList(2), getISINList(4)]);
+  listed.forEach((s) => add(s.code, s.name));
+  otc.forEach((s) => add(s.code, s.name));
+
+  // 2) Fallback: OpenAPI daily reports (only if ISIN failed, e.g. Big5 issue).
+  if (Object.keys(map).length < 50) {
+    try {
+      const r = await fetch('https://openapi.twse.com.tw/v1/exchangeReport/STOCK_DAY_ALL', { cf: { cacheTtl: 21600 } });
+      if (r.ok) { const arr = await r.json(); (Array.isArray(arr) ? arr : []).forEach((s) => add(s.Code, (s.Name || '').trim())); }
+    } catch (e) { /* ignore */ }
+    try {
+      const r = await fetch('https://www.tpex.org.tw/openapi/v1/tpex_mainboard_daily_close_quotes', { cf: { cacheTtl: 21600 } });
+      if (r.ok) { const arr = await r.json(); (Array.isArray(arr) ? arr : []).forEach((s) => add(s.SecuritiesCompanyCode || s.Code, (s.CompanyName || s.Name || '').trim())); }
+    } catch (e) { /* ignore */ }
+  }
+
   const list = Object.keys(map).map((code) => ({ code, name: map[code], class: '台股' }));
   if (list.length > 50) {
     ctx.waitUntil(cache.put(key, new Response(JSON.stringify(list), {
       headers: { 'Content-Type': 'application/json', 'Cache-Control': 'public, max-age=43200' },
+    })));
+  }
+  return list;
+}
+
+// Full US symbol list via Finnhub (only when a key is set) — cached ~24h.
+async function getUSList(env, ctx) {
+  if (!env || !env.FINNHUB_KEY) return [];
+  const cache = caches.default;
+  const key = new Request(`https://ff-cache.local/uslist/v1/${todayStr()}`);
+  const hit = await cache.match(key);
+  if (hit) return hit.json();
+  let list = [];
+  try {
+    const r = await fetch(`https://finnhub.io/api/v1/stock/symbol?exchange=US&token=${env.FINNHUB_KEY}`, { cf: { cacheTtl: 86400 } });
+    if (r.ok) {
+      const arr = await r.json();
+      list = (Array.isArray(arr) ? arr : [])
+        .filter((s) => s.symbol && s.description && /^[A-Z][A-Z.]{0,6}$/.test(s.symbol))
+        .map((s) => ({ code: s.symbol, name: s.description, class: s.type === 'ETP' || s.type === 'ETF' ? '美股ETF' : '美股' }));
+    }
+  } catch (e) { /* ignore */ }
+  if (list.length > 50) {
+    ctx.waitUntil(cache.put(key, new Response(JSON.stringify(list), {
+      headers: { 'Content-Type': 'application/json', 'Cache-Control': 'public, max-age=86400' },
     })));
   }
   return list;
@@ -170,8 +229,8 @@ export default {
     if (request.method === 'OPTIONS') return new Response(null, { status: 204, headers: CORS });
     const url = new URL(request.url);
     if (url.pathname === '/stocks') {
-      const list = await getTWList(ctx);
-      return json({ stocks: list });
+      const [list, us] = await Promise.all([getTWList(ctx), getUSList(env, ctx)]);
+      return json({ stocks: list, us });
     }
     if (url.pathname !== '/quotes') {
       return new Response('FinFolio price service · /quotes?codes=2330,0050 · /stocks', { status: url.pathname === '/' ? 200 : 404, headers: CORS });
