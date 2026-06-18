@@ -715,10 +715,14 @@ function DashboardScreen({ hideAmounts, setHideAmounts, savedFlows = [], savedTr
 
 /* ── 共用大型甜甜圈（環外標註名稱與 %，中央顯示總額）─────────────── */
 function StatDonut({ data, total, label, color, mask }) {
-  const DR = 74,DT = 22,GAP = 86,cx = DR + DT / 2 + GAP,LSIZE = cx * 2,DC = 2 * Math.PI * DR;
+  const DR = 92,DT = 24,GAP = 66,cx = DR + DT / 2 + GAP,LSIZE = cx * 2,DC = 2 * Math.PI * DR;
   let acc = 0;
   const arcs = data.map((c) => { const len = c.pct / 100 * DC,off = acc / 100 * DC;acc += c.pct;return { ...c, len, off, mid: (off + len / 2) / DC }; });
-  const labelR = DR + DT / 2 + 34;
+  const labelR = DR + DT / 2 + 28;
+  // 中央數字依字數縮放，避免長金額壓到圓環
+  const amtStr = mask(Math.round(total));
+  const aLen = String(amtStr).length;
+  const amtFS = aLen <= 6 ? 28 : aLen <= 8 ? 24 : aLen <= 10 ? 20 : aLen <= 12 ? 17 : 15;
   return (
     <div style={{ position: 'relative', width: '100%', maxWidth: LSIZE, margin: '0 auto' }}>
       <svg width="100%" viewBox={`0 0 ${LSIZE} ${LSIZE}`} style={{ display: 'block' }}>
@@ -742,9 +746,9 @@ function StatDonut({ data, total, label, color, mask }) {
       </svg>
       <div style={{ position: 'absolute', inset: 0, display: 'flex', flexDirection: 'column',
         alignItems: 'center', justifyContent: 'center', pointerEvents: 'none' }}>
-        <div style={{ fontSize: FS(16), color: 'rgba(44,44,50,0.55)' }}>{label}</div>
-        <div style={{ fontSize: FS(28), fontWeight: 700, color, fontFamily: TOKENS.fontMono, marginTop: SP(2), letterSpacing: -0.5 }}>
-          {mask(Math.round(total))}
+        <div style={{ fontSize: FS(15), color: 'rgba(44,44,50,0.55)' }}>{label}</div>
+        <div style={{ fontSize: FS(amtFS), fontWeight: 700, color, fontFamily: TOKENS.fontMono, marginTop: SP(2), letterSpacing: aLen > 8 ? -0.5 : 0, lineHeight: 1 }}>
+          {amtStr}
         </div>
       </div>
     </div>);
