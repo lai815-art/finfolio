@@ -514,7 +514,7 @@ function SettingsOverlay({ open, onClose, masterData, setMasterData, dashWidget,
             width: 40, borderRadius: RS(14), flexShrink: 0,
             background: 'rgba(0,0,0,0.09)', border: '1px solid rgba(0,0,0,0.12)',
             color: 'rgba(60,60,67,0.88)', display: 'flex', alignItems: 'center', justifyContent: 'center', height: "40px"
-          }, height: "46px", width: "45px", borderRadius: "30px" }}><ChevronRight size={20} style={{ transform: 'rotate(180deg)' }} /></button>
+          }, height: "40px", width: "40px", borderRadius: "20px" }}><ChevronRight size={20} style={{ transform: 'rotate(180deg)' }} /></button>
         <div style={{ fontSize: FS(30), fontWeight: 700, color: TOKENS.ink, letterSpacing: -0.5, lineHeight: "1.4" }}>設定</div>
       </div>
       <div style={{ flex: 1, overflowY: 'auto', overflowX: 'hidden' }}>

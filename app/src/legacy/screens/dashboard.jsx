@@ -714,16 +714,6 @@ function DashboardScreen({ hideAmounts, setHideAmounts, savedFlows = [], savedTr
 }
 
 /* ── MonthlyStatsSheet ─────────────────────────────────────────────── */
-const STAT_CAT_ICON = {
-  餐飲: '🍔', 飲食: '🍴', 交通: '🚕', 生活雜貨: '🛒', 日常: '🛒', 娛樂: '🎬',
-  醫療: '💊', '醫療&健康': '🏥', 健康: '🏥', 住房: '🏠', 住家: '🏠', 居住: '🏠',
-  教育: '📚', 旅遊: '🌴', 購物: '🛍️', 保險: '🛡️', 通訊: '📱', 寵物: '🐾',
-  美容: '💅', 運動: '🏃', 稅: '🧾', 孝親: '🎁',
-  薪資: '💼', 獎金: '💰', 股利: '📈', 股息: '📈', 利息: '🏦', 紅利回饋: '🎁',
-  投資: '📊', 租金: '🏘️', 兼職: '🧑‍💻', 退款: '↩️', 轉帳: '↔️', 其他: '📝'
-};
-const statIconOf = (name) => STAT_CAT_ICON[name] || '📝';
-
 function MonthlyStatsSheet({ open, onClose, savedFlows, masterData, hideAmounts, nowDate, mask }) {
   const { X, ChevronRight } = window.Icons;
   const [shown, setShown] = useStateDash(false);
@@ -790,10 +780,10 @@ function MonthlyStatsSheet({ open, onClose, savedFlows, masterData, hideAmounts,
 
   // 大型甜甜圈（環外標註類別名稱與 %）
   const Donut = ({ data, tot, label, color }) => {
-    const DR = 78,DT = 24,GAP = 60,cx = DR + DT / 2 + GAP,LSIZE = cx * 2,DC = 2 * Math.PI * DR;
+    const DR = 74,DT = 22,GAP = 86,cx = DR + DT / 2 + GAP,LSIZE = cx * 2,DC = 2 * Math.PI * DR;
     let acc = 0;
     const arcs = data.map((c) => { const len = c.pct / 100 * DC,off = acc / 100 * DC;acc += c.pct;return { ...c, len, off, mid: (off + len / 2) / DC }; });
-    const labelR = DR + DT / 2 + 18;
+    const labelR = DR + DT / 2 + 34;
     return (
       <div style={{ position: 'relative', width: '100%', maxWidth: LSIZE, margin: '0 auto' }}>
         <svg width="100%" viewBox={`0 0 ${LSIZE} ${LSIZE}`} style={{ display: 'block' }}>
@@ -892,7 +882,7 @@ function MonthlyStatsSheet({ open, onClose, savedFlows, masterData, hideAmounts,
         <div style={{ height: 62, flexShrink: 0 }} />
         <div style={{ display: 'flex', alignItems: 'center', gap: SP(12), padding: "3px 10px 8px" }}>
           <button onClick={onClose} style={{
-            width: 45, height: 46, borderRadius: "30px", flexShrink: 0,
+            width: 40, height: 40, borderRadius: RS(20), flexShrink: 0,
             background: 'rgba(0,0,0,0.09)', border: '1px solid rgba(0,0,0,0.12)',
             color: 'rgba(60,60,67,0.88)', display: 'flex', alignItems: 'center', justifyContent: 'center'
           }}><ChevronRight size={20} style={{ transform: 'rotate(180deg)' }} /></button>
@@ -913,52 +903,14 @@ function MonthlyStatsSheet({ open, onClose, savedFlows, masterData, hideAmounts,
 
         <div style={{ flex: 1, overflowY: 'auto', padding: "0px 10px 32px", display: 'flex', flexDirection: 'column', gap: SP(16) }}>
 
-          {/* 期間切換 */}
+          {/* 期間切換（只切換上 / 下一個月或年） */}
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: SP(16), paddingTop: SP(4) }}>
             {isYear ? stepperBtn(() => setYearOffset(yearOffset - 1), true, true) : stepperBtn(() => setMonthOffset(monthOffset - 1), true, true)}
-            <button onClick={() => { if (!isYear) { setPickYear(thisY); setPickOpen((o) => !o); } }} style={{
-              background: 'transparent', border: 'none', cursor: isYear ? 'default' : 'pointer',
-              fontSize: FS(21), fontWeight: 700, color: TOKENS.ink, letterSpacing: 0.3,
-              display: 'flex', alignItems: 'center', gap: SP(6) }}>
+            <div style={{ fontSize: FS(21), fontWeight: 700, color: TOKENS.ink, letterSpacing: 0.3, minWidth: 132, textAlign: 'center' }}>
               {isYear ? `${viewYear} 年` : `${thisY} 年 ${thisM + 1} 月`}
-              {!isYear && window.Icons.ChevronDown && <window.Icons.ChevronDown size={16} style={{ transform: pickOpen ? 'rotate(180deg)' : 'none', color: 'rgba(44,44,50,0.5)' }} />}
-            </button>
+            </div>
             {isYear ? stepperBtn(() => canNextYear && setYearOffset(yearOffset + 1), canNextYear) : stepperBtn(() => canNext && setMonthOffset(monthOffset + 1), canNext)}
           </div>
-
-          {/* 月份快選 */}
-          {!isYear && pickOpen &&
-          <div style={{ background: TOKENS.surface, borderRadius: RS(18), border: '1px solid rgba(0,0,0,0.07)', padding: PAD('12px') }}>
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: SP(16), marginBottom: SP(10) }}>
-              <button onClick={() => setPickYear(pickYear - 1)} style={{ width: 30, height: 30, borderRadius: RS(8),
-                background: TOKENS.bg, border: '1px solid rgba(0,0,0,0.12)', color: TOKENS.ink,
-                display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                <ChevronRight size={15} style={{ transform: 'rotate(180deg)' }} />
-              </button>
-              <span style={{ fontFamily: TOKENS.fontMono, fontSize: FS(18), fontWeight: 700, color: TOKENS.ink }}>{pickYear} 年</span>
-              <button onClick={() => pickYear < nowDate.getFullYear() && setPickYear(pickYear + 1)} disabled={pickYear >= nowDate.getFullYear()} style={{ width: 30, height: 30, borderRadius: RS(8),
-                background: TOKENS.bg, border: '1px solid rgba(0,0,0,0.12)', color: TOKENS.ink,
-                opacity: pickYear >= nowDate.getFullYear() ? 0.35 : 1,
-                display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                <ChevronRight size={15} />
-              </button>
-            </div>
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4,1fr)', gap: SP(6) }}>
-              {Array.from({ length: 12 }, (_, m) => m).map((m) => {
-                const off = (pickYear - nowDate.getFullYear()) * 12 + (m - nowDate.getMonth());
-                const future = off > 0;
-                const sel = pickYear === thisY && m === thisM;
-                return (
-                <button key={m} disabled={future} onClick={() => { setMonthOffset(off); setPickOpen(false); }} style={{
-                  height: 38, borderRadius: RS(10),
-                  background: sel ? TOKENS.accent : future ? 'transparent' : TOKENS.bg,
-                  border: sel ? 'none' : '1px solid rgba(0,0,0,0.12)',
-                  color: sel ? TOKENS.surface : future ? 'rgba(44,44,50,0.25)' : TOKENS.ink,
-                  fontSize: FS(15), fontWeight: sel ? 700 : 500, cursor: future ? 'default' : 'pointer' }}>{m + 1}月</button>);
-              })}
-            </div>
-          </div>
-          }
 
           {/* 月支出 / 月收入：甜甜圈 + 類別清單 */}
           {!isYear &&
@@ -976,7 +928,9 @@ function MonthlyStatsSheet({ open, onClose, savedFlows, masterData, hideAmounts,
                   borderBottom: '1px solid rgba(0,0,0,0.07)' }}>
                   <div style={{ width: 40, height: 40, borderRadius: RS(12), flexShrink: 0,
                     background: `${c.color}22`, border: `1px solid ${c.color}55`,
-                    display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: FS(20) }}>{statIconOf(c.name)}</div>
+                    display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                    {(() => { const Ico = window.Icons[flowIconName({ cat: c.name, kind: view === 'inc' ? 'inc' : 'exp' })] || window.Icons.Receipt; return <Ico size={20} style={{ color: c.color }} />; })()}
+                  </div>
                   <div style={{ flex: 1, minWidth: 0 }}>
                     <div style={{ fontSize: FS(19), fontWeight: 500, color: TOKENS.ink,
                       overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{c.name}</div>
@@ -1018,7 +972,7 @@ function MonthlyStatsSheet({ open, onClose, savedFlows, masterData, hideAmounts,
             </div>
 
             <div style={{ background: TOKENS.surface, borderRadius: RS(20), border: '1px solid rgba(0,0,0,0.07)', padding: PAD('16px') }}>
-              {[['年收入', yearInc, TOKENS.incBlue, '+'], ['年支出', yearExp, TOKENS.red, '-'], ['結餘', yearNet, yearNet >= 0 ? TOKENS.incBlue : TOKENS.red, yearNet >= 0 ? '+' : '-']].map(([lbl, val, col, sign], i) =>
+              {[['收入', yearInc, TOKENS.incBlue, '+'], ['支出', yearExp, TOKENS.red, '-'], ['餘額', yearNet, yearNet >= 0 ? TOKENS.incBlue : TOKENS.red, yearNet >= 0 ? '+' : '-']].map(([lbl, val, col, sign], i) =>
               <div key={lbl} style={{ display: 'flex', alignItems: 'center', padding: PAD('13px 2px'),
                 borderBottom: i < 2 ? '1px solid rgba(0,0,0,0.07)' : 'none' }}>
                 <div style={{ flex: 1, fontSize: FS(19), fontWeight: i === 2 ? 700 : 500, color: TOKENS.ink }}>{lbl}</div>
@@ -1096,7 +1050,7 @@ function NetWorthSheet({ open, onClose, total, computedAcctGroups, computedHoldi
         <div style={{ height: 62, flexShrink: 0 }} />
         <div style={{ ...{ display: 'flex', alignItems: 'center', gap: SP(12), padding: PAD('3px 13px 8px') }, padding: "3px 10px 8px" }}>
           <button onClick={onClose} style={{
-            width: 45, height: 46, borderRadius: RS(20), flexShrink: 0,
+            width: 40, height: 40, borderRadius: RS(20), flexShrink: 0,
             background: 'rgba(0,0,0,0.09)', border: '1px solid rgba(0,0,0,0.12)',
             color: 'rgba(60,60,67,0.88)', display: 'flex', alignItems: 'center', justifyContent: 'center'
           }}><ChevronRight size={20} style={{ transform: 'rotate(180deg)' }} /></button>

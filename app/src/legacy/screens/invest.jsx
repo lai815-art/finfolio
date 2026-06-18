@@ -540,7 +540,7 @@ function InvestBreakdownSheet({ open, onClose, computedHoldings = [], masterData
       <div style={{ flex: 1, display: 'flex', flexDirection: 'column', minHeight: 0 }}>
         <div style={{ height: 62, flexShrink: 0 }} />
         <div style={{ ...{ display: 'flex', alignItems: 'center', gap: SP(12), padding: PAD('3px 13px 8px') }, padding: "3px 10px 8px" }}>
-          <button onClick={onClose} style={{ width: 45, height: 46, borderRadius: RS(20), flexShrink: 0,
+          <button onClick={onClose} style={{ width: 40, height: 40, borderRadius: RS(20), flexShrink: 0,
             background: 'rgba(0,0,0,0.09)', border: '1px solid rgba(0,0,0,0.12)', color: 'rgba(60,60,67,0.88)',
             display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
             <ChevronRight size={20} style={{ transform: 'rotate(180deg)' }} />
