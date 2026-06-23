@@ -121,6 +121,15 @@ function AdvisorScreen({ computedAcctGroups = [], computedHoldings = [], masterD
   '只根據使用者提供的「匿名資產摘要」與問題作答；不要索取個人身分或帳戶明細。' +
   '涉及具體標的時提醒這非投資建議、需自行評估風險。';
 
+  // 送出當下「即時」讀取金鑰（避免顧問頁先掛載、之後才在設定填金鑰造成讀到舊狀態）
+  const getActiveKey = () => {
+    let keys = [];
+    try {keys = JSON.parse(localStorage.getItem('ff_ai_keys') || 'null') || [];} catch {}
+    let dm = '';
+    try {dm = localStorage.getItem('ff_default_model') || '';} catch {}
+    return keys.find((k) => k.id === dm && hasKey(k)) || keys.find(hasKey) || null;
+  };
+
   // ── BYOK：呼叫使用者自己的模型（Gemini / OpenAI / Claude）──
   const providerOf = (key) => {
     const s = ((key && (key.id + ' ' + key.name)) || '').toLowerCase();
@@ -129,9 +138,9 @@ function AdvisorScreen({ computedAcctGroups = [], computedHoldings = [], masterD
     if (/claude|anthropic/.test(s)) return 'claude';
     return 'openai';
   };
-  const callAI = async (history, userText) => {
-    const key = activeKey.key.trim();
-    const provider = providerOf(activeKey);
+  const callAI = async (history, userText, keyObj) => {
+    const key = keyObj.key.trim();
+    const provider = providerOf(keyObj);
     const sys = SYS_PROMPT + '\n\n[使用者匿名資產摘要] ' + anonSummary();
     // 只取最近 12 則、且確保以使用者訊息開頭、嚴格交替
     const turns = history.filter((m) => m.role === 'me' || m.role === 'ai').slice(-12);
@@ -215,13 +224,14 @@ function AdvisorScreen({ computedAcctGroups = [], computedHoldings = [], masterD
   };
 
   const aiReply = async (history, userText) => {
-    if (!activeKey) {
-      setChat((c) => [...c, { role: 'ai', text: '尚未設定 AI 金鑰。請到「設定 → AI 金鑰設定 (BYOK)」貼上你的 API Key（支援 Gemini / OpenAI / Claude），即可開始對話分析。', time: nowHM() }]);
+    const keyObj = getActiveKey();
+    if (!keyObj) {
+      setChat((c) => [...c, { role: 'ai', text: '尚未設定 AI 金鑰。請到「設定 → AI 金鑰設定 (BYOK)」貼上你的 API Key（支援 Gemini / OpenAI / Claude）並按儲存，即可開始對話分析。', time: nowHM() }]);
       return;
     }
     setAiTyping(true);
     try {
-      const reply = await callAI(history, userText);
+      const reply = await callAI(history, userText, keyObj);
       setChat((c) => [...c, { role: 'ai', text: reply, time: nowHM() }]);
     } catch (e) {
       setChat((c) => [...c, { role: 'ai', text: `AI 服務暫時無法使用（${e.message || '連線失敗'}）。請確認金鑰是否正確、或稍後再試。`, time: nowHM() }]);
