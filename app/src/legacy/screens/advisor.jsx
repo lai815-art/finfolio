@@ -1,20 +1,53 @@
 // AI Advisor / AI 個人資產管理師
 const { useState: useStateAI, useEffect: useEffectAI, useRef: useRefAI } = React;
 
-function AdvisorScreen() {
+function AdvisorScreen({ computedAcctGroups = [], computedHoldings = [], masterData = {}, savedFlows = [], hideAmounts = false, onRecord }) {
   const { Brain, Sparkles, Send, Bot, Activity, Shield } = window.Icons;
 
-  // Active model is configured in Settings; show as small badge here.
-  const model = { id: 'gemini', name: 'Google Gemini 1.5 Pro', color: TOKENS.accent };
+  // BYOK：讀取使用者在「設定 → AI 金鑰」貼上的金鑰，取第一個有填的為使用中模型。
+  const aiKeys = (() => {
+    try {return JSON.parse(localStorage.getItem('ff_ai_keys') || 'null') || [];} catch {return [];}
+  })();
+  const activeKey = aiKeys.find((k) => k && k.key && String(k.key).trim());
+  const model = activeKey ?
+  { id: activeKey.id, name: activeKey.name, color: activeKey.color || TOKENS.accent } :
+  { id: 'none', name: '未設定 AI 金鑰', color: TOKENS.gray3 };
 
-  // Allocation comes from the shared single source of truth, so the health
-  // check always matches the 配置 page (no hard-coded numbers).
-  const port = window.computePortfolio();
-  const stockPct = port.alloc.stockPct;
-  const bondPct = port.alloc.bondPct;
-  const cashPct = port.alloc.cashPct;
   const r0 = (n) => Math.round(n);
   const r1 = (n) => n.toFixed(1);
+
+  // 真實資產配置：現金（帳戶餘額 − 負債）＋ 持倉市值（依債券 / 其他分類）。
+  const alloc = (() => {
+    const amtTWD = (x) => x.amountTWD != null ? x.amountTWD : x.amount || 0;
+    const mvTWD = (x) => x.mvTWD != null ? x.mvTWD : x.mv || 0;
+    let cash = 0;
+    (computedAcctGroups || []).forEach((g) => {
+      const sum = (g.items || []).reduce((a, it) => a + amtTWD(it), 0);
+      cash += g.sign < 0 ? -Math.abs(sum) : sum;
+    });
+    cash = Math.max(0, cash);
+    let stock = 0,bond = 0;
+    (computedHoldings || []).forEach((g) => {
+      const mv = (g.items || []).reduce((a, it) => a + mvTWD(it), 0);
+      if (/債/.test(g.id || g.name || '')) bond += mv;else stock += mv;
+    });
+    const total = cash + stock + bond;
+    const pct = (v) => total > 0 ? v / total * 100 : 0;
+    return { cash, stock, bond, total, stockPct: pct(stock), bondPct: pct(bond), cashPct: pct(cash) };
+  })();
+  const stockPct = alloc.stockPct,bondPct = alloc.bondPct,cashPct = alloc.cashPct;
+
+  // 本月收入 / 支出（用於匿名摘要）
+  const monthIO = (() => {
+    const now = new Date(window.TODAY_DATE || Date.now());
+    let inc = 0,exp = 0;
+    (savedFlows || []).forEach((f) => {
+      const d = f.date instanceof Date ? f.date : new Date(f.date);
+      if (d.getFullYear() !== now.getFullYear() || d.getMonth() !== now.getMonth()) return;
+      if (f.kind === 'inc') inc += f.amount;else if (f.kind === 'exp') exp += f.amount;
+    });
+    return { inc, exp };
+  })();
 
   // Pick the most relevant insight from current allocation.
   const health = (() => {
@@ -55,7 +88,7 @@ function AdvisorScreen() {
   const _n = new Date();
   const analysedAt = `${pad2(_n.getMonth() + 1)}.${pad2(_n.getDate())} ${pad2(_n.getHours())}:${pad2(_n.getMinutes())}`;
   const initialChat = [
-  { role: 'ai', text: '午安，黃先生。我已讀取你的最新資產配置。要從哪裡開始？', time: nowHM() }];
+  { role: 'ai', text: '您好，我是您的資產管理師。資料只留在您的裝置，對話僅傳送匿名摘要。要從哪裡開始？', time: nowHM() }];
 
   const [chat, setChat] = useStateAI(initialChat);
   const [input, setInput] = useStateAI('');
@@ -69,25 +102,152 @@ function AdvisorScreen() {
     }
   }, [chat, aiTyping]);
 
-  const aiReply = (q) => {
+  // ── 匿名摘要：只送配置百分比與概略收支，不送帳戶 / 個股名稱或身分 ──
+  const anonSummary = () => {
+    const k = (n) => Math.round(n / 1000) + 'k';
+    const parts = [
+    `資產配置：股票約 ${r0(stockPct)}%、債券約 ${r0(bondPct)}%、現金約 ${r0(cashPct)}%`,
+    alloc.total > 0 ? `資產總額約 ${k(alloc.total)} 元` : '尚無資產資料'];
+    if (monthIO.inc || monthIO.exp) parts.push(`本月收入約 ${k(monthIO.inc)}、支出約 ${k(monthIO.exp)}`);
+    return parts.join('；') + '。';
+  };
+
+  const SYS_PROMPT =
+  '你是一位專業、謹慎的台灣個人資產管理師，服務對象多為退休族與穩健型投資人。' +
+  '請用繁體中文、口語、簡潔回答（多數情況 3～5 句內），語氣親切不誇大，不保證報酬。' +
+  '只根據使用者提供的「匿名資產摘要」與問題作答；不要索取個人身分或帳戶明細。' +
+  '涉及具體標的時提醒這非投資建議、需自行評估風險。';
+
+  // ── BYOK：呼叫使用者自己的模型（Gemini / OpenAI / Claude）──
+  const providerOf = (key) => {
+    const s = ((key && (key.id + ' ' + key.name)) || '').toLowerCase();
+    if (/gemini|google/.test(s)) return 'gemini';
+    if (/openai|gpt/.test(s)) return 'openai';
+    if (/claude|anthropic/.test(s)) return 'claude';
+    return 'openai';
+  };
+  const callAI = async (history, userText) => {
+    const key = activeKey.key.trim();
+    const provider = providerOf(activeKey);
+    const sys = SYS_PROMPT + '\n\n[使用者匿名資產摘要] ' + anonSummary();
+    // 只取最近 12 則、且確保以使用者訊息開頭、嚴格交替
+    const turns = history.filter((m) => m.role === 'me' || m.role === 'ai').slice(-12);
+    const msgs = [];
+    turns.forEach((m) => {
+      const role = m.role === 'me' ? 'user' : 'assistant';
+      if (!msgs.length && role !== 'user') return; // 丟掉開頭的招呼
+      if (msgs.length && msgs[msgs.length - 1].role === role) {msgs[msgs.length - 1].content += '\n' + m.text;return;}
+      msgs.push({ role, content: m.text });
+    });
+    if (!msgs.length || msgs[msgs.length - 1].role !== 'user') msgs.push({ role: 'user', content: userText });
+
+    if (provider === 'gemini') {
+      const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${encodeURIComponent(key)}`;
+      const body = {
+        systemInstruction: { parts: [{ text: sys }] },
+        contents: msgs.map((m) => ({ role: m.role === 'assistant' ? 'model' : 'user', parts: [{ text: m.content }] }))
+      };
+      const r = await fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+      if (!r.ok) throw new Error('HTTP ' + r.status);
+      const d = await r.json();
+      return (((d.candidates || [])[0] || {}).content || {}).parts?.[0]?.text || '（無回應）';
+    }
+    if (provider === 'claude') {
+      const r = await fetch('https://api.anthropic.com/v1/messages', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json', 'x-api-key': key,
+          'anthropic-version': '2023-06-01', 'anthropic-dangerous-direct-browser-access': 'true'
+        },
+        body: JSON.stringify({ model: 'claude-haiku-4-5', max_tokens: 1024, system: sys, messages: msgs })
+      });
+      if (!r.ok) throw new Error('HTTP ' + r.status);
+      const d = await r.json();
+      return (d.content || []).filter((b) => b.type === 'text').map((b) => b.text).join('\n') || '（無回應）';
+    }
+    // openai（相容介面）
+    const r = await fetch('https://api.openai.com/v1/chat/completions', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + key },
+      body: JSON.stringify({ model: 'gpt-4o-mini', messages: [{ role: 'system', content: sys }, ...msgs] })
+    });
+    if (!r.ok) throw new Error('HTTP ' + r.status);
+    const d = await r.json();
+    return ((d.choices || [])[0] || {}).message?.content || '（無回應）';
+  };
+
+  // ── 意圖判斷：是「記帳」還是「提問」──
+  const looksLikeQuestion = (t) => /[?？]|嗎|呢|如何|怎麼|怎樣|為什麼|為何|建議|分析|評估|安全|該不該|划算|值得|風險|比例|配置|計劃|計畫|多少|哪|可不可以|能不能/.test(t);
+  const INC_WORDS = ['薪水', '薪資', '獎金', '股息', '股利', '利息', '收入', '入帳', '退款', '租金', '分紅', '紅利', '中獎'];
+  const parseRecordIntent = (text) => {
+    if (looksLikeQuestion(text)) return null;
+    const nums = (text.match(/\d[\d,]*(?:\.\d+)?/g) || []).map((s) => parseFloat(s.replace(/,/g, '')));
+    if (!nums.length) return null;
+    const sideSell = /賣出|賣掉|賣股|出脫|賣/.test(text);
+    const sideBuy = /買進|買入|買股|加碼|買/.test(text);
+    const codeM = text.match(/\b\d{4,6}[A-Z]?\b/);
+    // 股票：要有買/賣 + 代號 + 「股」字（避免把一般金額誤判）
+    if ((sideBuy || sideSell) && codeM && /股/.test(text)) {
+      const code = codeM[0];
+      const shM = text.match(/(\d[\d,]*)\s*股/);
+      const shares = shM ? shM[1].replace(/,/g, '') : '';
+      const leftover = nums.filter((n) => String(n) !== code && String(n) !== shares);
+      const prM = text.match(/(?:成交價|單價|價|@)\s*(\d[\d,]*(?:\.\d+)?)/);
+      const price = prM ? prM[1].replace(/,/g, '') : leftover.length ? String(leftover[leftover.length - 1]) : '';
+      return { intent: 'stock', edit: false, text, summary: [],
+        apply: { side: sideSell ? 'sell' : 'buy', code, name: '', shares: String(shares || ''), price: String(price || '') } };
+    }
+    // 收支：金額（取最大數字）+ 收入關鍵字判斷 inc/exp
+    const amount = Math.max.apply(null, nums);
+    if (!amount || amount < 1) return null;
+    const kind = INC_WORDS.some((w) => text.includes(w)) ? 'inc' : 'exp';
+    // 嘗試對應主檔分類
+    const cats = kind === 'inc' ?
+    (masterData.cat_inc || []).map((c) => typeof c === 'string' ? c : c.name) :
+    (masterData.cat_exp || []).map((c) => typeof c === 'string' ? c : c.name);
+    const category = (cats || []).find((c) => c && text.includes(c)) || '';
+    const note = text.replace(/\d[\d,]*(?:\.\d+)?\s*(?:元|塊|\$)?/g, '').replace(/\s+/g, ' ').trim();
+    return { intent: 'flow', edit: false, text, summary: [],
+      apply: { kind, amount: String(amount), category, note } };
+  };
+
+  const aiReply = async (history, userText) => {
+    if (!activeKey) {
+      setChat((c) => [...c, { role: 'ai', text: '尚未設定 AI 金鑰。請到「設定 → AI 金鑰設定 (BYOK)」貼上你的 API Key（支援 Gemini / OpenAI / Claude），即可開始對話分析。', time: nowHM() }]);
+      return;
+    }
     setAiTyping(true);
-    setTimeout(() => {
-      let reply = '我會在保留隱私的前提下為您分析，請稍候。';
-      if (q.includes('消費')) reply = '本月支出 48,230，較上月 +6%。最大宗為餐飲（32%）與交通（21%）。建議將外食頻率從 18 次降至 12 次，可省下約 3,200。';else
-      if (q.includes('安全') || q.includes('股票')) reply = `台股佔比 ${r1(stockPct)}%，集中於半導體類股；現金部位約 ${r0(cashPct)}%，防禦力充足。若想提高長期報酬，可考慮分批將部分現金投入大盤型 ETF 與投資等級債券。`;else
-      if (q.includes('比例') || q.includes('調整')) reply = '建議目標配置：股票 50% / 現金 30% / 債券 ETF 15% / 其他 5%。可分 3 個月逐步調整，避免一次性換股造成稅務與手續費負擔。';else
-      if (q.includes('計劃') || q.includes('計畫')) reply = '初步一年計劃：1) 每月定期定額 20,000 入 0050；2) 緊急預備金累積至 300,000；3) Q3 評估是否加入債券 ETF。需要我列入待辦事項嗎？';
+    try {
+      const reply = await callAI(history, userText);
       setChat((c) => [...c, { role: 'ai', text: reply, time: nowHM() }]);
+    } catch (e) {
+      setChat((c) => [...c, { role: 'ai', text: `AI 服務暫時無法使用（${e.message || '連線失敗'}）。請確認金鑰是否正確、或稍後再試。`, time: nowHM() }]);
+    } finally {
       setAiTyping(false);
-    }, 1100);
+    }
   };
 
   const send = (text) => {
     const v = (text ?? input).trim();
     if (!v) return;
-    setChat((c) => [...c, { role: 'me', text: v, time: nowHM() }]);
     setInput('');
-    aiReply(v);
+    // 先判斷是不是「記帳」
+    const draft = parseRecordIntent(v);
+    if (draft && onRecord) {
+      const what = draft.intent === 'stock' ?
+      `${draft.apply.side === 'sell' ? '賣出' : '買進'} ${draft.apply.code} ${draft.apply.shares || ''}股` :
+      `${draft.apply.kind === 'inc' ? '收入' : '支出'} ${Number(draft.apply.amount).toLocaleString()}`;
+      setChat((c) => [...c,
+      { role: 'me', text: v, time: nowHM() },
+      { role: 'ai', text: `看起來你想記一筆（${what}），我已幫你開啟記帳頁並預先填好，請確認後儲存。`, time: nowHM() }]);
+      onRecord(draft);
+      return;
+    }
+    setChat((c) => {
+      const next = [...c, { role: 'me', text: v, time: nowHM() }];
+      aiReply(next, v);
+      return next;
+    });
   };
 
   return (

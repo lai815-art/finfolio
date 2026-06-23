@@ -903,7 +903,13 @@ function App() {
         position: 'absolute', top: 122, bottom: 110, left: 0, right: 0,
         display: 'flex', flexDirection: 'column'
       }}>
-          <AdvisorScreen />
+          <AdvisorScreen
+          computedAcctGroups={computedAcctGroups}
+          computedHoldings={computedHoldings}
+          masterData={masterData}
+          savedFlows={savedFlows}
+          hideAmounts={hideAmounts}
+          onRecord={(draft) => { setRecordReturnTab('advisor'); setRecordDraft(draft); setRecordOpen(true); }} />
         </div> :
 
       <div style={{
