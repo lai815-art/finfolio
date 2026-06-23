@@ -492,11 +492,12 @@ function ToggleRow({ icon, iconColor, label, sub, value, onChange }) {
 
 /* ── AIKeyManager: full CRUD for API keys ─────────────────────────── */
 function AIKeyManager({ keys = [], onChange }) {
-  const { Plus, X, Check, Trash, Sparkles } = window.Icons;
+  const { Plus, X, Check, Trash, Sparkles, Info, ChevronDown } = window.Icons;
   const [editIdx, setEditIdx] = useStateSet(null);
   const [edit, setEdit] = useStateSet({});
   const [adding, setAdding] = useStateSet(false);
   const [addV, setAddV] = useStateSet({ name: '', sub: '', key: '', color: TOKENS.ink2 });
+  const [helpOpen, setHelpOpen] = useStateSet(false);
 
   const COLORS = [TOKENS.ink2, TOKENS.green, TOKENS.gray4, TOKENS.gray3, TOKENS.gray3, TOKENS.gray2];
   const genId = () => 'key_' + Date.now();
@@ -554,6 +555,36 @@ function AIKeyManager({ keys = [], onChange }) {
 
   return (
     <div>
+      {/* 如何取得 API 金鑰 — 折疊說明 */}
+      <div style={{ borderBottom: '1px solid rgba(0,0,0,0.09)' }}>
+        <button onClick={() => setHelpOpen((o) => !o)} style={{ width: '100%', padding: PAD('13px 16px'),
+          display: 'flex', alignItems: 'center', gap: SP(10), background: 'transparent', border: 'none', cursor: 'pointer', textAlign: 'left' }}>
+          {Info && <Info size={16} style={{ color: TOKENS.gray3, flexShrink: 0 }} />}
+          <span style={{ flex: 1, fontSize: FS(17), fontWeight: 600, color: TOKENS.ink }}>如何取得 API 金鑰？</span>
+          {ChevronDown && <ChevronDown size={16} style={{ color: 'rgba(44,44,50,0.5)', transform: helpOpen ? 'rotate(180deg)' : 'none', transition: 'transform 200ms' }} />}
+        </button>
+        {helpOpen &&
+        <div style={{ padding: PAD('0 16px 14px'), display: 'flex', flexDirection: 'column', gap: SP(10) }}>
+          {[
+          ['Google Gemini', '有免費額度、免綁卡，最快上手', 'https://aistudio.google.com/apikey', '登入 Google → 建立 API 金鑰 → 複製'],
+          ['OpenAI (GPT)', '需先儲值額度（約 US$5）', 'https://platform.openai.com/api-keys', '登入 → Billing 儲值 → Create new secret key'],
+          ['Anthropic Claude', '需先儲值額度；分析推理嚴謹', 'https://console.anthropic.com/settings/keys', '登入 → Billing 儲值 → API Keys → Create Key']].
+          map(([name, note, url, steps]) =>
+          <div key={name} style={{ padding: PAD('10px 12px'), borderRadius: RS(12),
+            background: 'rgba(0,0,0,0.04)', border: '1px solid rgba(0,0,0,0.07)' }}>
+              <div style={{ fontSize: FS(16), fontWeight: 600, color: TOKENS.ink }}>{name}</div>
+              <div style={{ fontSize: FS(14), color: 'rgba(44,44,50,0.6)', marginTop: SP(1) }}>{note}</div>
+              <div style={{ fontSize: FS(14), color: 'rgba(44,44,50,0.78)', marginTop: SP(4) }}>步驟：{steps}</div>
+              <a href={url} target="_blank" rel="noopener noreferrer" style={{ display: 'inline-block', marginTop: SP(6),
+              fontSize: FS(15), fontWeight: 600, color: TOKENS.green, textDecoration: 'none', wordBreak: 'break-all' }}>前往申請 ↗</a>
+            </div>
+          )}
+          <div style={{ fontSize: FS(13), color: 'rgba(44,44,50,0.55)', lineHeight: 1.5 }}>
+            🔒 金鑰只儲存在本機、不會上傳；複製後回到下方對應服務點一下、貼上即可。金鑰通常只顯示一次，請妥善保存；若外洩，到該平台撤銷後再重建。
+          </div>
+        </div>
+        }
+      </div>
       {keys.map((k, i) =>
       <div key={k.id || i} style={{ borderBottom: i < keys.length - 1 ? '1px solid rgba(0,0,0,0.09)' : 'none' }}>
           {editIdx === i ?
