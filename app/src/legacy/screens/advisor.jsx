@@ -8,7 +8,10 @@ function AdvisorScreen({ computedAcctGroups = [], computedHoldings = [], masterD
   const aiKeys = (() => {
     try {return JSON.parse(localStorage.getItem('ff_ai_keys') || 'null') || [];} catch {return [];}
   })();
-  const activeKey = aiKeys.find((k) => k && k.key && String(k.key).trim());
+  const defaultModelId = (() => {try {return localStorage.getItem('ff_default_model') || '';} catch {return '';}})();
+  const hasKey = (k) => k && k.key && String(k.key).trim();
+  // 優先使用設定頁選的「預設模型」；若該模型未填金鑰（或選了本機），退而用第一個有金鑰的。
+  const activeKey = aiKeys.find((k) => k.id === defaultModelId && hasKey(k)) || aiKeys.find(hasKey);
   const model = activeKey ?
   { id: activeKey.id, name: activeKey.name, color: activeKey.color || TOKENS.accent } :
   { id: 'none', name: '未設定 AI 金鑰', color: TOKENS.gray3 };

@@ -126,7 +126,10 @@ function SettingsScreen({ masterData, setMasterData, dashWidget, setDashWidget, 
   ...(aiKeys || []).map((k) => ({ id: k.id, name: k.name, color: k.color, has: !!k.key })),
   { id: 'local', name: 'Ollama 本機', color: TOKENS.gray4, has: true }];
 
-  const [defaultModel, setDefaultModel] = useStateSet('local');
+  const [defaultModel, setDefaultModelRaw] = useStateSet(() => {
+    try {return localStorage.getItem('ff_default_model') || 'local';} catch {return 'local';}
+  });
+  const setDefaultModel = (id) => {setDefaultModelRaw(id);try {localStorage.setItem('ff_default_model', id);} catch {}};
   const [modelOpen, setModelOpen] = useStateSet(false);
   const activeModel = MODELS.find((m) => m.id === defaultModel) || MODELS[MODELS.length - 1];
 
