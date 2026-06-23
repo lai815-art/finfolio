@@ -490,6 +490,46 @@ function ToggleRow({ icon, iconColor, label, sub, value, onChange }) {
 
 }
 
+/* ── AIKeyEditForm: 提到模組層級（避免每次輸入都重建元件導致失焦／清空）── */
+function AIKeyEditForm({ v, setV, onSave, onCancel, colors }) {
+  const { Check } = window.Icons;
+  return (
+    <div style={{ padding: PAD('12px 16px'), display: 'flex', flexDirection: 'column', gap: SP(10) }}>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: SP(8) }}>
+        <input value={v.name || ''} onChange={(e) => setV({ ...v, name: e.target.value })}
+        placeholder="服務名稱 (e.g. Google Gemini)"
+        style={{ width: '100%', height: 38, padding: PAD('0 12px'), borderRadius: RS(10), background: 'rgba(0,0,0,0.06)',
+          border: '1px solid ' + (v.color || TOKENS.ink2) + '55', fontSize: FS(18), color: TOKENS.ink, outline: 'none' }} />
+        <input value={v.sub || ''} onChange={(e) => setV({ ...v, sub: e.target.value })}
+        placeholder="備註 (e.g. 長上下文 · 中文佳)"
+        style={{ width: '100%', height: 38, padding: PAD('0 12px'), borderRadius: RS(10), background: 'rgba(0,0,0,0.06)',
+          border: '1px solid rgba(0,0,0,0.18)', fontSize: FS(17), color: TOKENS.ink, outline: 'none' }} />
+        <input value={v.key || ''} onChange={(e) => setV({ ...v, key: e.target.value })}
+        type="text" autoComplete="off" autoCorrect="off" autoCapitalize="off" spellCheck={false} placeholder="貼上 API Key…"
+        style={{ width: '100%', height: 40, padding: PAD('0 12px'), borderRadius: RS(10),
+          background: 'rgba(0,0,0,0.04)', border: '1px solid ' + (v.color || TOKENS.ink2) + '40',
+          fontSize: FS(17), fontFamily: 'JetBrains Mono,monospace', color: TOKENS.ink, outline: 'none' }} />
+      </div>
+      <div style={{ display: 'flex', gap: SP(6) }}>
+        {(colors || []).map((c) =>
+        <button key={c} onClick={() => setV({ ...v, color: c })} style={{
+          width: 24, height: 24, borderRadius: RS(12), background: c, border: 'none',
+          outline: v.color === c ? '2px solid ' + c : 'none', outlineOffset: 2, cursor: 'pointer' }} />
+        )}
+      </div>
+      <div style={{ display: 'flex', gap: SP(8) }}>
+        <button onClick={onCancel} style={{ flex: 1, height: 36, borderRadius: RS(10),
+        background: 'rgba(0,0,0,0.08)', border: '1px solid rgba(0,0,0,0.10)',
+        color: 'rgba(44,44,50,0.88)', fontSize: FS(17) }}>取消</button>
+        <button onClick={onSave} style={{ flex: 2, height: 36, borderRadius: RS(10),
+        background: 'linear-gradient(135deg,' + (v.color || TOKENS.ink2) + 'dd,' + (v.color || TOKENS.ink2) + ')',
+        border: 'none', color: TOKENS.surface, fontSize: FS(17), fontWeight: 600,
+        display: 'flex', alignItems: 'center', justifyContent: 'center', gap: SP(5) }}>
+          <Check size={14} strokeWidth={2.5} /> 儲存</button>
+      </div>
+    </div>);
+}
+
 /* ── AIKeyManager: full CRUD for API keys ─────────────────────────── */
 function AIKeyManager({ keys = [], onChange }) {
   const { Plus, X, Check, Trash, Sparkles, Info, ChevronDown } = window.Icons;
@@ -516,41 +556,6 @@ function AIKeyManager({ keys = [], onChange }) {
     setAddV({ name: '', sub: '', key: '', color: TOKENS.ink2 });setAdding(false);
   };
 
-  const EditForm = ({ v, setV, onSave, onCancel }) =>
-  <div style={{ padding: PAD('12px 16px'), display: 'flex', flexDirection: 'column', gap: SP(10) }}>
-      <div style={{ display: 'flex', flexDirection: 'column', gap: SP(8) }}>
-        <input autoFocus value={v.name || ''} onChange={(e) => setV({ ...v, name: e.target.value })}
-      placeholder="服務名稱 (e.g. Google Gemini)"
-      style={{ width: '100%', height: 38, padding: PAD('0 12px'), borderRadius: RS(10), background: 'rgba(0,0,0,0.06)',
-        border: '1px solid ' + (v.color || TOKENS.ink2) + '55', fontSize: FS(18), color: TOKENS.ink, outline: 'none' }} />
-        <input value={v.sub || ''} onChange={(e) => setV({ ...v, sub: e.target.value })}
-      placeholder="備註 (e.g. 長上下文 · 中文佳)"
-      style={{ width: '100%', height: 38, padding: PAD('0 12px'), borderRadius: RS(10), background: 'rgba(0,0,0,0.06)',
-        border: '1px solid rgba(0,0,0,0.18)', fontSize: FS(17), color: TOKENS.ink, outline: 'none' }} />
-        <input value={v.key || ''} onChange={(e) => setV({ ...v, key: e.target.value })}
-      type="text" placeholder="貼上 API Key…"
-      style={{ width: '100%', height: 40, padding: PAD('0 12px'), borderRadius: RS(10),
-        background: 'rgba(0,0,0,0.04)', border: '1px solid ' + (v.color || TOKENS.ink2) + '40',
-        fontSize: FS(17), fontFamily: 'JetBrains Mono,monospace', color: TOKENS.ink, outline: 'none' }} />
-      </div>
-      <div style={{ display: 'flex', gap: SP(6) }}>
-        {COLORS.map((c) =>
-      <button key={c} onClick={() => setV({ ...v, color: c })} style={{
-        width: 24, height: 24, borderRadius: RS(12), background: c, border: 'none',
-        outline: v.color === c ? '2px solid ' + c : 'none', outlineOffset: 2, cursor: 'pointer' }} />
-      )}
-      </div>
-      <div style={{ display: 'flex', gap: SP(8) }}>
-        <button onClick={onCancel} style={{ flex: 1, height: 36, borderRadius: RS(10),
-        background: 'rgba(0,0,0,0.08)', border: '1px solid rgba(0,0,0,0.10)',
-        color: 'rgba(44,44,50,0.88)', fontSize: FS(17) }}>取消</button>
-        <button onClick={onSave} style={{ flex: 2, height: 36, borderRadius: RS(10),
-        background: 'linear-gradient(135deg,' + (v.color || TOKENS.ink2) + 'dd,' + (v.color || TOKENS.ink2) + ')',
-        border: 'none', color: TOKENS.surface, fontSize: FS(17), fontWeight: 600,
-        display: 'flex', alignItems: 'center', justifyContent: 'center', gap: SP(5) }}>
-          <Check size={14} strokeWidth={2.5} /> 儲存</button>
-      </div>
-    </div>;
 
 
   return (
@@ -588,7 +593,7 @@ function AIKeyManager({ keys = [], onChange }) {
       {keys.map((k, i) =>
       <div key={k.id || i} style={{ borderBottom: i < keys.length - 1 ? '1px solid rgba(0,0,0,0.09)' : 'none' }}>
           {editIdx === i ?
-        <EditForm v={edit} setV={setEdit} onSave={saveEdit} onCancel={() => setEditIdx(null)} /> :
+        <AIKeyEditForm v={edit} setV={setEdit} onSave={saveEdit} onCancel={() => setEditIdx(null)} colors={COLORS} /> :
 
         <div onClick={() => startEdit(i)} style={{ padding: PAD('13px 16px'), display: 'flex',
           alignItems: 'center', gap: SP(12), cursor: 'pointer' }}>
@@ -622,7 +627,7 @@ function AIKeyManager({ keys = [], onChange }) {
       )}
       {adding ?
       <div style={{ borderTop: keys.length ? '1px solid rgba(0,0,0,0.09)' : 'none' }}>
-            <EditForm v={addV} setV={setAddV} onSave={addNew} onCancel={() => setAdding(false)} />
+            <AIKeyEditForm v={addV} setV={setAddV} onSave={addNew} onCancel={() => setAdding(false)} colors={COLORS} />
           </div> :
       <button onClick={() => setAdding(true)} style={{
         width: '100%', height: 44, borderRadius: '0 0 26px 26px',
