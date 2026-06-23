@@ -394,33 +394,91 @@ function RecordSheet({ open, draft, onClose, onSaved, onDelete, masterData, comp
 }
 
 /* ============= Voice listening overlay (long-press) ============= */
-function VoiceListenOverlay({ open, turn, onDone, onCancel }) {
-  const { Mic, X, Volume, Sparkles } = window.Icons;
-  const [phase, setPhase] = useStateApp('listening'); // listening | parsing
+// 把一句話解析成記帳草稿（語音或打字皆用）。一律回傳草稿（金額可空，讓使用者補）。
+const INC_WORDS_V = ['薪水', '薪資', '獎金', '股息', '股利', '利息', '收入', '入帳', '退款', '租金', '分紅', '紅利', '中獎'];
+function parseUtterance(text, masterData = {}) {
+  const t = (text || '').trim();
+  const nums = (t.match(/\d[\d,]*(?:\.\d+)?/g) || []).map((s) => parseFloat(s.replace(/,/g, '')));
+  const sideSell = /賣出|賣掉|賣股|出脫|賣/.test(t);
+  const sideBuy = /買進|買入|買股|加碼|買/.test(t);
+  const codeM = t.match(/\b\d{4,6}[A-Z]?\b/);
+  if ((sideBuy || sideSell) && codeM && /股/.test(t)) {
+    const code = codeM[0];
+    const shM = t.match(/(\d[\d,]*)\s*股/);
+    const shares = shM ? shM[1].replace(/,/g, '') : '';
+    const leftover = nums.filter((n) => String(n) !== code && String(n) !== shares);
+    const prM = t.match(/(?:成交價|單價|價|@)\s*(\d[\d,]*(?:\.\d+)?)/);
+    const price = prM ? prM[1].replace(/,/g, '') : leftover.length ? String(leftover[leftover.length - 1]) : '';
+    return { intent: 'stock', edit: false, text: t, summary: [],
+      apply: { side: sideSell ? 'sell' : 'buy', code, name: '', shares: String(shares || ''), price: String(price || '') } };
+  }
+  const amount = nums.length ? Math.max.apply(null, nums) : '';
+  const kind = INC_WORDS_V.some((w) => t.includes(w)) ? 'inc' : 'exp';
+  const cats = kind === 'inc' ?
+  (masterData.cat_inc || []).map((c) => typeof c === 'string' ? c : c.name) :
+  (masterData.cat_exp || []).map((c) => typeof c === 'string' ? c : c.name);
+  const category = (cats || []).find((c) => c && t.includes(c)) || '';
+  const note = t.replace(/\d[\d,]*(?:\.\d+)?\s*(?:元|塊|\$)?/g, '').replace(/\s+/g, ' ').trim();
+  return { intent: 'flow', edit: false, text: t, summary: [],
+    apply: { kind, amount: String(amount), category, note } };
+}
+
+function VoiceListenOverlay({ open, onDone, onCancel, masterData }) {
+  const { Mic, X, Volume, Sparkles, Check } = window.Icons;
+  const [phase, setPhase] = useStateApp('listening'); // listening | parsing | typing
   const [text, setText] = useStateApp('');
   const [shown, setShown] = useStateApp(false);
+  const recRef = React.useRef(null);
+  const finalRef = React.useRef('');
+  const doneRef = React.useRef(false);
 
   useEffectApp(() => {
     if (!open) {setShown(false);return;}
-    const scenarios = window.VOICE_SCENARIOS || [];
-    const sc = scenarios[turn % scenarios.length];
-    setShown(true);
-    setPhase('listening');
-    setText('');
-    let i = 0;
-    const typer = setInterval(() => {
-      i++;
-      setText(sc.text.slice(0, i));
-      if (i >= sc.text.length) {
-        clearInterval(typer);
-        setPhase('parsing');
-        setTimeout(() => onDone(sc), 950);
-      }
-    }, 55);
-    return () => clearInterval(typer);
-  }, [open, turn]);
+    setShown(true);setPhase('listening');setText('');finalRef.current = '';doneRef.current = false;
+
+    const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+    if (!SR) {setPhase('typing');return;} // 不支援語音 → 改用打字
+
+    let rec;
+    try {
+      rec = new SR();
+      rec.lang = 'zh-TW';
+      rec.interimResults = true;
+      rec.continuous = false;
+      rec.onresult = (e) => {
+        let finalT = '',interim = '';
+        for (let i = 0; i < e.results.length; i++) {
+          const r = e.results[i];
+          if (r.isFinal) finalT += r[0].transcript;else interim += r[0].transcript;
+        }
+        finalRef.current = finalT;
+        setText((finalT + interim).trim());
+      };
+      rec.onerror = () => {setPhase('typing');};
+      rec.onend = () => {
+        const t = (finalRef.current || '').trim();
+        if (!doneRef.current && t) {finishWith(t);} else
+        if (!doneRef.current) {setPhase('typing');} // 沒聽到內容 → 改打字
+      };
+      recRef.current = rec;
+      rec.start();
+    } catch (err) {setPhase('typing');}
+
+    return () => {try {doneRef.current = true;recRef.current && recRef.current.abort();} catch {}};
+  }, [open]);
+
+  const finishWith = (t) => {
+    if (doneRef.current && phase === 'parsing') return;
+    doneRef.current = true;
+    try {recRef.current && recRef.current.stop();} catch {}
+    const v = (t || '').trim();
+    if (!v) {setPhase('typing');doneRef.current = false;return;}
+    setPhase('parsing');
+    setTimeout(() => onDone(parseUtterance(v, masterData)), 350);
+  };
 
   if (!open) return null;
+  const isTyping = phase === 'typing';
   return (
     <div onClick={onCancel} style={{
       position: 'absolute', inset: 0, zIndex: 70,
@@ -433,9 +491,7 @@ function VoiceListenOverlay({ open, turn, onDone, onCancel }) {
       {/* Mic orb */}
       <div style={{
         width: 116, height: 116, borderRadius: RS(60), position: 'relative',
-        background: phase === 'parsing' ?
-        TOKENS.gradSage :
-        TOKENS.gradDark,
+        background: phase === 'parsing' ? TOKENS.gradSage : TOKENS.gradDark,
         display: 'flex', alignItems: 'center', justifyContent: 'center',
         color: TOKENS.surface, boxShadow: SH('0 16px 40px rgba(0,0,0,0.30)'),
         transition: 'background 300ms'
@@ -456,37 +512,57 @@ function VoiceListenOverlay({ open, turn, onDone, onCancel }) {
       {/* Status */}
       <div style={{ marginTop: SP(26), fontSize: FS(20), fontWeight: 600, color: TOKENS.onAccent,
         display: 'flex', alignItems: 'center', gap: SP(8) }}>
-        {phase === 'listening' ? '正在聆聽…' : <><Sparkles size={16} /> AI 解析中…</>}
+        {phase === 'parsing' ? <><Sparkles size={16} /> 解析中…</> : isTyping ? '說不出口？直接打字' : '正在聆聽…'}
       </div>
 
-      {/* Transcript */}
+      {/* Transcript / text input */}
       <div style={{
-        marginTop: SP(16), maxWidth: 320, minHeight: 52, padding: PAD('14px 18px'), borderRadius: RS(20),
+        marginTop: SP(16), width: '100%', maxWidth: 340, minHeight: 52, padding: PAD('14px 18px'), borderRadius: RS(20),
         background: 'rgba(255,255,255,0.10)', border: '1px solid rgba(255,255,255,0.16)',
-        color: TOKENS.onAccent, fontSize: FS(20), lineHeight: 1.5, textAlign: 'center'
+        color: TOKENS.onAccent, fontSize: FS(20), lineHeight: 1.5, textAlign: 'center', boxSizing: 'border-box'
       }} onClick={(e) => e.stopPropagation()}>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: SP(6),
           fontSize: FS(17), color: 'rgba(255,246,238,0.55)', letterSpacing: 1,
           textTransform: 'uppercase', marginBottom: SP(6) }}>
-          <Volume size={12} /> 語音轉文字
+          <Volume size={12} /> {isTyping ? '輸入消費或交易' : '語音轉文字'}
         </div>
-        {text || <span style={{ opacity: 0.4 }}>請說出你的消費或交易…</span>}
-        {phase === 'listening' &&
-        <span style={{ display: 'inline-block', width: 2, height: 16, background: TOKENS.gray4,
-          marginLeft: SP(2), animation: 'blink 0.8s steps(2) infinite', verticalAlign: 'text-bottom' }} />
+        {isTyping ?
+        <input autoFocus value={text} onChange={(e) => setText(e.target.value)}
+        onKeyDown={(e) => {if (e.key === 'Enter') finishWith(text);}}
+        placeholder="例：午餐 120 / 買進 2330 1000股 1045"
+        style={{ width: '100%', background: 'transparent', border: 'none', outline: 'none',
+          color: TOKENS.onAccent, fontSize: FS(19), textAlign: 'center', boxSizing: 'border-box' }} /> :
+        <>
+            {text || <span style={{ opacity: 0.4 }}>請說出你的消費或交易…</span>}
+            {phase === 'listening' &&
+          <span style={{ display: 'inline-block', width: 2, height: 16, background: TOKENS.gray4,
+            marginLeft: SP(2), animation: 'blink 0.8s steps(2) infinite', verticalAlign: 'text-bottom' }} />
+          }
+          </>
         }
       </div>
 
       <div style={{ marginTop: SP(14), fontSize: FS(17), color: 'rgba(255,246,238,0.5)' }}>
-        {phase === 'listening' ? '連續說話，完成後自動解析' : '即將帶入記帳畫面'}
+        {phase === 'parsing' ? '即將帶入記帳畫面' : isTyping ? '輸入後按完成' : '說完後按完成，或會自動解析'}
       </div>
 
-      {/* Cancel */}
-      <button onClick={onCancel} style={{
-        marginTop: SP(28), width: 52, height: 52, borderRadius: RS(30),
-        background: 'rgba(255,255,255,0.12)', border: '1px solid rgba(255,255,255,0.2)',
-        color: TOKENS.onAccent, display: 'flex', alignItems: 'center', justifyContent: 'center'
-      }}><X size={22} /></button>
+      {/* Actions: 完成 + 取消 */}
+      {phase !== 'parsing' &&
+      <div style={{ marginTop: SP(24), display: 'flex', alignItems: 'center', gap: SP(16) }} onClick={(e) => e.stopPropagation()}>
+        <button onClick={onCancel} style={{
+          width: 52, height: 52, borderRadius: RS(30),
+          background: 'rgba(255,255,255,0.12)', border: '1px solid rgba(255,255,255,0.2)',
+          color: TOKENS.onAccent, display: 'flex', alignItems: 'center', justifyContent: 'center'
+        }}><X size={22} /></button>
+        <button onClick={() => finishWith(text)} disabled={!text.trim()} style={{
+          height: 52, padding: PAD('0 24px'), borderRadius: RS(30),
+          background: text.trim() ? TOKENS.gradSage : 'rgba(255,255,255,0.12)',
+          border: '1px solid rgba(255,255,255,0.2)',
+          color: TOKENS.onAccent, fontSize: FS(18), fontWeight: 600,
+          display: 'flex', alignItems: 'center', justifyContent: 'center', gap: SP(8),
+          opacity: text.trim() ? 1 : 0.6 }}><Check size={20} /> 完成</button>
+      </div>
+      }
     </div>);
 
 }
@@ -939,12 +1015,11 @@ function App() {
       <TabBar tab={tab} setTab={setTab}
       onVoice={() => setListening(true)}
       onManualRecord={() => {setRecordReturnTab('dashboard');setRecordDraft(null);setRecordOpen(true);}} />
-      <VoiceListenOverlay open={listening} turn={voiceTurn}
+      <VoiceListenOverlay open={listening} masterData={masterData}
       onCancel={() => setListening(false)}
-      onDone={(sc) => {
+      onDone={(draft) => {
         setListening(false);
-        setVoiceTurn((t) => t + 1);
-        setRecordDraft(sc);
+        setRecordDraft(draft);
         setRecordReturnTab('dashboard');
         setRecordOpen(true);
       }} />
