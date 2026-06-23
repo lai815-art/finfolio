@@ -525,7 +525,10 @@ function InvestBreakdownSheet({ open, onClose, computedHoldings = [], masterData
   const portPct = portCost > 0 ? portPnl / portCost * 100 : 0;
 
   const catData = catTotals.map((c) => ({ name: c.name, color: c.color, pct: portfolioMv > 0 ? c.mv / portfolioMv * 100 : 0 }));
-  const holdings = allItems.filter((it) => it.mvT > 0).sort((a, b) => b.mvT - a.mvT);
+  // 所有個股持倉（依市值排序）+ 每檔配色
+  const holdings = allItems.filter((it) => it.mvT > 0).sort((a, b) => b.mvT - a.mvT)
+  .map((h, i) => ({ ...h, color: TAB_COLORS_INV[i % TAB_COLORS_INV.length], pct: portfolioMv > 0 ? h.mvT / portfolioMv * 100 : 0 }));
+  const holdingData = holdings.map((h) => ({ name: h.code, color: h.color, pct: h.pct }));
   const StatDonut = window.StatDonut;
   const assetIconName = window.assetIconName || (() => 'TrendUp');
 
@@ -559,36 +562,36 @@ function InvestBreakdownSheet({ open, onClose, computedHoldings = [], masterData
             })}
           </div>
 
-          {/* 投資配置（依股票類別）+ 類別明細 */}
+          {/* 投資配置：所有個股持倉 + 圓餅圖 */}
           {invTab === 'alloc' &&
           <div style={{ ...cardStyle, padding: PAD('20px 16px') }}>
             <div style={{ fontSize: FS(14), color: 'rgba(0,0,0,0.62)', fontWeight: 700, letterSpacing: 1,
               textTransform: 'uppercase', marginBottom: SP(6), paddingLeft: SP(2) }}>投資配置</div>
-            {catTotals.length === 0 ?
+            {holdings.length === 0 ?
             <div style={{ fontSize: FS(17), color: 'rgba(44,44,50,0.4)', textAlign: 'center', padding: PAD('12px 0') }}>尚無持倉</div> :
             <>
-              {StatDonut && <StatDonut data={catData} total={portfolioMv} label="市值" color={TOKENS.ink} mask={mask} />}
+              {StatDonut && <StatDonut data={holdingData} total={portfolioMv} label="市值" color={TOKENS.ink} mask={mask} />}
               <div style={{ marginTop: SP(14), display: 'flex', flexDirection: 'column' }}>
-                {catTotals.map((c, i) => {
-                  const pct = portfolioMv > 0 ? c.mv / portfolioMv * 100 : 0;
-                  const Ico = window.Icons[assetIconName(c.name)] || window.Icons.TrendUp;
+                {holdings.map((h, i) => {
+                  const Ico = window.Icons[assetIconName(h.assetClass)] || window.Icons.TrendUp;
                   return (
-                  <div key={c.id} style={{ display: 'flex', alignItems: 'center', gap: SP(12), padding: PAD('12px 2px'),
+                  <div key={h.code + i} style={{ display: 'flex', alignItems: 'center', gap: SP(12), padding: PAD('12px 2px'),
                     borderTop: i === 0 ? '1px solid rgba(0,0,0,0.07)' : 'none',
                     borderBottom: '1px solid rgba(0,0,0,0.07)' }}>
                     <div style={{ width: 40, height: 40, borderRadius: RS(12), flexShrink: 0,
-                      background: `${c.color}22`, border: `1px solid ${c.color}55`,
+                      background: `${h.color}22`, border: `1px solid ${h.color}55`,
                       display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                      <Ico size={20} style={{ color: c.color }} />
+                      <Ico size={20} style={{ color: h.color }} />
                     </div>
                     <div style={{ flex: 1, minWidth: 0 }}>
-                      <div style={{ fontSize: FS(19), fontWeight: 500, color: TOKENS.ink }}>{c.name}</div>
-                      <div style={{ fontSize: FS(14), color: 'rgba(44,44,50,0.5)', marginTop: SP(1) }}>{pct.toFixed(1)}%</div>
+                      <div style={{ fontSize: FS(19), fontWeight: 500, color: TOKENS.ink,
+                        overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{h.name || h.code}</div>
+                      <div style={{ fontSize: FS(14), color: 'rgba(44,44,50,0.5)', marginTop: SP(1), fontFamily: TOKENS.fontMono }}>{h.code} · {h.pct.toFixed(1)}%</div>
                     </div>
                     <div style={{ textAlign: 'right', flexShrink: 0 }}>
-                      <div style={{ fontFamily: TOKENS.fontMono, fontSize: FS(19), fontWeight: 600, color: TOKENS.ink }}>{mask(c.mv)}</div>
-                      <div style={{ fontSize: FS(14), marginTop: SP(1), fontFamily: TOKENS.fontMono, color: upColor(c.pnl) }}>
-                        {c.pnl < 0 ? '-' : '+'}{mask(Math.abs(c.pnl))}
+                      <div style={{ fontFamily: TOKENS.fontMono, fontSize: FS(19), fontWeight: 600, color: TOKENS.ink }}>{mask(h.mvT)}</div>
+                      <div style={{ fontSize: FS(14), marginTop: SP(1), fontFamily: TOKENS.fontMono, color: upColor(h.pnlT) }}>
+                        {h.pnlT < 0 ? '-' : '+'}{mask(Math.abs(h.pnlT))}
                       </div>
                     </div>
                   </div>);
