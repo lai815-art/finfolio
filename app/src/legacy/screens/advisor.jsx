@@ -400,10 +400,10 @@ function AdvisorScreen({ computedAcctGroups = [], computedHoldings = [], masterD
 
       </div>
       {/* Bottom pinned: input + privacy footer */}
-      <div style={{ ...{ padding: PAD('10px 18px 12px'), background: TOKENS.bgWarm,
-          borderTop: '1px solid rgba(28,26,24,0.12)', height: "85px" }, height: "85px", padding: "0px 10px 10px", width: "403px" }}>
+      <div style={{ flexShrink: 0, background: TOKENS.bgWarm,
+          borderTop: '1px solid rgba(28,26,24,0.12)', padding: "10px 10px 12px", width: "100%", boxSizing: "border-box" }}>
       {/* Input bar */}
-      <div style={{ marginTop: SP(12), display: 'flex', gap: SP(10), alignItems: 'center' }}>
+      <div style={{ display: 'flex', gap: SP(10), alignItems: 'center' }}>
         <input value={input} onChange={(e) => setInput(e.target.value)}
           onKeyDown={(e) => {if (e.key === 'Enter') send();}}
           placeholder="問 AI 任何關於資產的問題…"
