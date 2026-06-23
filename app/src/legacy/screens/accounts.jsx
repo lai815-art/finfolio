@@ -261,7 +261,18 @@ function AccountDetailSheet({ data, mask, onClose, onSaveItem, savedFlows = [], 
     amount: t.side === 'buy' ? -(t.shares * t.price) : t.shares * t.price,
     source: 'real', _orig: t, _isTrade: true
   })) :
-  [];
+  // 交割戶：買進會從此戶扣款買股（賣出已由自動「投資轉帳」記錄），
+  // 列出買進交易並於說明標示買了什麼、幾股。
+  savedTrades.filter((t) => t.side === 'buy' && matchAcct(t.settleAccount)).map((t) => {
+    const gross = (parseFloat(t.shares) || 0) * (parseFloat(t.price) || 0);
+    const cost = t.net != null && t.net > 0 ? t.net : gross + (parseFloat(t.fee) || 0);
+    return {
+      date: fmtDate(t.date), _ts: new Date(t.date).getTime(),
+      desc: `買進 ${t.name || t.code} ${(parseFloat(t.shares) || 0).toLocaleString()}股・轉入${t.broker || '證券戶'}`,
+      amount: -cost,
+      source: 'real', _orig: t, _isTrade: true
+    };
+  });
 
   // 依交易/執行日期排序（新到舊）
   const allReal = [...realFlows, ...realTrades].sort((a, b) => b._ts - a._ts);
