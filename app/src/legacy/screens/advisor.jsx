@@ -138,6 +138,11 @@ function AdvisorScreen({ computedAcctGroups = [], computedHoldings = [], masterD
     if (/claude|anthropic/.test(s)) return 'claude';
     return 'openai';
   };
+  const httpErr = async (r) => {
+    let detail = '';
+    try {const j = await r.json();detail = j.error && (j.error.message || j.error.status) || '';} catch {}
+    return 'HTTP ' + r.status + (detail ? '：' + String(detail).slice(0, 140) : '');
+  };
   const callAI = async (history, userText, keyObj) => {
     const key = keyObj.key.trim();
     const provider = providerOf(keyObj);
@@ -160,7 +165,7 @@ function AdvisorScreen({ computedAcctGroups = [], computedHoldings = [], masterD
         contents: msgs.map((m) => ({ role: m.role === 'assistant' ? 'model' : 'user', parts: [{ text: m.content }] }))
       };
       const r = await fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
-      if (!r.ok) throw new Error('HTTP ' + r.status);
+      if (!r.ok) throw new Error(await httpErr(r));
       const d = await r.json();
       return (((d.candidates || [])[0] || {}).content || {}).parts?.[0]?.text || '（無回應）';
     }
@@ -173,7 +178,7 @@ function AdvisorScreen({ computedAcctGroups = [], computedHoldings = [], masterD
         },
         body: JSON.stringify({ model: 'claude-haiku-4-5', max_tokens: 1024, system: sys, messages: msgs })
       });
-      if (!r.ok) throw new Error('HTTP ' + r.status);
+      if (!r.ok) throw new Error(await httpErr(r));
       const d = await r.json();
       return (d.content || []).filter((b) => b.type === 'text').map((b) => b.text).join('\n') || '（無回應）';
     }
@@ -183,7 +188,7 @@ function AdvisorScreen({ computedAcctGroups = [], computedHoldings = [], masterD
       headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + key },
       body: JSON.stringify({ model: 'gpt-4o-mini', messages: [{ role: 'system', content: sys }, ...msgs] })
     });
-    if (!r.ok) throw new Error('HTTP ' + r.status);
+    if (!r.ok) throw new Error(await httpErr(r));
     const d = await r.json();
     return ((d.choices || [])[0] || {}).message?.content || '（無回應）';
   };
@@ -234,7 +239,11 @@ function AdvisorScreen({ computedAcctGroups = [], computedHoldings = [], masterD
       const reply = await callAI(history, userText, keyObj);
       setChat((c) => [...c, { role: 'ai', text: reply, time: nowHM() }]);
     } catch (e) {
-      setChat((c) => [...c, { role: 'ai', text: `AI 服務暫時無法使用（${e.message || '連線失敗'}）。請確認金鑰是否正確、或稍後再試。`, time: nowHM() }]);
+      const m = e.message || '連線失敗';
+      let hint = '請確認金鑰是否正確、或稍後再試。';
+      if (/\b429\b|quota|rate/i.test(m)) hint = '這通常代表該 AI 服務的「額度不足或請求過於頻繁」：請到該平台確認帳戶已儲值／未超出免費額度（OpenAI 新帳號常需先儲值），或改用有免費額度的 Google Gemini，稍後再試。';else
+      if (/\b401\b|\b403\b|invalid|unauthor/i.test(m)) hint = '金鑰可能無效或權限不足，請回設定重新貼上正確的金鑰。';
+      setChat((c) => [...c, { role: 'ai', text: `AI 服務暫時無法使用（${m}）。${hint}`, time: nowHM() }]);
     } finally {
       setAiTyping(false);
     }
@@ -418,7 +427,7 @@ function AdvisorScreen({ computedAcctGroups = [], computedHoldings = [], masterD
           onKeyDown={(e) => {if (e.key === 'Enter') send();}}
           placeholder="問 AI 任何關於資產的問題…"
           style={{
-            flex: 1, height: 56, padding: PAD('0 18px'), borderRadius: RS(18),
+            flex: 1, minWidth: 0, height: 56, padding: PAD('0 18px'), borderRadius: RS(18),
             background: TOKENS.surface, border: '1px solid rgba(28,26,24,0.14)',
             color: TOKENS.scrimInk, fontSize: FS(17), outline: 'none'
           }} />
