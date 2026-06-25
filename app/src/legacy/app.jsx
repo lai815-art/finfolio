@@ -425,7 +425,8 @@ function parseUtterance(text, masterData = {}) {
 
 function VoiceListenOverlay({ open, onDone, onCancel, masterData }) {
   const { Mic, X, Volume, Sparkles, Check } = window.Icons;
-  const [phase, setPhase] = useStateApp('listening'); // listening | parsing | typing
+  const [phase, setPhase] = useStateApp('input'); // input | parsing
+  const [listening, setListening] = useStateApp(false);
   const [text, setText] = useStateApp('');
   const [shown, setShown] = useStateApp(false);
   const recRef = React.useRef(null);
@@ -434,17 +435,15 @@ function VoiceListenOverlay({ open, onDone, onCancel, masterData }) {
 
   useEffectApp(() => {
     if (!open) {setShown(false);return;}
-    setShown(true);setPhase('listening');setText('');finalRef.current = '';doneRef.current = false;
+    setShown(true);setPhase('input');setText('');setListening(false);finalRef.current = '';doneRef.current = false;
 
     const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
-    if (!SR) {setPhase('typing');return;} // 不支援語音 → 改用打字
-
+    if (!SR) return; // 不支援語音 → 直接打字（輸入框一律顯示）
     let rec;
     try {
       rec = new SR();
-      rec.lang = 'zh-TW';
-      rec.interimResults = true;
-      rec.continuous = false;
+      rec.lang = 'zh-TW';rec.interimResults = true;rec.continuous = false;
+      rec.onstart = () => setListening(true);
       rec.onresult = (e) => {
         let finalT = '',interim = '';
         for (let i = 0; i < e.results.length; i++) {
@@ -454,31 +453,25 @@ function VoiceListenOverlay({ open, onDone, onCancel, masterData }) {
         finalRef.current = finalT;
         setText((finalT + interim).trim());
       };
-      rec.onerror = () => {setPhase('typing');};
-      rec.onend = () => {
-        const t = (finalRef.current || '').trim();
-        if (!doneRef.current && t) {finishWith(t);} else
-        if (!doneRef.current) {setPhase('typing');} // 沒聽到內容 → 改打字
-      };
+      rec.onerror = () => setListening(false);
+      rec.onend = () => setListening(false); // 不自動送出，交由使用者按「完成」
       recRef.current = rec;
       rec.start();
-    } catch (err) {setPhase('typing');}
+    } catch (err) {setListening(false);}
 
     return () => {try {doneRef.current = true;recRef.current && recRef.current.abort();} catch {}};
   }, [open]);
 
   const finishWith = (t) => {
-    if (doneRef.current && phase === 'parsing') return;
+    const v = (t || '').trim();
+    if (!v || doneRef.current) return;
     doneRef.current = true;
     try {recRef.current && recRef.current.stop();} catch {}
-    const v = (t || '').trim();
-    if (!v) {setPhase('typing');doneRef.current = false;return;}
     setPhase('parsing');
     setTimeout(() => onDone(parseUtterance(v, masterData)), 350);
   };
 
   if (!open) return null;
-  const isTyping = phase === 'typing';
   return (
     <div onClick={onCancel} style={{
       position: 'absolute', inset: 0, zIndex: 70,
@@ -496,7 +489,7 @@ function VoiceListenOverlay({ open, onDone, onCancel, masterData }) {
         color: TOKENS.surface, boxShadow: SH('0 16px 40px rgba(0,0,0,0.30)'),
         transition: 'background 300ms'
       }} onClick={(e) => e.stopPropagation()}>
-        {phase === 'listening' &&
+        {listening && phase !== 'parsing' &&
         <>
             <span style={{ position: 'absolute', inset: -14, borderRadius: RS(72),
             border: '2px solid rgba(232, 152, 120,0.55)', animation: 'pulse 1.5s ease-out infinite' }} />
@@ -512,38 +505,32 @@ function VoiceListenOverlay({ open, onDone, onCancel, masterData }) {
       {/* Status */}
       <div style={{ marginTop: SP(26), fontSize: FS(20), fontWeight: 600, color: TOKENS.onAccent,
         display: 'flex', alignItems: 'center', gap: SP(8) }}>
-        {phase === 'parsing' ? <><Sparkles size={16} /> 解析中…</> : isTyping ? '說不出口？直接打字' : '正在聆聽…'}
+        {phase === 'parsing' ? <><Sparkles size={16} /> 解析中…</> : listening ? '正在聆聽…' : '說話或直接打字'}
       </div>
 
-      {/* Transcript / text input */}
+      {/* Always-editable transcript / input box (speech results stream in here too) */}
+      {phase !== 'parsing' &&
       <div style={{
-        marginTop: SP(16), width: '100%', maxWidth: 340, minHeight: 52, padding: PAD('14px 18px'), borderRadius: RS(20),
+        marginTop: SP(16), width: '100%', maxWidth: 340, padding: PAD('14px 18px'), borderRadius: RS(20),
         background: 'rgba(255,255,255,0.10)', border: '1px solid rgba(255,255,255,0.16)',
-        color: TOKENS.onAccent, fontSize: FS(20), lineHeight: 1.5, textAlign: 'center', boxSizing: 'border-box'
+        color: TOKENS.onAccent, boxSizing: 'border-box'
       }} onClick={(e) => e.stopPropagation()}>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: SP(6),
-          fontSize: FS(17), color: 'rgba(255,246,238,0.55)', letterSpacing: 1,
-          textTransform: 'uppercase', marginBottom: SP(6) }}>
-          <Volume size={12} /> {isTyping ? '輸入消費或交易' : '語音轉文字'}
+          fontSize: FS(16), color: 'rgba(255,246,238,0.55)', letterSpacing: 1,
+          textTransform: 'uppercase', marginBottom: SP(8) }}>
+          <Volume size={12} /> 語音轉文字 · 也可直接打字
         </div>
-        {isTyping ?
-        <input autoFocus value={text} onChange={(e) => setText(e.target.value)}
+        <input value={text} onChange={(e) => setText(e.target.value)}
         onKeyDown={(e) => {if (e.key === 'Enter') finishWith(text);}}
         placeholder="例：午餐 120 / 買進 2330 1000股 1045"
-        style={{ width: '100%', background: 'transparent', border: 'none', outline: 'none',
-          color: TOKENS.onAccent, fontSize: FS(19), textAlign: 'center', boxSizing: 'border-box' }} /> :
-        <>
-            {text || <span style={{ opacity: 0.4 }}>請說出你的消費或交易…</span>}
-            {phase === 'listening' &&
-          <span style={{ display: 'inline-block', width: 2, height: 16, background: TOKENS.gray4,
-            marginLeft: SP(2), animation: 'blink 0.8s steps(2) infinite', verticalAlign: 'text-bottom' }} />
-          }
-          </>
-        }
+        style={{ width: '100%', background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.18)',
+          borderRadius: RS(12), padding: PAD('10px 12px'), outline: 'none',
+          color: TOKENS.onAccent, fontSize: FS(19), textAlign: 'center', boxSizing: 'border-box' }} />
       </div>
+      }
 
-      <div style={{ marginTop: SP(14), fontSize: FS(17), color: 'rgba(255,246,238,0.5)' }}>
-        {phase === 'parsing' ? '即將帶入記帳畫面' : isTyping ? '輸入後按完成' : '說完後按完成，或會自動解析'}
+      <div style={{ marginTop: SP(14), fontSize: FS(16), color: 'rgba(255,246,238,0.5)', textAlign: 'center' }}>
+        {phase === 'parsing' ? '即將帶入記帳畫面' : '聽不到聲音？點上面輸入框直接打字，再按「完成」'}
       </div>
 
       {/* Actions: 完成 + 取消 */}

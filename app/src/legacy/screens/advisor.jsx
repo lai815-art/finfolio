@@ -159,7 +159,7 @@ function AdvisorScreen({ computedAcctGroups = [], computedHoldings = [], masterD
     if (!msgs.length || msgs[msgs.length - 1].role !== 'user') msgs.push({ role: 'user', content: userText });
 
     if (provider === 'gemini') {
-      const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${encodeURIComponent(key)}`;
+      const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${encodeURIComponent(key)}`;
       const body = {
         systemInstruction: { parts: [{ text: sys }] },
         contents: msgs.map((m) => ({ role: m.role === 'assistant' ? 'model' : 'user', parts: [{ text: m.content }] }))
