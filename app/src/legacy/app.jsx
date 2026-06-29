@@ -226,14 +226,13 @@ function NavHeader({ tab, onSettings, hideAmounts, setHideAmounts }) {
           {hideAmounts ? <EyeOff size={18} /> : <Eye size={18} />}
         </button>
         }
-        <button onClick={onSettings} style={headBtn}><Settings size={18} /></button>
       </div>
     </div>);
 
 }
 
-function TabBar({ tab, setTab, onVoice, onManualRecord }) {
-  const { LayoutGrid, PiggyBank, Plus, Mic, Sparkles } = window.Icons;
+function TabBar({ tab, setTab, onVoice, onManualRecord, onSettings }) {
+  const { LayoutGrid, PiggyBank, Plus, Mic, Sparkles, Settings } = window.Icons;
   const pressTimer = React.useRef(null);
   const longFired = React.useRef(false);
   const [holding, setHolding] = useStateApp(false);
@@ -264,7 +263,8 @@ function TabBar({ tab, setTab, onVoice, onManualRecord }) {
   { id: 'accounts', label: '資產', Icon: PiggyBank },
   { id: 'record', label: '記帳', Icon: Plus, special: true },
   { id: 'invest', label: '投資', Icon: TrendUpTab },
-  ...(SHOW_ADVISOR ? [{ id: 'advisor', label: 'AI 顧問', Icon: Sparkles }] : [])];
+  ...(SHOW_ADVISOR ? [{ id: 'advisor', label: 'AI 顧問', Icon: Sparkles }] : []),
+  { id: 'settings', label: '設定', Icon: Settings, isSettings: true }];
 
   return (
     <div style={{
@@ -325,7 +325,7 @@ function TabBar({ tab, setTab, onVoice, onManualRecord }) {
           }
           const active = t.id === tab;
           return (
-            <button key={t.id} onClick={() => setTab(t.id)} style={{ ...{
+            <button key={t.id} onClick={() => t.isSettings ? onSettings() : setTab(t.id)} style={{ ...{
                 flex: 1, minWidth: 0, minHeight: 70, borderRadius: RS(18),
                 background: active ? TOKENS.ink2 : 'transparent',
                 border: active ? `1px solid ${TOKENS.accent}` : '1px solid transparent',
@@ -338,8 +338,6 @@ function TabBar({ tab, setTab, onVoice, onManualRecord }) {
             </button>);
 
         })}
-        {/* 隱藏 AI 顧問時補一個等寬空位，讓中央的記帳鈕維持置中 */}
-        {!SHOW_ADVISOR && <div aria-hidden style={{ flex: 1, minWidth: 0, pointerEvents: 'none' }} />}
       </div>
       {IS_STANDALONE ?
       // 獨立 App：系統自帶 home indicator，這裡只留底部安全區避免被遮住
@@ -1113,7 +1111,8 @@ function App() {
 
       <TabBar tab={tab} setTab={setTab}
       onVoice={() => setListening(true)}
-      onManualRecord={() => {setRecordReturnTab('dashboard');setRecordDraft(null);setRecordOpen(true);}} />
+      onManualRecord={() => {setRecordReturnTab('dashboard');setRecordDraft(null);setRecordOpen(true);}}
+      onSettings={() => setSettingsOpen(true)} />
       <VoiceListenOverlay open={listening} masterData={masterData}
       onCancel={() => setListening(false)}
       onDone={(draft) => {
