@@ -146,7 +146,7 @@ function InvestDetailSheet({ data, mask, onClose, savedTrades = [], onEditRecord
       transition: 'transform 300ms cubic-bezier(0.32,0.72,0.18,1)',
       display: 'flex', flexDirection: 'column'
     }}>
-      <div style={{ height: 62, flexShrink: 0 }} />
+      <div style={{ height: window.FF_SBAR_H || 62, flexShrink: 0 }} />
       {/* Header */}
       <div style={{ display: 'flex', alignItems: 'center', gap: SP(12), padding: PAD('4px 10px 12px') }}>
         <button onClick={onClose} style={{
@@ -538,7 +538,7 @@ function InvestBreakdownSheet({ open, onClose, computedHoldings = [], masterData
   return (
     <div style={{ position: 'absolute', inset: 0, zIndex: 80, background: TOKENS.bg, display: 'flex', flexDirection: 'column' }}>
       <div style={{ flex: 1, display: 'flex', flexDirection: 'column', minHeight: 0 }}>
-        <div style={{ height: 62, flexShrink: 0 }} />
+        <div style={{ height: window.FF_SBAR_H || 62, flexShrink: 0 }} />
         <div style={{ ...{ display: 'flex', alignItems: 'center', gap: SP(12), padding: PAD('3px 13px 8px') }, padding: "3px 10px 8px" }}>
           <button onClick={onClose} style={{ width: 40, height: 40, borderRadius: RS(20), flexShrink: 0,
             background: 'rgba(0,0,0,0.09)', border: '1px solid rgba(0,0,0,0.12)', color: 'rgba(60,60,67,0.88)',

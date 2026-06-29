@@ -5,6 +5,10 @@ const { useState: useStateApp, useEffect: useEffectApp, useMemo: useMemoApp } = 
 const IS_STANDALONE = typeof window !== 'undefined' && (
 window.matchMedia && window.matchMedia('(display-mode: standalone)').matches ||
 window.navigator && window.navigator.standalone === true);
+// 獨立 App 不畫假狀態列：頂部僅留系統安全區（瀏海）高度；瀏覽器預覽維持 62/122 的示意版面。
+const SBAR_H = IS_STANDALONE ? 'env(safe-area-inset-top, 0px)' : '62px';
+const CONTENT_TOP = IS_STANDALONE ? 'calc(env(safe-area-inset-top, 0px) + 60px)' : '122px';
+if (typeof window !== 'undefined') window.FF_SBAR_H = SBAR_H;
 
 /* ─── Data compute helpers ────────────────────────────────────────── */
 const KIND_TO_GID = {
@@ -162,7 +166,7 @@ function StatusBar() {
   }, []);
   const clock = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
   // 獨立 App：系統自帶狀態列，留同高度的空白即可（不重複畫時間/電量）。
-  if (IS_STANDALONE) return <div style={{ height: 62 }} />;
+  if (IS_STANDALONE) return <div style={{ height: SBAR_H }} />;
   return (
     <div style={{
       height: 62, display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between',
@@ -578,7 +582,7 @@ function SettingsOverlay({ open, onClose, masterData, setMasterData, dashWidget,
       transition: 'transform 300ms cubic-bezier(0.32,0.72,0.18,1)',
       display: 'flex', flexDirection: 'column'
     }}>
-      <div style={{ height: 62, flexShrink: 0 }} />
+      <div style={{ height: SBAR_H, flexShrink: 0 }} />
       <div style={{ ...{ display: 'flex', alignItems: 'center', gap: SP(12), padding: PAD('4px 16px 10px'), height: "60px" }, padding: "3px 13px 4px" }}>
         <button onClick={onClose} style={{ ...{
             width: 40, borderRadius: RS(14), flexShrink: 0,
@@ -972,7 +976,7 @@ function App() {
       {/* Scrollable content */}
       {tab === 'advisor' ?
       <div style={{
-        position: 'absolute', top: 122, bottom: 110, left: 0, right: 0,
+        position: 'absolute', top: CONTENT_TOP, bottom: 110, left: 0, right: 0,
         display: 'flex', flexDirection: 'column'
       }}>
           <AdvisorScreen
@@ -985,7 +989,7 @@ function App() {
         </div> :
 
       <div style={{
-        position: 'absolute', top: 122, bottom: 0, left: 0, right: 0,
+        position: 'absolute', top: CONTENT_TOP, bottom: 0, left: 0, right: 0,
         overflowY: 'auto', overflowX: 'hidden',
         paddingBottom: SP(130)
       }}>

@@ -897,7 +897,7 @@ function MonthlyStatsSheet({ open, onClose, savedFlows, masterData, hideAmounts,
       display: 'flex', flexDirection: 'column'
     }}>
       <div style={{ flex: 1, display: 'flex', flexDirection: 'column', minHeight: 0 }}>
-        <div style={{ height: 62, flexShrink: 0 }} />
+        <div style={{ height: window.FF_SBAR_H || 62, flexShrink: 0 }} />
         <div style={{ display: 'flex', alignItems: 'center', gap: SP(12), padding: "3px 10px 8px" }}>
           <button onClick={onClose} style={{
             width: 40, height: 40, borderRadius: RS(20), flexShrink: 0,
@@ -1076,7 +1076,7 @@ function NetWorthSheet({ open, onClose, total, computedAcctGroups, computedHoldi
       display: 'flex', flexDirection: 'column'
     }}>
       <div style={{ flex: 1, display: 'flex', flexDirection: 'column', minHeight: 0 }}>
-        <div style={{ height: 62, flexShrink: 0 }} />
+        <div style={{ height: window.FF_SBAR_H || 62, flexShrink: 0 }} />
         <div style={{ ...{ display: 'flex', alignItems: 'center', gap: SP(12), padding: PAD('3px 13px 8px') }, padding: "3px 10px 8px" }}>
           <button onClick={onClose} style={{
             width: 40, height: 40, borderRadius: RS(20), flexShrink: 0,
