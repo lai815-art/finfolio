@@ -3,6 +3,7 @@ const { useState: useStateApp, useEffect: useEffectApp, useMemo: useMemoApp } = 
 
 // 是否以「加入主畫面」的獨立 App 方式開啟（此時系統已有真正的狀態列，不需畫假的）。
 const IS_STANDALONE = typeof window !== 'undefined' && (
+window.FF_STANDALONE === true ||
 window.matchMedia && window.matchMedia('(display-mode: standalone)').matches ||
 window.navigator && window.navigator.standalone === true);
 // 獨立 App 不畫假狀態列：頂部只留剛好避開瀏海的高度（安全區再收 18px，避免上方空太多）。

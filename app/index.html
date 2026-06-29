@@ -73,16 +73,24 @@
   <script type="module" src="/src/main.js"></script>
 
   <script>
-    // Scale the fixed 402×920 phone canvas to fit any viewport.
+    // Detect "installed app" once at startup and freeze it. The app bundle reads the
+    // same flag (window.FF_STANDALONE) so header insets always match the canvas sizing.
+    // Latched true: some engines briefly report display-mode:browser on a warm relaunch,
+    // which previously made fit() fall back to the fixed 402×874 box and stop filling.
+    window.FF_STANDALONE = (window.matchMedia && window.matchMedia('(display-mode: standalone)').matches)
+      || window.navigator.standalone === true;
+
+    // Scale the 402-wide phone canvas to fit any viewport.
     function fit() {
       var stage = document.getElementById('stage');
       var scale = document.getElementById('scale');
       if (!stage || !scale) return;
-      var w = stage.clientWidth, h = stage.clientHeight;
-      var standalone = (window.matchMedia && window.matchMedia('(display-mode: standalone)').matches)
-        || window.navigator.standalone === true;
+      var vv = window.visualViewport;
+      var w = (vv && vv.width)  || stage.clientWidth  || window.innerWidth;
+      var h = (vv && vv.height) || stage.clientHeight || window.innerHeight;
+      if (!w || !h) return;
       var k, appH;
-      if (standalone) {
+      if (window.FF_STANDALONE) {
         // Installed app: scale to width, then stretch the canvas height to exactly fill the
         // viewport. Header pins to the very top, tab bar to the very bottom, no body scroll.
         k = w / 402;
@@ -95,9 +103,22 @@
       scale.style.transform = 'scale(' + k + ')';
       document.documentElement.style.setProperty('--app-h', appH + 'px');
     }
+
+    // Re-fit on every event that can change the viewport — including warm relaunches
+    // (pageshow/visibilitychange) where no resize fires but the size may have changed.
     window.addEventListener('resize', fit);
-    setTimeout(fit, 100);
-    setTimeout(fit, 800);
+    window.addEventListener('orientationchange', fit);
+    window.addEventListener('pageshow', fit);
+    document.addEventListener('visibilitychange', function () { if (!document.hidden) fit(); });
+    if (window.visualViewport) {
+      window.visualViewport.addEventListener('resize', fit);
+      window.visualViewport.addEventListener('scroll', fit);
+    }
+    if (window.ResizeObserver) {
+      try { new ResizeObserver(fit).observe(document.getElementById('stage')); } catch (e) {}
+    }
+    // A few early ticks so the first paint settles, then keep correcting on the events above.
+    [0, 100, 400, 800, 1500].forEach(function (t) { setTimeout(fit, t); });
   </script>
 </body>
 </html>
