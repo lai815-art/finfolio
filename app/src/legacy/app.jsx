@@ -414,6 +414,88 @@ function RecordSheet({ open, draft, onClose, onSaved, onDelete, masterData, comp
 /* ============= Voice listening overlay (long-press) ============= */
 // 把一句話解析成記帳草稿（語音或打字皆用）。一律回傳草稿（金額可空，讓使用者補）。
 const INC_WORDS_V = ['薪水', '薪資', '獎金', '股息', '股利', '利息', '收入', '入帳', '退款', '租金', '分紅', '紅利', '中獎'];
+
+// 關鍵字 → 預設「項目(leaf)」與「類別(group)」。先比對使用者實際的分類名稱，
+// 對不到才用此表推斷；leaf 對不到時退而求其次用 group 的第一個項目。
+const EXP_KW_V = [
+  [/早餐|早點/, '早餐', '餐飲'],
+  [/午餐|中餐|中午|便當|午飯|lunch/i, '午餐', '餐飲'],
+  [/晚餐|晚飯|宵夜|消夜|dinner/i, '晚餐', '餐飲'],
+  [/點心|甜點|蛋糕|麵包|下午茶/, '點心', '餐飲'],
+  [/飲料|手搖|咖啡|奶茶|拿鐵|星巴克/, '飲料', '餐飲'],
+  [/超商|便利商店|7-?11|全家|萊爾富/i, '飲料', '餐飲'],
+  [/餐廳|吃飯|火鍋|燒烤|速食|麥當勞|肯德基|早午餐|拉麵|便當店|小吃|晚上吃|中午吃/, '午餐', '餐飲'],
+  [/加油|油錢|加油站/, '加油', '交通'],
+  [/捷運|公車|bus|ubike|youbike/i, '捷運', '交通'],
+  [/火車|台鐵/, '火車', '交通'],
+  [/高鐵/, '高鐵', '交通'],
+  [/停車|停車費|停車場/, '停車費', '交通'],
+  [/計程車|taxi|uber|車資|修車|保養|輪胎|機車行/i, '修車保養', '交通'],
+  [/水費/, '水費', '日常'],
+  [/電費/, '電費', '日常'],
+  [/瓦斯/, '瓦斯費', '日常'],
+  [/網路費|寬頻|手機費|電話費|電信/, '網路費', '日常'],
+  [/netflix|spotify|youtube|disney|訂閱|串流|app ?store|google ?play/i, '數位平台', '日常'],
+  [/購物|買衣|衣服|鞋|包包|蝦皮|momo|網購|百貨|商場/i, '購物', '娛樂'],
+  [/電影|遊戲|ktv|唱歌|娛樂|展覽|演唱會|門票/i, '購物', '娛樂'],
+  [/掛號|看醫生|診所|醫院|門診|牙醫|看病/, '掛號費', '醫療'],
+  [/藥|保健|維他命|維生素|健康食品|營養品/, '保健食品', '醫療']];
+
+const INC_KW_V = [
+  [/薪水|薪資|月薪|工資|發薪/, '薪資', '主動'],
+  [/獎金|分紅|年終|三節/, '獎金', '主動'],
+  [/加班費/, '加班費', '主動'],
+  [/股息|股利|配息|除息/, '股息', '被動'],
+  [/利息/, '利息', '被動'],
+  [/租金/, '租金', '被動'],
+  [/回饋|返現|紅利/, '紅利回饋', '被動'],
+  [/投資收入|資本利得|價差/, '投資收入', '被動'],
+  [/發票|中獎/, '發票中獎', '其他'],
+  [/退稅|退費|退款/, '退稅', '其他']];
+
+function flowCatsV(list) {return (list || []).map((c) => typeof c === 'string' ? { name: c, group: c } : c);}
+
+// 從文字推斷分類「項目(leaf)」：①直接念到項目名 ②念到類別名→取該類別第一個項目 ③關鍵字表
+function resolveCategoryV(t, list, kw) {
+  const items = flowCatsV(list);
+  const names = items.map((i) => i.name).filter(Boolean);
+  const firstOfGroup = (g) => {const f = items.find((i) => i.group === g);return f ? f.name : g;};
+  const leaf = names.slice().sort((a, b) => b.length - a.length).find((n) => t.includes(n));
+  if (leaf) return leaf;
+  const grp = [...new Set(items.map((i) => i.group).filter(Boolean))].find((g) => t.includes(g));
+  if (grp) return firstOfGroup(grp);
+  for (const [re, leafTarget, groupTarget] of kw) {
+    if (re.test(t)) {
+      if (leafTarget && names.includes(leafTarget)) return leafTarget;
+      if (groupTarget && items.some((i) => i.group === groupTarget)) return firstOfGroup(groupTarget);
+    }
+  }
+  return '';
+}
+
+// 從文字推斷帳戶：①直接念到帳戶名（忽略大小寫/空白） ②付款方式關鍵字 → 對應類型帳戶
+function resolveAccountV(t, md) {
+  const accts = [...(md.accounts || []), ...(md.settle || [])];
+  const norm = (s) => (s || '').toLowerCase().replace(/[\s\-_()（）]/g, '');
+  const nt = norm(t);
+  const byName = accts.map((a) => a.name).filter(Boolean).
+  sort((a, b) => norm(b).length - norm(a).length).
+  find((n) => norm(n) && nt.includes(norm(n)));
+  if (byName) return byName;
+  const PAY = [
+  [/linepay|line ?pay/i, (a) => /line/i.test(a.name)],
+  [/街口/, (a) => /街口/.test(a.name)],
+  [/悠遊付|悠遊卡|悠遊/, (a) => /悠遊/.test(a.name) || a.kind === '儲值卡'],
+  [/全支付|全聯/, (a) => /全/.test(a.name)],
+  [/現金|錢包/, (a) => a.kind === '現金'],
+  [/刷卡|信用卡|刷/, (a) => a.kind === '信用卡'],
+  [/電子支付|行動支付|手機支付/, (a) => a.kind === '電子支付']];
+  for (const [re, pred] of PAY) {
+    if (re.test(t)) {const hit = accts.find(pred);if (hit) return hit.name;}
+  }
+  return '';
+}
+
 function parseUtterance(text, masterData = {}) {
   const t = (text || '').trim();
   const nums = (t.match(/\d[\d,]*(?:\.\d+)?/g) || []).map((s) => parseFloat(s.replace(/,/g, '')));
@@ -432,13 +514,18 @@ function parseUtterance(text, masterData = {}) {
   }
   const amount = nums.length ? Math.max.apply(null, nums) : '';
   const kind = INC_WORDS_V.some((w) => t.includes(w)) ? 'inc' : 'exp';
-  const cats = kind === 'inc' ?
-  (masterData.cat_inc || []).map((c) => typeof c === 'string' ? c : c.name) :
-  (masterData.cat_exp || []).map((c) => typeof c === 'string' ? c : c.name);
-  const category = (cats || []).find((c) => c && t.includes(c)) || '';
+  const category = kind === 'inc' ?
+  resolveCategoryV(t, masterData.cat_inc, INC_KW_V) :
+  resolveCategoryV(t, masterData.cat_exp, EXP_KW_V);
+  const account = resolveAccountV(t, masterData);
   const note = t.replace(/\d[\d,]*(?:\.\d+)?\s*(?:元|塊|\$)?/g, '').replace(/\s+/g, ' ').trim();
-  return { intent: 'flow', edit: false, text: t, summary: [],
-    apply: { kind, amount: String(amount), category, note } };
+  const summary = [];
+  if (category) summary.push(['分類', category]);
+  if (account) summary.push(['帳戶', account]);
+  const apply = { kind, amount: String(amount), note };
+  if (category) apply.category = category;
+  if (account) apply.account = account;
+  return { intent: 'flow', edit: false, text: t, summary, apply };
 }
 
 function VoiceListenOverlay({ open, onDone, onCancel, masterData }) {
