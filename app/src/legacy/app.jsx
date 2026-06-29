@@ -1,6 +1,11 @@
 // Main App + Tab Bar (6 tabs, center FAB for 記帳 → bottom sheet)
 const { useState: useStateApp, useEffect: useEffectApp, useMemo: useMemoApp } = React;
 
+// 是否以「加入主畫面」的獨立 App 方式開啟（此時系統已有真正的狀態列，不需畫假的）。
+const IS_STANDALONE = typeof window !== 'undefined' && (
+window.matchMedia && window.matchMedia('(display-mode: standalone)').matches ||
+window.navigator && window.navigator.standalone === true);
+
 /* ─── Data compute helpers ────────────────────────────────────────── */
 const KIND_TO_GID = {
   '銀行': 'bank', '信用卡': 'credit', '現金': 'cash',
@@ -156,6 +161,8 @@ function StatusBar() {
     return () => clearInterval(id);
   }, []);
   const clock = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
+  // 獨立 App：系統自帶狀態列，留同高度的空白即可（不重複畫時間/電量）。
+  if (IS_STANDALONE) return <div style={{ height: 62 }} />;
   return (
     <div style={{
       height: 62, display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between',
@@ -944,18 +951,20 @@ function App() {
 
   return (
     <div data-screen-label={`${tab}`} style={{ ...{
-        width: 402, height: 874, borderRadius: RS(56), overflow: 'hidden',
+        width: 402, height: 874, borderRadius: 0, overflow: 'hidden',
         position: 'relative', background: TOKENS.bg,
-        boxShadow: SH(`0 50px 100px rgba(0,0,0,0.12), 0 0 0 12px ${TOKENS.bezel}, 0 0 0 13px ${TOKENS.bezel2}`),
+        boxShadow: 'none',
         fontFamily: TOKENS.fontSans,
         color: TOKENS.ink,
         WebkitFontSmoothing: 'antialiased'
       }, background: "rgb(240, 238, 231)" }}>
-      {/* Dynamic island */}
+      {/* Dynamic island（僅在瀏覽器預覽時畫；獨立 App 有系統真正的瀏海）*/}
+      {!IS_STANDALONE &&
       <div style={{
         position: 'absolute', top: 11, left: '50%', transform: 'translateX(-50%)',
         width: 126, height: 37, borderRadius: RS(26), background: '#000', zIndex: 50
       }} />
+      }
 
       <StatusBar />
       <NavHeader tab={tab} onSettings={() => setSettingsOpen(true)} hideAmounts={hideAmounts} setHideAmounts={setHideAmounts} />

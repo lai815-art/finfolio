@@ -26,4 +26,17 @@ window.ReactDOM = ReactDOMClient;
 
 // Dynamic import so the globals above are set before any legacy module evaluates
 // (static imports would be hoisted and run first).
+// Ask the browser to keep on-device data persistent (resists automatic eviction,
+// e.g. iOS clearing storage for sites unused ~7 days). A deliberate "clear
+// website data" still wipes it — the encrypted backup covers that case.
+(function persist() {
+  try {
+    if (navigator.storage && navigator.storage.persist) {
+      navigator.storage.persisted().then(function (already) {
+        if (!already) navigator.storage.persist();
+      }).catch(function () {});
+    }
+  } catch (e) {/* ignore */}
+})();
+
 import('./legacy/load.js');
