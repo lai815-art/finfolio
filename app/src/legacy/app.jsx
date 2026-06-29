@@ -961,7 +961,7 @@ function App() {
 
   return (
     <div data-screen-label={`${tab}`} style={{ ...{
-        width: 402, height: 874, borderRadius: 0, overflow: 'hidden',
+        width: 402, height: 'var(--app-h, 874px)', borderRadius: 0, overflow: 'hidden',
         position: 'relative', background: TOKENS.bg,
         boxShadow: 'none',
         fontFamily: TOKENS.fontSans,

@@ -29,7 +29,7 @@
   *, *::before, *::after { box-sizing: border-box; }
   #stage {
     min-height: 100vh; min-height: 100dvh; display: flex; align-items: center; justify-content: center;
-    padding: 0;
+    padding: 0; overflow: hidden;
     background: #F0EEE7;
   }
   #scale { transform-origin: center center; }
@@ -78,9 +78,22 @@
       var stage = document.getElementById('stage');
       var scale = document.getElementById('scale');
       if (!stage || !scale) return;
-      // Fill the screen: scale the 402×874 canvas to the viewport (uniform), no surrounding frame.
-      var k = Math.min(stage.clientWidth / 402, stage.clientHeight / 874, 3);
+      var w = stage.clientWidth, h = stage.clientHeight;
+      var standalone = (window.matchMedia && window.matchMedia('(display-mode: standalone)').matches)
+        || window.navigator.standalone === true;
+      var k, appH;
+      if (standalone) {
+        // Installed app: scale to width, then stretch the canvas height to exactly fill the
+        // viewport. Header pins to the very top, tab bar to the very bottom, no body scroll.
+        k = w / 402;
+        appH = Math.round(h / k);
+      } else {
+        // Browser preview: uniform fit of the fixed 402×874 canvas (centered, no frame).
+        k = Math.min(w / 402, h / 874, 3);
+        appH = 874;
+      }
       scale.style.transform = 'scale(' + k + ')';
+      document.documentElement.style.setProperty('--app-h', appH + 'px');
     }
     window.addEventListener('resize', fit);
     setTimeout(fit, 100);
