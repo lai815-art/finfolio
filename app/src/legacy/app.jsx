@@ -12,6 +12,9 @@ const SBAR_H = TOP_INSET;
 const CONTENT_TOP = IS_STANDALONE ? `calc(${TOP_INSET} + 60px)` : '122px';
 if (typeof window !== 'undefined') window.FF_SBAR_H = SBAR_H;
 
+// AI 顧問尚未完成（需使用者自備 API 金鑰），先隱藏整個分頁。改回 true 即可重新顯示。
+const SHOW_ADVISOR = false;
+
 /* ─── Data compute helpers ────────────────────────────────────────── */
 const KIND_TO_GID = {
   '銀行': 'bank', '信用卡': 'credit', '現金': 'cash',
@@ -261,7 +264,7 @@ function TabBar({ tab, setTab, onVoice, onManualRecord }) {
   { id: 'accounts', label: '資產', Icon: PiggyBank },
   { id: 'record', label: '記帳', Icon: Plus, special: true },
   { id: 'invest', label: '投資', Icon: TrendUpTab },
-  { id: 'advisor', label: 'AI 顧問', Icon: Sparkles }];
+  ...(SHOW_ADVISOR ? [{ id: 'advisor', label: 'AI 顧問', Icon: Sparkles }] : [])];
 
   return (
     <div style={{
@@ -335,6 +338,8 @@ function TabBar({ tab, setTab, onVoice, onManualRecord }) {
             </button>);
 
         })}
+        {/* 隱藏 AI 顧問時補一個等寬空位，讓中央的記帳鈕維持置中 */}
+        {!SHOW_ADVISOR && <div aria-hidden style={{ flex: 1, minWidth: 0, pointerEvents: 'none' }} />}
       </div>
       {IS_STANDALONE ?
       // 獨立 App：系統自帶 home indicator，這裡只留底部安全區避免被遮住
