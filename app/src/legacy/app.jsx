@@ -5,9 +5,10 @@ const { useState: useStateApp, useEffect: useEffectApp, useMemo: useMemoApp } = 
 const IS_STANDALONE = typeof window !== 'undefined' && (
 window.matchMedia && window.matchMedia('(display-mode: standalone)').matches ||
 window.navigator && window.navigator.standalone === true);
-// 獨立 App 不畫假狀態列：頂部僅留系統安全區（瀏海）高度；瀏覽器預覽維持 62/122 的示意版面。
-const SBAR_H = IS_STANDALONE ? 'env(safe-area-inset-top, 0px)' : '62px';
-const CONTENT_TOP = IS_STANDALONE ? 'calc(env(safe-area-inset-top, 0px) + 60px)' : '122px';
+// 獨立 App 不畫假狀態列：頂部只留剛好避開瀏海的高度（安全區再收 18px，避免上方空太多）。
+const TOP_INSET = IS_STANDALONE ? 'max(0px, calc(env(safe-area-inset-top, 0px) - 18px))' : '62px';
+const SBAR_H = TOP_INSET;
+const CONTENT_TOP = IS_STANDALONE ? `calc(${TOP_INSET} + 60px)` : '122px';
 if (typeof window !== 'undefined') window.FF_SBAR_H = SBAR_H;
 
 /* ─── Data compute helpers ────────────────────────────────────────── */
@@ -334,9 +335,14 @@ function TabBar({ tab, setTab, onVoice, onManualRecord }) {
 
         })}
       </div>
+      {IS_STANDALONE ?
+      // 獨立 App：系統自帶 home indicator，這裡只留底部安全區避免被遮住
+      <div style={{ height: 'env(safe-area-inset-bottom, 0px)' }} /> :
+      // 瀏覽器預覽：畫一條示意的 home bar
       <div style={{ display: 'flex', justifyContent: 'center', marginTop: SP(8) }}>
         <div style={{ width: 134, height: 5, borderRadius: RS(100), background: 'rgba(0,0,0,0.86)' }} />
       </div>
+      }
     </div>);
 
 }
