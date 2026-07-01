@@ -28,7 +28,9 @@
     -webkit-font-smoothing: antialiased; }
   *, *::before, *::after { box-sizing: border-box; }
   #stage {
-    min-height: 100vh; min-height: 100dvh; display: flex; align-items: center; justify-content: center;
+    position: fixed; inset: 0;
+    height: 100vh; height: 100dvh;
+    display: flex; align-items: center; justify-content: center;
     padding: 0; overflow: hidden;
     background: #F0EEE7;
   }
@@ -100,12 +102,14 @@
       var stage = document.getElementById('stage');
       var scale = document.getElementById('scale');
       if (!stage || !scale) return;
-      // Use the LAYOUT viewport (stage is min-height:100dvh), NOT visualViewport:
-      // when the on-screen keyboard opens, visualViewport.height shrinks and would
-      // squash the whole fixed-layout canvas into the area above the keyboard
-      // ("跑版"). The layout viewport stays full-height, so the canvas is stable.
-      var w = stage.clientWidth || window.innerWidth;
-      var h = stage.clientHeight || window.innerHeight;
+      // Use window.innerWidth/Height — the real viewport. NOT stage.clientHeight:
+      // on phones narrower than 402px the scaled canvas's un-transformed layout box
+      // is taller than the screen, which grows #stage, which fed back into a bigger
+      // canvas each ResizeObserver tick → the screen "ran away" ("跑掉"). innerHeight
+      // is independent of content AND does not shrink when the keyboard opens (only
+      // visualViewport does), so it is stable on both counts.
+      var w = window.innerWidth || stage.clientWidth;
+      var h = window.innerHeight || stage.clientHeight;
       if (!w || !h) return;
       var k, appH;
       if (window.FF_STANDALONE) {
