@@ -272,7 +272,15 @@ function computeAccounts(accounts, settleList, flows, trades, initialBalances) {
   });
   const bal = {};
   allAccts.forEach((a) => {bal[a.name] = parseFloat(initialBalances[a.name]) || 0;});
+  // 未來日期的支出／收入／轉帳先不預先計入現有資產，等日期到了（<= 今天）才帶入餘額。
+  const today = window.TODAY_DATE || new Date();
+  const todayEnd = new Date(today.getFullYear(), today.getMonth(), today.getDate(), 23, 59, 59, 999);
+  const isDue = (d) => {
+    const dt = d instanceof Date ? d : new Date(d);
+    return isNaN(dt) || dt <= todayEnd; // 日期解析失敗時不擋（保留舊資料相容）
+  };
   flows.forEach((f) => {
+    if (!isDue(f.date)) return;
     if (f.kind === 'exp') {if (bal[f.account] !== undefined) bal[f.account] -= f.amount;} else
     if (f.kind === 'inc') {if (bal[f.account] !== undefined) bal[f.account] += f.amount;} else
     if (f.kind === 'xfer') {
