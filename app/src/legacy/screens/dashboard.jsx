@@ -897,7 +897,7 @@ function MonthlyStatsSheet({ open, onClose, savedFlows, masterData, hideAmounts,
       display: 'flex', flexDirection: 'column'
     }}>
       <div style={{ flex: 1, display: 'flex', flexDirection: 'column', minHeight: 0 }}>
-        <div style={{ height: window.FF_SBAR_H || 62, flexShrink: 0 }} />
+        <div style={{ height: window.FF_DETAIL_TOP || 62, flexShrink: 0 }} />
         <div style={{ display: 'flex', alignItems: 'center', gap: SP(12), padding: "3px 10px 8px" }}>
           <button onClick={onClose} style={{
             width: 40, height: 40, borderRadius: RS(20), flexShrink: 0,
@@ -1047,21 +1047,20 @@ function NetWorthSheet({ open, onClose, total, computedAcctGroups, computedHoldi
   const totalLiab = liabRows.reduce((a, c) => a + c.value, 0);
   const netCash = cashAssets - totalLiab;
 
-  // 投資持倉：依資產類別（股票 / 債券 / 美股 …）市值
-  const CAT_COLOR = { '現金': TOKENS.green, '股票': TOKENS.inv1, '債券': TOKENS.gold, '美股': TOKENS.indigo };
-  const INV_COLORS = [TOKENS.inv1, TOKENS.inv2, TOKENS.inv3, TOKENS.inv4, TOKENS.inv5, TOKENS.inv6];
+  // 投資持倉：直接依使用者設定的股票類別（市值型 / 高息型 / 科技型 / 主動型 / 個股 / 債券 …）分組市值，
+  // 不再用名稱關鍵字硬猜成「股票/債券/美股」三桶。
+  const INV_COLORS = [TOKENS.inv1, TOKENS.inv2, TOKENS.inv3, TOKENS.inv4, TOKENS.inv5, TOKENS.inv6, TOKENS.gold, TOKENS.indigo];
   const cats = [];
-  if (Math.abs(netCash) >= 1) cats.push({ name: '現金', value: netCash, color: CAT_COLOR['現金'] });
-  const bucketName = (nm) => /美股|美國|US/i.test(nm) ? '美股' : /債/.test(nm) ? '債券' : '股票';
+  if (Math.abs(netCash) >= 1) cats.push({ name: '現金', value: netCash, color: TOKENS.green });
   const buckets = {};
   computedHoldings.forEach((g) => {
     const mv = g.items.reduce((a, it) => a + mvTWD(it), 0);
     if (mv < 1) return;
-    const b = bucketName(g.id || g.name);
+    const b = g.name || g.id || '股票';
     buckets[b] = (buckets[b] || 0) + mv;
   });
-  ['股票', '債券', '美股'].forEach((b) => {
-    if (buckets[b]) cats.push({ name: b, value: buckets[b], color: CAT_COLOR[b] });
+  Object.keys(buckets).sort((a, b) => buckets[b] - buckets[a]).forEach((b, i) => {
+    cats.push({ name: b, value: buckets[b], color: INV_COLORS[i % INV_COLORS.length] });
   });
 
   const assets = cats.filter((c) => c.value > 0);
@@ -1076,7 +1075,7 @@ function NetWorthSheet({ open, onClose, total, computedAcctGroups, computedHoldi
       display: 'flex', flexDirection: 'column'
     }}>
       <div style={{ flex: 1, display: 'flex', flexDirection: 'column', minHeight: 0 }}>
-        <div style={{ height: window.FF_SBAR_H || 62, flexShrink: 0 }} />
+        <div style={{ height: window.FF_DETAIL_TOP || 62, flexShrink: 0 }} />
         <div style={{ ...{ display: 'flex', alignItems: 'center', gap: SP(12), padding: PAD('3px 13px 8px') }, padding: "3px 10px 8px" }}>
           <button onClick={onClose} style={{
             width: 40, height: 40, borderRadius: RS(20), flexShrink: 0,

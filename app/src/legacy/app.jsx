@@ -7,10 +7,15 @@ window.FF_STANDALONE === true ||
 window.matchMedia && window.matchMedia('(display-mode: standalone)').matches ||
 window.navigator && window.navigator.standalone === true);
 // 獨立 App 不畫假狀態列：頂部只留剛好避開瀏海的高度（安全區再收 18px，避免上方空太多）。
+// 這個縮減值只適合主看板：NavHeader 下面還有自己的內距，扣掉 18px 剛好好看。
 const TOP_INSET = IS_STANDALONE ? 'max(0px, calc(env(safe-area-inset-top, 0px) - 18px))' : '62px';
 const SBAR_H = TOP_INSET;
 const CONTENT_TOP = IS_STANDALONE ? `calc(${TOP_INSET} + 60px)` : '122px';
 if (typeof window !== 'undefined') window.FF_SBAR_H = SBAR_H;
+// 明細頁（資產淨額明細／收支統計／投資組合明細）的返回箭頭+標題直接貼著這個間距，
+// 沒有額外內距可以吃掉縮減量，所以用完整安全區，避免被瀏海/動態島蓋到。
+const DETAIL_TOP = IS_STANDALONE ? 'max(0px, env(safe-area-inset-top, 0px))' : '62px';
+if (typeof window !== 'undefined') window.FF_DETAIL_TOP = DETAIL_TOP;
 
 // AI 顧問尚未完成（需使用者自備 API 金鑰），先隱藏整個分頁。改回 true 即可重新顯示。
 const SHOW_ADVISOR = false;
