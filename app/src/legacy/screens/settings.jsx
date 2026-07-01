@@ -1,6 +1,9 @@
 // Settings / 系統設定（含 AI 金鑰、主檔管理：記帳分類 / 記帳帳戶（一般帳戶、證券戶、交割戶））
 const { useState: useStateSet } = React;
 
+// AI 相關設定暫時隱藏（AI 顧問功能尚未上線）。改回 true 即可重新顯示。
+const SHOW_AI_SETTINGS = false;
+
 // Shared drag-to-reorder hook (mouse / touch via HTML5 DnD).
 // Returns getRowProps(i) to spread on each draggable row, plus dragIdx/overIdx for styling.
 function useDragReorder(items, onChange) {
@@ -109,7 +112,7 @@ const DEFAULT_DATA = {
 function SettingsScreen({ masterData, setMasterData, dashWidget, setDashWidget, initialBalances = {}, setInitialBalances, savedFlows = [], savedTrades = [], setSavedFlows, setSavedTrades }) {
   const { Shield, Lock, Key, Bell, MessageCircle, Smartphone, Eye, EyeOff,
     ChevronRight, Sparkles, Check, Info, Mail, Tag, CreditCard, ArrowUpRight,
-    Wallet, ChevronDown, Pencil, X, Clipboard } = window.Icons;
+    Wallet, ChevronDown, Pencil, X, Clipboard, Trash } = window.Icons;
 
   // BYOK — dynamic key list
   const DEFAULT_AI_KEYS = [
@@ -160,6 +163,7 @@ function SettingsScreen({ masterData, setMasterData, dashWidget, setDashWidget, 
   const [lockOpen, setLockOpen] = useStateSet(false);
   const [lockOn, setLockOn] = useStateSet(() => {try {return !!localStorage.getItem('ff_lock_pin');} catch {return false;}});
   const [importOpen, setImportOpen] = useStateSet(false);
+  const [clearOpen, setClearOpen] = useStateSet(false);
   React.useEffect(() => {
     if (!notice) return;
     const t = setTimeout(() => setNotice(null), 4000);
@@ -324,6 +328,7 @@ function SettingsScreen({ masterData, setMasterData, dashWidget, setDashWidget, 
       </Section>
 
       {/* AI default model */}
+      {SHOW_AI_SETTINGS &&
       <Section label="AI 預設模型">
         <div style={{ position: 'relative' }}>
           <button onClick={() => setModelOpen(!modelOpen)} style={{
@@ -366,11 +371,14 @@ function SettingsScreen({ masterData, setMasterData, dashWidget, setDashWidget, 
           }
         </div>
       </Section>
+      }
 
       {/* AI Keys — dynamic CRUD */}
+      {SHOW_AI_SETTINGS &&
       <Section label="AI 金鑰設定 (BYOK)">
         <AIKeyManager keys={aiKeys} onChange={setAiKeys} />
       </Section>
+      }
 
       {/* External integrations */}
       {/* External integrations — 暫時先不做
@@ -402,6 +410,13 @@ function SettingsScreen({ masterData, setMasterData, dashWidget, setDashWidget, 
         label="加密備份 / 還原"
         sub={(() => {try {const t = localStorage.getItem('ff_last_export');return t ? '上次匯出 ' + ffFmtTime(t) : '尚未匯出 · 建議定期匯出到雲端';} catch {return '匯出或從備份檔還原 · 跨裝置';}})()}
         onClick={() => setBackupOpen(true)} chevron />
+      </Section>
+
+      {/* Danger zone */}
+      <Section label="危險操作">
+        <Row icon={<Trash size={18} />} iconColor={TOKENS.red}
+        label="清除所有歷史資料" sub="重設記帳、交易與帳戶設定；無法復原"
+        onClick={() => setClearOpen(true)} chevron />
       </Section>
 
       {/* About */}
@@ -443,6 +458,9 @@ function SettingsScreen({ masterData, setMasterData, dashWidget, setDashWidget, 
       savedFlows={savedFlows} savedTrades={savedTrades}
       setSavedFlows={setSavedFlows} setSavedTrades={setSavedTrades}
       initialBalances={initialBalances} setInitialBalances={setInitialBalances} />
+
+      {/* 清除所有歷史資料 */}
+      <ClearDataSheet open={clearOpen} onClose={() => setClearOpen(false)} />
 
       {/* 主檔刪除阻擋提示 */}
       {notice &&
@@ -2727,6 +2745,80 @@ function ImportSheet({ open, onClose, data, setData, savedFlows, savedTrades, se
               {status && status.type === 'ok' &&
             <button onClick={onClose} style={bigBtn(TOKENS.surface, TOKENS.ink, { border: '1px solid rgba(0,0,0,0.14)' })}>完成</button>
             }
+            </>
+          }
+        </div>
+      </div>
+    </div>);
+
+}
+
+/* ===================== 清除所有歷史資料 ===================== */
+// 會清除：記帳/股票交易紀錄、主檔（分類/帳戶，恢復預設）、初始餘額、自動扣款規則、備份時間戳記。
+// 不會清除：App 密碼鎖、AI 金鑰設定、外觀偏好（隱藏金額等）— 這些是裝置設定，不算「歷史資料」。
+const FF_CLEAR_KEYS = ['ff_flows', 'ff_trades', 'ff_master_data', 'ff_init_bal', 'ff_recurring',
+'ff_record_edits', 'ff_record_deletes', 'ff_prices', 'ff_auto_snapshot', 'ff_last_auto_backup', 'ff_last_export'];
+const CLEAR_PHRASE = '清除';
+
+function ClearDataSheet({ open, onClose }) {
+  const { X, Trash } = window.Icons;
+  const [shown, setShown] = useStateSet(false);
+  const [phrase, setPhrase] = useStateSet('');
+  const [done, setDone] = useStateSet(false);
+
+  React.useEffect(() => {
+    if (open) { const t = setTimeout(() => setShown(true), 20); return () => clearTimeout(t); }
+    setShown(false); setPhrase(''); setDone(false);
+  }, [open]);
+
+  if (!open) return null;
+
+  const doClear = () => {
+    FF_CLEAR_KEYS.forEach((k) => {try {localStorage.removeItem(k);} catch {}});
+    setDone(true);
+    setTimeout(() => location.reload(), 900);
+  };
+
+  return (
+    <div style={{ position: 'absolute', inset: 0, zIndex: 75, background: shown ? 'rgba(0,0,0,0.55)' : 'rgba(0,0,0,0)', transition: 'background 220ms ease-out', display: 'flex', alignItems: 'flex-end' }} onClick={onClose}>
+      <div onClick={(e) => e.stopPropagation()} style={{ width: '100%', maxHeight: '90%', background: TOKENS.bg, borderTopLeftRadius: 30, borderTopRightRadius: 30, transform: shown ? 'translateY(0)' : 'translateY(100%)', transition: 'transform 280ms cubic-bezier(0.32,0.72,0.18,1)', boxShadow: SH('0 -20px 40px rgba(0,0,0,0.5)'), display: 'flex', flexDirection: 'column' }}>
+        <div style={{ display: 'flex', justifyContent: 'center', padding: PAD('10px 0 4px') }}>
+          <div style={{ width: 40, height: 4, borderRadius: RS(8), background: 'rgba(0,0,0,0.38)' }} />
+        </div>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: PAD('8px 18px 12px') }}>
+          <div>
+            <div style={{ fontSize: FS(20), fontWeight: 700, color: TOKENS.red, display: 'flex', alignItems: 'center', gap: SP(8) }}><Trash size={18} /> 清除所有歷史資料</div>
+            <div style={{ fontSize: FS(15), color: 'rgba(44,44,50,0.5)', marginTop: SP(2) }}>此操作無法復原</div>
+          </div>
+          <button onClick={onClose} style={{ width: 40, height: 40, borderRadius: RS(18), background: 'rgba(0,0,0,0.14)', border: 'none', color: 'rgba(44,44,50,0.7)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}><X size={18} /></button>
+        </div>
+
+        <div style={{ flex: 1, overflowY: 'auto', overflowX: 'hidden', padding: PAD('0 18px 28px') }}>
+          {done ?
+          <div style={{ padding: PAD('20px 14px'), borderRadius: RS(16), background: 'rgba(110,155,106,0.12)', border: '1px solid rgba(110,155,106,0.3)', color: TOKENS.greenDark, fontSize: FS(16), textAlign: 'center' }}>
+              已清除，即將重新載入…
+            </div> :
+
+          <>
+              <div style={{ padding: PAD('14px 16px'), borderRadius: RS(16), background: 'rgba(184,92,74,0.10)', border: '1px solid rgba(184,92,74,0.3)', color: TOKENS.red, fontSize: FS(15), lineHeight: 1.7 }}>
+                <b>會被清除：</b>所有記帳紀錄（支出/收入/轉帳）、股票交易紀錄、自訂分類與帳戶（恢復成預設）、初始餘額、自動扣款規則。
+                <br /><br />
+                <b>不會清除：</b>App 密碼鎖、AI 金鑰設定、外觀偏好。
+              </div>
+              <div style={{ marginTop: SP(14), fontSize: FS(15), color: 'rgba(44,44,50,0.6)', lineHeight: 1.6 }}>
+                建議先到「安全與備份 → 加密備份 / 還原」匯出一份備份，以防日後需要找回資料。
+              </div>
+              <div style={{ marginTop: SP(16), fontSize: FS(15), color: 'rgba(44,44,50,0.6)' }}>
+                請輸入「{CLEAR_PHRASE}」以確認：
+              </div>
+              <input value={phrase} onChange={(e) => setPhrase(e.target.value)} placeholder={CLEAR_PHRASE}
+              style={{ width: '100%', height: 50, marginTop: SP(6), padding: PAD('0 14px'), borderRadius: RS(14), background: TOKENS.surface, border: '1px solid rgba(0,0,0,0.14)', color: TOKENS.ink, fontSize: FS(17), outline: 'none', boxSizing: 'border-box' }} />
+              <button disabled={phrase !== CLEAR_PHRASE} onClick={doClear} style={{
+              width: '100%', minHeight: 50, marginTop: SP(16), borderRadius: RS(14), border: 'none',
+              background: phrase === CLEAR_PHRASE ? TOKENS.red : 'rgba(184,92,74,0.3)', color: '#fff',
+              fontSize: FS(17), fontWeight: 700, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: SP(8) }}>
+                <Trash size={18} /> 永久清除所有歷史資料
+              </button>
             </>
           }
         </div>

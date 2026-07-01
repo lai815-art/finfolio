@@ -762,7 +762,7 @@ function InvestBreakdownSheet({ open, onClose, computedHoldings = [], masterData
                   <span style={{ textAlign: 'left' }}>年份</span>
                   <span>股息</span><span>債息</span><span>損益</span><span>加總</span>
                 </div>
-                {years.map((y, i) => {
+                {years.slice().reverse().map((y, i) => {
                     const d = byYear[y];
                     const empty = d.pnl === 0 && d.div === 0 && d.bond === 0;
                     if (empty) return null;
