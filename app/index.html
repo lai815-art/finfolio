@@ -49,6 +49,11 @@
     0%   { background: rgba(232, 152, 120,0.32); }
     100% { background: rgba(217, 119, 87,0.10); }
   }
+  @keyframes shake {
+    0%,100% { transform: translateX(0); }
+    25% { transform: translateX(-8px); }
+    75% { transform: translateX(8px); }
+  }
   @keyframes pageSlideIn {
     from { transform: translateX(100%); }
     to   { transform: translateX(0); }

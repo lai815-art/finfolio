@@ -157,6 +157,8 @@ function SettingsScreen({ masterData, setMasterData, dashWidget, setDashWidget, 
   const [recurCount, setRecurCount] = useStateSet(() => {
     try {return (JSON.parse(localStorage.getItem('ff_recurring') || '[]') || []).length;} catch {return 0;}
   });
+  const [lockOpen, setLockOpen] = useStateSet(false);
+  const [lockOn, setLockOn] = useStateSet(() => {try {return !!localStorage.getItem('ff_lock_pin');} catch {return false;}});
   React.useEffect(() => {
     if (!notice) return;
     const t = setTimeout(() => setNotice(null), 4000);
@@ -379,9 +381,9 @@ function SettingsScreen({ masterData, setMasterData, dashWidget, setDashWidget, 
 
       {/* Security */}
       <Section label="安全與備份">
-        <ToggleRow icon={<Lock size={18} />} iconColor={TOKENS.green}
-        label="生物辨識解鎖" sub="Face ID / 指紋開啟 App"
-        value={biometric} onChange={setBiometric} />
+        <Row icon={<Lock size={18} />} iconColor={TOKENS.green}
+        label="App 密碼鎖" sub={lockOn ? '已啟用 · 進入需解鎖' : '進入 App 需輸入密碼 · 可用生物辨識'}
+        onClick={() => setLockOpen(true)} chevron />
         <Divider />
         <ToggleRow icon={<Shield size={18} />} iconColor={TOKENS.gray3}
         label="本機自動備份" sub={autoBackup ? ffBackupSubtitle() : '開啟 App 時自動在本機保留資料快照'}
@@ -417,6 +419,12 @@ function SettingsScreen({ masterData, setMasterData, dashWidget, setDashWidget, 
       onClose={() => {
         setRecurOpen(false);
         try {setRecurCount((JSON.parse(localStorage.getItem('ff_recurring') || '[]') || []).length);} catch {}
+      }} />
+
+      {/* App 密碼鎖 / 生物辨識 */}
+      <LockSheet open={lockOpen} onClose={() => {
+        setLockOpen(false);
+        try {setLockOn(!!localStorage.getItem('ff_lock_pin'));} catch {}
       }} />
 
       {/* 主檔刪除阻擋提示 */}
@@ -2348,6 +2356,102 @@ function RecurringSheet({ open, onClose, data }) {
               </div>
             </>
           }
+        </div>
+      </div>
+    </div>);
+
+}
+
+/* ===================== App 密碼鎖 / 生物辨識 ===================== */
+function LockSheet({ open, onClose }) {
+  const { X, Lock, Check, Shield } = window.Icons;
+  const [shown, setShown] = useStateSet(false);
+  const [pinSet, setPinSet] = useStateSet(false);
+  const [bioOn, setBioOn] = useStateSet(false);
+  const [bioAvail, setBioAvail] = useStateSet(false);
+  const [mode, setMode] = useStateSet('set'); // set | view
+  const [p1, setP1] = useStateSet('');
+  const [p2, setP2] = useStateSet('');
+  const [msg, setMsg] = useStateSet(null);
+
+  React.useEffect(() => {
+    if (!open) {setShown(false);return;}
+    const t = setTimeout(() => setShown(true), 20);
+    const ps = !!localStorage.getItem('ff_lock_pin');
+    setPinSet(ps);
+    setBioOn(localStorage.getItem('ff_lock_bio') === '1' && !!localStorage.getItem('ff_lock_cred'));
+    setMode(ps ? 'view' : 'set');setP1('');setP2('');setMsg(null);
+    (window.ffBioAvailable ? window.ffBioAvailable() : Promise.resolve(false)).then(setBioAvail).catch(() => setBioAvail(false));
+    return () => clearTimeout(t);
+  }, [open]);
+
+  if (!open) return null;
+
+  const savePin = async () => {
+    if (!/^\d{4,6}$/.test(p1)) {setMsg({ t: 'err', m: '請輸入 4–6 位數字密碼' });return;}
+    if (p1 !== p2) {setMsg({ t: 'err', m: '兩次輸入不一致' });return;}
+    try {await window.ffSetPin(p1);setPinSet(true);setMode('view');setP1('');setP2('');setMsg({ t: 'ok', m: '已設定密碼，下次開啟 App 需解鎖' });}
+    catch (e) {setMsg({ t: 'err', m: '設定失敗：' + e.message });}
+  };
+  const removePin = () => {
+    window.ffClearLock();setPinSet(false);setBioOn(false);setMode('set');setP1('');setP2('');setMsg({ t: 'ok', m: '已移除密碼與生物辨識' });
+  };
+  const toggleBio = async () => {
+    if (bioOn) {try {localStorage.removeItem('ff_lock_bio');localStorage.removeItem('ff_lock_cred');} catch {}setBioOn(false);return;}
+    try {await window.ffBioRegister();localStorage.setItem('ff_lock_bio', '1');setBioOn(true);setMsg({ t: 'ok', m: '已啟用生物辨識解鎖' });}
+    catch (e) {setMsg({ t: 'err', m: '生物辨識設定失敗或已取消' });}
+  };
+
+  const inp = { width: '100%', height: 50, padding: PAD('0 14px'), borderRadius: RS(14), background: TOKENS.surface, border: '1px solid rgba(0,0,0,0.14)', color: TOKENS.ink, fontSize: FS(20), letterSpacing: 4, outline: 'none', boxSizing: 'border-box', textAlign: 'center' };
+  const bigBtn = (bg, color, extra) => ({ width: '100%', minHeight: 50, borderRadius: RS(14), border: 'none', background: bg, color, fontSize: FS(17), fontWeight: 600, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: SP(8), ...extra });
+
+  return (
+    <div style={{ position: 'absolute', inset: 0, zIndex: 70, background: shown ? 'rgba(0,0,0,0.55)' : 'rgba(0,0,0,0)', transition: 'background 220ms ease-out', display: 'flex', alignItems: 'flex-end' }} onClick={onClose}>
+      <div onClick={(e) => e.stopPropagation()} style={{ width: '100%', maxHeight: '90%', background: TOKENS.bg, borderTopLeftRadius: 30, borderTopRightRadius: 30, transform: shown ? 'translateY(0)' : 'translateY(100%)', transition: 'transform 280ms cubic-bezier(0.32,0.72,0.18,1)', boxShadow: SH('0 -20px 40px rgba(0,0,0,0.5)'), display: 'flex', flexDirection: 'column' }}>
+        <div style={{ display: 'flex', justifyContent: 'center', padding: PAD('10px 0 4px') }}>
+          <div style={{ width: 40, height: 4, borderRadius: RS(8), background: 'rgba(0,0,0,0.38)' }} />
+        </div>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: PAD('8px 18px 14px') }}>
+          <div>
+            <div style={{ fontSize: FS(20), fontWeight: 700, color: TOKENS.ink, display: 'flex', alignItems: 'center', gap: SP(8) }}><Lock size={18} /> App 密碼鎖</div>
+            <div style={{ fontSize: FS(16), color: 'rgba(44,44,50,0.5)', marginTop: SP(2) }}>進入 App 需輸入密碼；密碼僅雜湊存於本機</div>
+          </div>
+          <button onClick={onClose} style={{ width: 40, height: 40, borderRadius: RS(18), background: 'rgba(0,0,0,0.14)', border: 'none', color: 'rgba(44,44,50,0.7)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}><X size={18} /></button>
+        </div>
+
+        <div style={{ flex: 1, overflowY: 'auto', overflowX: 'hidden', padding: PAD('0 18px 28px') }}>
+          {mode === 'set' ?
+          <>
+              <div style={{ fontSize: FS(15), color: 'rgba(44,44,50,0.6)', marginBottom: SP(6) }}>設定密碼（4–6 位數字）</div>
+              <input type="password" inputMode="numeric" value={p1} onChange={(e) => setP1(e.target.value.replace(/[^0-9]/g, '').slice(0, 6))} placeholder="輸入密碼" style={inp} />
+              <input type="password" inputMode="numeric" value={p2} onChange={(e) => setP2(e.target.value.replace(/[^0-9]/g, '').slice(0, 6))} placeholder="再次輸入" style={{ ...inp, marginTop: SP(10) }} />
+              <button onClick={savePin} style={{ ...bigBtn('linear-gradient(135deg, ' + TOKENS.accentLight + ', ' + TOKENS.accent + ')', '#fff'), marginTop: SP(16) }}><Check size={18} /> 設定密碼</button>
+              {pinSet && <button onClick={() => {setMode('view');setMsg(null);}} style={{ ...bigBtn(TOKENS.surface, TOKENS.ink, { border: '1px solid rgba(0,0,0,0.14)' }), marginTop: SP(10) }}>取消</button>}
+            </> :
+
+          <>
+              <div style={{ padding: PAD('14px 16px'), borderRadius: RS(16), background: 'rgba(110,155,106,0.12)', border: '1px solid rgba(110,155,106,0.3)', color: TOKENS.greenDark, fontSize: FS(16), display: 'flex', alignItems: 'center', gap: SP(8) }}>
+                <Check size={18} /> 密碼鎖已啟用，開啟 App 時需解鎖
+              </div>
+
+              {/* 生物辨識 */}
+              <div style={{ marginTop: SP(16), padding: PAD('14px 16px'), borderRadius: RS(16), background: TOKENS.surface, border: '1px solid rgba(0,0,0,0.12)', display: 'flex', alignItems: 'center', gap: SP(12) }}>
+                <div style={{ width: 36, height: 36, borderRadius: RS(20), background: 'rgba(217,119,87,0.14)', border: '1px solid rgba(217,119,87,0.3)', color: TOKENS.accent, display: 'flex', alignItems: 'center', justifyContent: 'center' }}><Shield size={18} /></div>
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{ fontSize: FS(18), fontWeight: 600, color: TOKENS.ink }}>生物辨識解鎖</div>
+                  <div style={{ fontSize: FS(14), color: 'rgba(44,44,50,0.55)', marginTop: SP(2) }}>{bioAvail ? 'Face ID / 指紋（此裝置支援）' : '此裝置或瀏覽器不支援'}</div>
+                </div>
+                <button disabled={!bioAvail} onClick={toggleBio} style={{ width: 52, height: 32, borderRadius: RS(18), flexShrink: 0, background: bioOn ? TOKENS.accent : 'rgba(60,60,67,0.14)', border: 'none', position: 'relative', padding: 0, opacity: bioAvail ? 1 : 0.4 }}>
+                  <span style={{ position: 'absolute', top: 2, left: bioOn ? 22 : 2, width: 28, height: 28, borderRadius: RS(18), background: '#fff', transition: 'left 180ms' }} />
+                </button>
+              </div>
+
+              <button onClick={() => {setMode('set');setP1('');setP2('');setMsg(null);}} style={{ ...bigBtn(TOKENS.surface, TOKENS.ink, { border: '1px solid rgba(0,0,0,0.14)' }), marginTop: SP(16) }}>變更密碼</button>
+              <button onClick={removePin} style={{ ...bigBtn('rgba(184,92,74,0.10)', TOKENS.red, { border: '1px solid rgba(184,92,74,0.3)' }), marginTop: SP(10) }}>移除密碼鎖</button>
+            </>
+          }
+
+          {msg && <div style={{ marginTop: SP(14), padding: PAD('12px 14px'), borderRadius: RS(14), fontSize: FS(15), lineHeight: 1.5, background: msg.t === 'ok' ? 'rgba(110,155,106,0.12)' : 'rgba(184,92,74,0.10)', border: '1px solid ' + (msg.t === 'ok' ? 'rgba(110,155,106,0.3)' : 'rgba(184,92,74,0.3)'), color: msg.t === 'ok' ? TOKENS.greenDark : TOKENS.red }}>{msg.m}</div>}
         </div>
       </div>
     </div>);

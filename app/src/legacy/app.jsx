@@ -110,6 +110,125 @@ function ffRunRecurring(ctx) {
 }
 if (typeof window !== 'undefined') window.ffInitialLastRun = ffInitialLastRun;
 
+/* ── App 鎖定：進入需輸入密碼，可選生物辨識（Face ID / 指紋）─────────
+   密碼以 SHA-256（加 salt）雜湊後存於本機，不存明碼。生物辨識用 WebAuthn
+   平台驗證器（本機用途，不做伺服器驗證）。 */
+async function ffSha256Hex(str) {
+  const buf = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(str));
+  return Array.from(new Uint8Array(buf)).map((b) => b.toString(16).padStart(2, '0')).join('');
+}
+function ffLockEnabled() {try {return !!localStorage.getItem('ff_lock_pin');} catch {return false;}}
+function ffLockLen() {try {return parseInt(localStorage.getItem('ff_lock_len'), 10) || 4;} catch {return 4;}}
+async function ffSetPin(pin) {
+  let salt = localStorage.getItem('ff_lock_salt');
+  if (!salt) {
+    salt = Array.from(crypto.getRandomValues(new Uint8Array(8))).map((b) => b.toString(16).padStart(2, '0')).join('');
+    localStorage.setItem('ff_lock_salt', salt);
+  }
+  localStorage.setItem('ff_lock_pin', await ffSha256Hex(salt + ':' + pin));
+  localStorage.setItem('ff_lock_len', String(pin.length));
+}
+async function ffCheckPin(pin) {
+  const salt = localStorage.getItem('ff_lock_salt') || '';
+  return (await ffSha256Hex(salt + ':' + pin)) === localStorage.getItem('ff_lock_pin');
+}
+function ffClearLock() {['ff_lock_pin', 'ff_lock_salt', 'ff_lock_len', 'ff_lock_bio', 'ff_lock_cred'].forEach((k) => {try {localStorage.removeItem(k);} catch {}});}
+function ffBioOn() {try {return localStorage.getItem('ff_lock_bio') === '1' && !!localStorage.getItem('ff_lock_cred');} catch {return false;}}
+
+function _b64buf(b64) {const bin = atob(b64.replace(/-/g, '+').replace(/_/g, '/'));const a = new Uint8Array(bin.length);for (let i = 0; i < bin.length; i++) a[i] = bin.charCodeAt(i);return a.buffer;}
+function _bufb64(buf) {const a = new Uint8Array(buf);let s = '';for (let i = 0; i < a.length; i++) s += String.fromCharCode(a[i]);return btoa(s);}
+async function ffBioAvailable() {
+  try {return !!window.PublicKeyCredential && (await PublicKeyCredential.isUserVerifyingPlatformAuthenticatorAvailable());} catch {return false;}
+}
+async function ffBioRegister() {
+  const cred = await navigator.credentials.create({ publicKey: {
+      challenge: crypto.getRandomValues(new Uint8Array(32)),
+      rp: { name: 'FinFolio' },
+      user: { id: crypto.getRandomValues(new Uint8Array(16)), name: 'finfolio', displayName: 'FinFolio' },
+      pubKeyCredParams: [{ type: 'public-key', alg: -7 }, { type: 'public-key', alg: -257 }],
+      authenticatorSelection: { authenticatorAttachment: 'platform', userVerification: 'required' },
+      timeout: 60000, attestation: 'none' } });
+  if (!cred) throw new Error('未建立生物辨識');
+  localStorage.setItem('ff_lock_cred', _bufb64(cred.rawId));
+}
+async function ffBioVerify() {
+  const id = localStorage.getItem('ff_lock_cred');
+  if (!id) throw new Error('尚未設定生物辨識');
+  const a = await navigator.credentials.get({ publicKey: {
+      challenge: crypto.getRandomValues(new Uint8Array(32)),
+      allowCredentials: [{ type: 'public-key', id: _b64buf(id) }],
+      userVerification: 'required', timeout: 60000 } });
+  return !!a;
+}
+if (typeof window !== 'undefined') Object.assign(window, { ffLockEnabled, ffLockLen, ffSetPin, ffCheckPin, ffClearLock, ffBioOn, ffBioAvailable, ffBioRegister, ffBioVerify });
+
+function LockScreen({ onUnlock }) {
+  const { Lock, Check } = window.Icons;
+  const [pin, setPin] = useStateApp('');
+  const [err, setErr] = useStateApp(false);
+  const [bioBusy, setBioBusy] = useStateApp(false);
+  const len = ffLockLen();
+  const bio = ffBioOn();
+
+  const tryBio = () => {
+    if (!bio || bioBusy) return;
+    setBioBusy(true);
+    ffBioVerify().then((ok) => {if (ok) onUnlock();}).catch(() => {}).then(() => setBioBusy(false));
+  };
+  useEffectApp(() => {if (bio) tryBio();}, []); // 進入時自動嘗試生物辨識
+
+  const push = (d) => {
+    if (pin.length >= len) return;
+    const next = pin + d;
+    setErr(false);setPin(next);
+    if (next.length === len) {
+      ffCheckPin(next).then((ok) => {
+        if (ok) onUnlock();else {setErr(true);setTimeout(() => setPin(''), 400);}
+      });
+    }
+  };
+  const back = () => {setErr(false);setPin(pin.slice(0, -1));};
+
+  const KEYS = ['1', '2', '3', '4', '5', '6', '7', '8', '9', '', '0', 'del'];
+  return (
+    <div style={{ position: 'absolute', inset: 0, zIndex: 200, background: TOKENS.bg,
+      display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: PAD('0 30px') }}>
+      <div style={{ width: 64, height: 64, borderRadius: RS(22), background: TOKENS.ink,
+        display: 'flex', alignItems: 'center', justifyContent: 'center', color: TOKENS.surface }}><Lock size={28} /></div>
+      <div style={{ fontSize: FS(22), fontWeight: 700, color: TOKENS.ink, marginTop: SP(16) }}>輸入密碼解鎖</div>
+      <div style={{ fontSize: FS(16), color: 'rgba(44,44,50,0.5)', marginTop: SP(4) }}>{err ? '密碼錯誤，請再試一次' : 'FinFolio 已鎖定'}</div>
+
+      {/* dots */}
+      <div style={{ display: 'flex', gap: SP(14), margin: PAD('26px 0 30px'), animation: err ? 'shake 0.3s' : 'none' }}>
+        {Array.from({ length: len }).map((_, i) =>
+        <div key={i} style={{ width: 16, height: 16, borderRadius: RS(10),
+          background: i < pin.length ? err ? TOKENS.red : TOKENS.ink : 'transparent',
+          border: `2px solid ${err ? TOKENS.red : i < pin.length ? TOKENS.ink : 'rgba(0,0,0,0.28)'}` }} />
+        )}
+      </div>
+
+      {/* keypad */}
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 76px)', gap: SP(16) }}>
+        {KEYS.map((k, i) => {
+          if (k === '') return <div key={i} />;
+          if (k === 'del') return (
+            <button key={i} onClick={back} style={{ height: 76, borderRadius: RS(40), background: 'transparent', border: 'none',
+              color: TOKENS.ink, fontSize: FS(26), display: 'flex', alignItems: 'center', justifyContent: 'center' }}>⌫</button>);
+          return (
+            <button key={i} onClick={() => push(k)} style={{ height: 76, borderRadius: RS(40),
+              background: TOKENS.surface, border: '1px solid rgba(0,0,0,0.12)', color: TOKENS.ink,
+              fontSize: FS(28), fontWeight: 500, fontFamily: TOKENS.fontMono }}>{k}</button>);
+        })}
+      </div>
+      {bio &&
+      <button onClick={tryBio} style={{ marginTop: SP(22), background: 'transparent', border: 'none', color: TOKENS.accent, fontSize: FS(17), fontWeight: 600 }}>
+        使用生物辨識解鎖
+      </button>
+      }
+    </div>);
+
+}
+
 /* ─── Data compute helpers ────────────────────────────────────────── */
 const KIND_TO_GID = {
   '銀行': 'bank', '信用卡': 'credit', '現金': 'cash',
@@ -364,7 +483,7 @@ function TabBar({ tab, setTab, onVoice, onManualRecord, onSettings }) {
   return (
     <div style={{
       position: 'absolute', bottom: 0, left: 0, right: 0, zIndex: 40,
-      paddingBottom: SP(24), pointerEvents: 'none',
+      paddingBottom: SP(20), pointerEvents: 'none',
       background: `linear-gradient(to top, ${TOKENS.bgWarm} 55%, rgba(38,38,36,0))`
     }}>
       <div style={{ ...{
@@ -434,14 +553,8 @@ function TabBar({ tab, setTab, onVoice, onManualRecord, onSettings }) {
 
         })}
       </div>
-      {IS_STANDALONE ?
-      // 獨立 App：系統自帶 home indicator，這裡只留底部安全區避免被遮住
-      <div style={{ height: 'env(safe-area-inset-bottom, 0px)' }} /> :
-      // 瀏覽器預覽：畫一條示意的 home bar
-      <div style={{ display: 'flex', justifyContent: 'center', marginTop: SP(8) }}>
-        <div style={{ width: 134, height: 5, borderRadius: RS(100), background: 'rgba(0,0,0,0.86)' }} />
-      </div>
-      }
+      {/* 選單距離底部固定 ~20px（上方 paddingBottom），不再額外加整段安全區，
+          讓中間可顯示的內容區域更大。 */}
     </div>);
 
 }
@@ -796,6 +909,7 @@ function SettingsOverlay({ open, onClose, masterData, setMasterData, dashWidget,
 
 function App() {
   const [tab, setTab] = useStateApp('dashboard');
+  const [locked, setLocked] = useStateApp(() => ffLockEnabled());
   const [, _bumpTokens] = useStateApp(0);
   useEffectApp(() => {
     const h = () => _bumpTokens((n) => n + 1);
@@ -898,6 +1012,13 @@ function App() {
         initBal: initialBalances });
       if (gen && gen.length) setSavedFlows((s) => [...gen, ...s]);
     } catch (e) {console.error('[recurring]', e);}
+  }, []);
+
+  // App 鎖定：切到背景時，若已設定密碼則重新上鎖，回到前景需再次解鎖。
+  useEffectApp(() => {
+    const onVis = () => {if (document.visibilityState === 'hidden' && ffLockEnabled()) setLocked(true);};
+    document.addEventListener('visibilitychange', onVis);
+    return () => document.removeEventListener('visibilitychange', onVis);
   }, []);
 
   // 本機自動備份：開啟 App 時存一份快照，離開（切到背景）時再存最新的一份。
@@ -1334,6 +1455,9 @@ function App() {
           </>);
 
       })()}
+
+      {/* App 鎖定畫面（最上層）*/}
+      {locked && <LockScreen onUnlock={() => setLocked(false)} />}
     </div>);
 
 }
