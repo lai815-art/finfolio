@@ -2596,7 +2596,7 @@ function ImportSheet({ open, onClose, data, setData, savedFlows, savedTrades, se
     if (!parsed) return;
     setBusy(true);
     try {
-      const nextData = { ...md, brokers: [...(md.brokers || [])], settle: [...(md.settle || [])], accounts: [...(md.accounts || [])] };
+      const nextData = { ...md, brokers: [...(md.brokers || [])], settle: [...(md.settle || [])], accounts: [...(md.accounts || [])], asset_class: [...(md.asset_class || [])] };
       const balDelta = {}; // settleName -> 要加的初始餘額
       const newTrades = [];
       const base = Date.now(); let seq = 0;
@@ -2614,12 +2614,14 @@ function ImportSheet({ open, onClose, data, setData, savedFlows, savedTrades, se
         }
         balDelta[settleName] = (balDelta[settleName] || 0) + (g.totalCost || 0);
         g.stocks.forEach((s) => {
+          const assetClass = s.assetClass || '股票';
+          if (!nextData.asset_class.includes(assetClass)) nextData.asset_class.push(assetClass);
           s.lots.forEach((lot) => {
             const price = lot.shares > 0 ? lot.cost / lot.shares : 0;
             newTrades.push({
               side: 'buy', code: s.code, name: s.name, shares: lot.shares, price,
               fee: 0, net: lot.cost, broker: brokerName, settleAccount: settleName,
-              assetClass: '股票', date: lot.date,
+              assetClass, date: lot.date,
               importBatch: parsed.batchId, time: '歷史匯入', _justAdded: stamp() });
           });
         });
@@ -2710,6 +2712,10 @@ function ImportSheet({ open, onClose, data, setData, savedFlows, savedTrades, se
                   <div style={{ fontSize: FS(18), fontWeight: 700, color: TOKENS.ink }}>{g.key}</div>
                   <div style={{ fontSize: FS(14), color: 'rgba(44,44,50,0.55)', marginTop: SP(2) }}>
                     {g.stocks.length} 檔標的 · {g.stocks.reduce((a, s) => a + s.lots.length, 0)} 筆買進 · 成本 {g.totalCost.toLocaleString()} {g.currency}
+                  </div>
+                  <div style={{ fontSize: FS(13), color: 'rgba(44,44,50,0.45)', marginTop: SP(4) }}>
+                    {Object.entries(g.stocks.reduce((m, s) => {const k = s.assetClass || '股票';m[k] = (m[k] || 0) + 1;return m;}, {}))
+                    .map(([k, n]) => `${k} ${n}`).join(' · ')}
                   </div>
                   <div style={lbl}>證券戶</div>
                   <select value={(brokerSel[g.key] || {}).broker || NEW_SENTINEL} onChange={(e) => setBrokerSel((m) => ({ ...m, [g.key]: { ...m[g.key], broker: e.target.value } }))} style={inp}>
