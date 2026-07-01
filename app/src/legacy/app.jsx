@@ -746,11 +746,11 @@ function parseUtterance(text, masterData = {}) {
   resolveCategoryV(t, masterData.cat_inc, INC_KW_V) :
   resolveCategoryV(t, masterData.cat_exp, EXP_KW_V);
   const account = resolveAccountV(t, masterData);
-  const note = t.replace(/\d[\d,]*(?:\.\d+)?\s*(?:元|塊|\$)?/g, '').replace(/\s+/g, ' ').trim();
+  // 語音記帳不把辨識文字帶入備註欄（原句仍顯示在「AI 已帶入」提示）。
   const summary = [];
   if (category) summary.push(['分類', category]);
   if (account) summary.push(['帳戶', account]);
-  const apply = { kind, amount: String(amount), note };
+  const apply = { kind, amount: String(amount), note: '' };
   if (category) apply.category = category;
   if (account) apply.account = account;
   return { intent: 'flow', edit: false, text: t, summary, apply };
