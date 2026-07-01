@@ -184,7 +184,7 @@ window.TW_STOCK_FALLBACK = [
 ];
 
 /* ── 台股：從 TWSE / TPEX 完整清單 API 抓取 + 24h 快取 ── */
-const TW_CACHE_KEY = 'ff_tw_stocks_v6';
+const TW_CACHE_KEY = 'ff_tw_stocks_v7'; // v7: 併入興櫃（emerging）清單
 const TW_CACHE_TTL = 24 * 60 * 60 * 1000;
 
 // 永遠把靜態清單併入結果：API / Worker 的「當日成交」清單常缺少低成交量的

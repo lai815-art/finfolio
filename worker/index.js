@@ -93,6 +93,28 @@ async function getDailyAll(ctx) {
     }
   } catch (e) { /* ignore */ }
 
+  // 興櫃（emerging board）daily close. TPEx's exact OpenAPI dataset name for
+  // emerging stocks is not certain from here, so try a few candidates and parse
+  // defensively (any object with a 4–6 digit code + a positive price field).
+  // Harmless if an endpoint 404s or its shape differs — nothing gets written.
+  const ESB_ENDPOINTS = [
+    'https://www.tpex.org.tw/openapi/v1/tpex_esb_daily_close_quotes',
+    'https://www.tpex.org.tw/openapi/v1/tpex_esb_latest_statistics',
+    'https://www.tpex.org.tw/openapi/v1/tpex_esbtr_daily_close_quotes',
+  ];
+  for (const ep of ESB_ENDPOINTS) {
+    try {
+      const r = await fetch(ep, { cf: { cacheTtl: 600 } });
+      if (!r.ok) continue;
+      const arr = await r.json();
+      (Array.isArray(arr) ? arr : []).forEach((s) => {
+        const code = String(s.SecuritiesCompanyCode || s.Code || s.CompanyCode || s.code || '').trim();
+        const p = num(s.LastPrice || s.Close || s.ClosingPrice || s.WeightedAvgPrice || s.Deal || s.LatestPrice || s.LatestDealPrice);
+        if (/^\d{4,6}[A-Z]?$/.test(code) && p && p > 0 && map[code] == null) map[code] = p;
+      });
+    } catch (e) { /* ignore — 興櫃 price is best-effort */ }
+  }
+
   if (Object.keys(map).length > 50) {
     ctx.waitUntil(cache.put(key, new Response(JSON.stringify(map), {
       headers: { 'Content-Type': 'application/json', 'Cache-Control': 'public, max-age=1800' },
@@ -123,16 +145,19 @@ async function getFX(ctx) {
   return fx;
 }
 
-// US daily close via Finnhub (previous close `pc`), only when a key is set.
+// US latest price via Finnhub, only when a key is set.
+// `c` = current/last price (updates during and after the session → today's close
+// once the market closes); `pc` = previous close. Prefer `c` so after-hours and
+// close prices update; fall back to `pc` only when `c` is missing/zero.
 async function getUS(codes, env) {
   const out = {};
   if (!env || !env.FINNHUB_KEY || !codes.length) return out;
   await Promise.all(codes.slice(0, 25).map(async (c) => {
     try {
-      const r = await fetch(`https://finnhub.io/api/v1/quote?symbol=${encodeURIComponent(c)}&token=${env.FINNHUB_KEY}`, { cf: { cacheTtl: 600 } });
+      const r = await fetch(`https://finnhub.io/api/v1/quote?symbol=${encodeURIComponent(c)}&token=${env.FINNHUB_KEY}`, { cf: { cacheTtl: 120 } });
       if (r.ok) {
         const d = await r.json();
-        const p = d && (d.pc || d.c);
+        const p = d && (d.c && d.c > 0 ? d.c : d.pc);
         if (p && p > 0) out[c] = p;
       }
     } catch (e) { /* ignore */ }
@@ -174,9 +199,11 @@ async function getTWList(ctx) {
   const add = (code, name) => { code = (code || '').trim(); name = (name || '').trim(); if (code && name && !map[code]) map[code] = name; };
 
   // 1) Authoritative ISIN list (complete, incl. ETFs / bond ETFs).
-  const [listed, otc] = await Promise.all([getISINList(2), getISINList(4)]);
+  //    strMode 2 上市 · 4 上櫃 · 5 興櫃（emerging board, e.g. 長亨）.
+  const [listed, otc, emerging] = await Promise.all([getISINList(2), getISINList(4), getISINList(5)]);
   listed.forEach((s) => add(s.code, s.name));
   otc.forEach((s) => add(s.code, s.name));
+  emerging.forEach((s) => add(s.code, s.name));
 
   // 2) Fallback: OpenAPI daily reports (only if ISIN failed, e.g. Big5 issue).
   if (Object.keys(map).length < 50) {
