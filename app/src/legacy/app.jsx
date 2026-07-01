@@ -1131,7 +1131,11 @@ function App() {
   computeHoldings(savedTrades, masterData, livePrices),
   [savedTrades, masterData, livePrices]
   );
-  // 帳戶詳情回復：等 computedAcctGroups 更新後取最新餘額
+  // 帳戶詳情回復：儲存/刪除後回到該帳戶詳情頁（取最新餘額）。
+  // 故意依賴 [savedFlows, savedTrades]（實際記帳資料），不依賴 computedAcctGroups——
+  // 後者還會因即時報價（livePrices）背景刷新而重新計算，若依賴它，使用者編輯中途
+  // 剛好遇到報價刷新，就會被這個 effect 用「編輯前的舊資料」提前觸發並清掉還原旗標，
+  // 導致存檔後畫面沒有跳回、看起來像「沒有更新成功」。
   useEffectApp(() => {
     if (!recordReturnAcctDetail) return;
     const { groupId, itemName } = recordReturnAcctDetail;
@@ -1141,8 +1145,9 @@ function App() {
       setAcctDetail({ group: freshGroup, item: freshItem });
       setRecordReturnAcctDetail(null);
     }
-  }, [computedAcctGroups]); // 只依賴 computedAcctGroups，避免設定時立即觸發
-  // 個股詳情回復：編輯/新增後回到該個股詳情頁（取最新持倉）
+  }, [savedFlows, savedTrades]);
+  // 個股詳情回復：編輯/新增後回到該個股詳情頁（取最新持倉）。同上，依賴 savedTrades
+  // 而非 computedHoldings，避免被背景報價刷新提前觸發。
   useEffectApp(() => {
     if (!recordReturnInvestDetail) return;
     const code = recordReturnInvestDetail.code;
@@ -1151,7 +1156,7 @@ function App() {
       setInvestDetail({ item, mask: appMask, savedTrades });
       setRecordReturnInvestDetail(null);
     }
-  }, [computedHoldings]);
+  }, [savedTrades]);
 
   const FLOW_ICONS = {
     餐飲: '🍔', 交通: '🚕', 生活雜貨: '🛒', 娛樂: '🎬', 醫療: '💊',
