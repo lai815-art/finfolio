@@ -100,9 +100,12 @@
       var stage = document.getElementById('stage');
       var scale = document.getElementById('scale');
       if (!stage || !scale) return;
-      var vv = window.visualViewport;
-      var w = (vv && vv.width)  || stage.clientWidth  || window.innerWidth;
-      var h = (vv && vv.height) || stage.clientHeight || window.innerHeight;
+      // Use the LAYOUT viewport (stage is min-height:100dvh), NOT visualViewport:
+      // when the on-screen keyboard opens, visualViewport.height shrinks and would
+      // squash the whole fixed-layout canvas into the area above the keyboard
+      // ("跑版"). The layout viewport stays full-height, so the canvas is stable.
+      var w = stage.clientWidth || window.innerWidth;
+      var h = stage.clientHeight || window.innerHeight;
       if (!w || !h) return;
       var k, appH;
       if (window.FF_STANDALONE) {
@@ -125,13 +128,21 @@
     window.addEventListener('orientationchange', fit);
     window.addEventListener('pageshow', fit);
     document.addEventListener('visibilitychange', function () { if (!document.hidden) fit(); });
-    if (window.visualViewport) {
-      window.visualViewport.addEventListener('resize', fit);
-      window.visualViewport.addEventListener('scroll', fit);
-    }
+    // NOTE: intentionally NOT re-fitting on visualViewport resize/scroll — those fire
+    // when the keyboard opens and must not resize the canvas (see fit() comment).
     if (window.ResizeObserver) {
       try { new ResizeObserver(fit).observe(document.getElementById('stage')); } catch (e) {}
     }
+
+    // Keep the focused field visible above the keyboard: scroll it toward the
+    // centre of its scroll container once the keyboard has animated in.
+    document.addEventListener('focusin', function (e) {
+      var el = e.target;
+      if (!el || !/^(INPUT|TEXTAREA|SELECT)$/.test(el.tagName)) return;
+      setTimeout(function () {
+        try { el.scrollIntoView({ block: 'center', behavior: 'smooth' }); } catch (_) {}
+      }, 300);
+    });
     // A few early ticks so the first paint settles, then keep correcting on the events above.
     [0, 100, 400, 800, 1500].forEach(function (t) { setTimeout(fit, t); });
   </script>
