@@ -74,11 +74,11 @@ const DEFAULT_DATA = {
   { name: '薪資', group: '主動' },
   { name: '獎金', group: '主動' },
   { name: '加班費', group: '主動' },
-  { name: '股息', group: '被動' },
-  { name: '利息', group: '被動' },
   { name: '租金', group: '被動' },
-  { name: '紅利回饋', group: '被動' },
-  { name: '投資收入', group: '被動' },
+  { name: '股息', group: '投資收入' },
+  { name: '利息', group: '投資收入' },
+  { name: '紅利回饋', group: '投資收入' },
+  { name: '投資收入', group: '投資收入' },
   { name: '發票中獎', group: '其他' },
   { name: '退稅', group: '其他' },
   { name: '其他', group: '其他' }],
@@ -914,9 +914,9 @@ function ManageSheet({ cfg, data, setData, onClose, initialBalances, setInitialB
 /* ── IncomeGroupManager: 主動 / 被動 / 其他 ──────────────────────────── */
 function IncomeGroupManager({ items, onChange, color, groups, groupColors, groupLabels, defaultGroup }) {
   const { Plus, X, Check, Trash } = window.Icons;
-  const GROUPS = groups || ['\u4e3b\u52d5', '\u88ab\u52d5', '\u5176\u4ed6'];
-  const GROUP_COLORS = groupColors || { '\u4e3b\u52d5': '#1D4F9E', '\u88ab\u52d5': TOKENS.blue2, '\u5176\u4ed6': '#4E86C4' };
-  const GROUP_LABELS = groupLabels || { '\u4e3b\u52d5': '\u4e3b\u52d5\u6536\u5165', '\u88ab\u52d5': '\u88ab\u52d5\u6536\u5165', '\u5176\u4ed6': '\u5176\u4ed6' };
+  const GROUPS = groups || ['\u4e3b\u52d5', '\u88ab\u52d5', '\u6295\u8cc7\u6536\u5165', '\u5176\u4ed6'];
+  const GROUP_COLORS = groupColors || { '\u4e3b\u52d5': '#1D4F9E', '\u88ab\u52d5': TOKENS.blue2, '\u6295\u8cc7\u6536\u5165': TOKENS.green2, '\u5176\u4ed6': '#4E86C4' };
+  const GROUP_LABELS = groupLabels || { '\u4e3b\u52d5': '\u4e3b\u52d5\u6536\u5165', '\u88ab\u52d5': '\u88ab\u52d5\u6536\u5165', '\u6295\u8cc7\u6536\u5165': '\u6295\u8cc7\u6536\u5165', '\u5176\u4ed6': '\u5176\u4ed6' };
   const [editing, setEditing] = useStateSet(null); // { group, idx }
   const [editVal, setEditVal] = useStateSet('');
   const [adding, setAdding] = useStateSet(null); // group string
@@ -2631,11 +2631,18 @@ function ImportSheet({ open, onClose, data, setData, savedFlows, savedTrades, se
       if (!nextData.accounts.find((a) => a.name === ledgerName)) {
         nextData.accounts.push({ name: ledgerName, kind: '銀行', currency: 'TWD' });
       }
+      // 美股股息以美金計價，不能跟台幣記錄混在同一個帳戶裡，另開一個美金專用帳戶。
+      const ledgerNameUSD = ledgerName + '（美股）';
+      const hasUsdIncome = (parsed.ledger.income || []).some((x) => x.currency === 'USD');
+      if (hasUsdIncome && !nextData.accounts.find((a) => a.name === ledgerNameUSD)) {
+        nextData.accounts.push({ name: ledgerNameUSD, kind: '銀行', currency: 'USD' });
+      }
       const newFlows = [];
       (parsed.ledger.income || []).forEach((x) => {
+        const isUsd = x.currency === 'USD';
         newFlows.push({ kind: 'inc', amount: Math.abs(x.amount), cat: ffCatFor('inc', x.name, x.amount),
           merchant: '歷史匯入 · ' + x.name + (x.precision === 'year' ? '（年度彙總）' : ''),
-          account: ledgerName, date: x.date, icon: '💰', importBatch: parsed.batchId, time: '歷史匯入', _justAdded: stamp() });
+          account: isUsd ? ledgerNameUSD : ledgerName, date: x.date, icon: '💰', importBatch: parsed.batchId, time: '歷史匯入', _justAdded: stamp() });
       });
       (parsed.ledger.realized || []).forEach((x) => {
         const kind = x.pnl >= 0 ? 'inc' : 'exp';
@@ -2665,7 +2672,10 @@ function ImportSheet({ open, onClose, data, setData, savedFlows, savedTrades, se
   const bigBtn = (bg, color, extra) => ({ width: '100%', minHeight: 50, borderRadius: RS(14), border: 'none', background: bg, color, fontSize: FS(17), fontWeight: 600, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: SP(8), opacity: busy ? 0.6 : 1, ...extra });
 
   const totalTrades = parsed ? parsed.brokerGroups.reduce((a, g) => a + g.stocks.reduce((b, s) => b + s.lots.length, 0), 0) : 0;
-  const totalIncomeAmt = parsed ? (parsed.ledger.income || []).reduce((a, x) => a + x.amount, 0) : 0;
+  const incomeTWD = parsed ? (parsed.ledger.income || []).filter((x) => x.currency !== 'USD') : [];
+  const incomeUSD = parsed ? (parsed.ledger.income || []).filter((x) => x.currency === 'USD') : [];
+  const totalIncomeAmtTWD = incomeTWD.reduce((a, x) => a + x.amount, 0);
+  const totalIncomeAmtUSD = incomeUSD.reduce((a, x) => a + x.amount, 0);
   const totalRealizedAmt = parsed ? (parsed.ledger.realized || []).reduce((a, x) => a + x.pnl, 0) : 0;
 
   return (
@@ -2733,12 +2743,16 @@ function ImportSheet({ open, onClose, data, setData, savedFlows, savedTrades, se
               <div style={{ background: TOKENS.surface, borderRadius: RS(16), border: '1px solid rgba(0,0,0,0.12)', padding: PAD('14px'), marginBottom: SP(14) }}>
                 <div style={{ fontSize: FS(18), fontWeight: 700, color: TOKENS.ink }}>股息／利息／已實現損益</div>
                 <div style={{ fontSize: FS(14), color: 'rgba(44,44,50,0.55)', marginTop: SP(2), lineHeight: 1.6 }}>
-                  {(parsed.ledger.income || []).length} 筆收入，共 {Math.round(totalIncomeAmt).toLocaleString()} 元<br />
+                  {incomeTWD.length} 筆台幣收入，共 {Math.round(totalIncomeAmtTWD).toLocaleString()} 元<br />
+                  {incomeUSD.length > 0 && <>{incomeUSD.length} 筆美股股息，共 {totalIncomeAmtUSD.toLocaleString()} 美元<br /></>}
                   {(parsed.ledger.realized || []).length} 筆已實現損益，淨額 {Math.round(totalRealizedAmt).toLocaleString()} 元<br />
                   <span style={{ color: 'rgba(44,44,50,0.4)' }}>早期年份僅有年度彙總金額（無法還原到確切日期），會標註「年度彙總」。</span>
                 </div>
                 <div style={lbl}>記入哪個帳戶（會新增此帳戶，只用來放這批歷史記錄，不影響其他帳戶）</div>
                 <input value={ledgerAccount} onChange={(e) => setLedgerAccount(e.target.value)} style={inp} />
+                {incomeUSD.length > 0 && <div style={{ fontSize: FS(13), color: 'rgba(44,44,50,0.45)', marginTop: SP(6) }}>
+                  美股股息會另外存到「{(ledgerAccount || '歷史投資記錄').trim() || '歷史投資記錄'}（美股）」這個美金帳戶，跟台幣分開，不會混算。
+                </div>}
               </div>
 
               {status && <div style={{ marginBottom: SP(14), padding: PAD('12px 14px'), borderRadius: RS(14), fontSize: FS(15), lineHeight: 1.5, background: status.type === 'ok' ? 'rgba(110,155,106,0.12)' : 'rgba(184,92,74,0.10)', border: '1px solid ' + (status.type === 'ok' ? 'rgba(110,155,106,0.3)' : 'rgba(184,92,74,0.3)'), color: status.type === 'ok' ? TOKENS.greenDark : TOKENS.red }}>{status.msg}</div>}
