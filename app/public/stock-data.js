@@ -119,6 +119,8 @@ window.TW_STOCK_FALLBACK = [
   {code:'2498',name:'宏達電',    class:'台股'},{code:'2347',name:'聯強',     class:'台股'},
   {code:'4966',name:'譜瑞-KY',   class:'台股'},{code:'6415',name:'矽力-KY',  class:'台股'},
   {code:'3661',name:'世芯-KY',   class:'台股'},{code:'6446',name:'藥華藥',   class:'台股'},
+  // 興櫃（emerging；完整清單由 Worker 提供，這裡先放常見/使用者持有者）
+  {code:'4546',name:'長亨',      class:'興櫃'},
   // 台股市值 / 主題 ETF（已確認名稱）
   {code:'0050',  name:'元大台灣50',        class:'台股ETF'},
   {code:'0051',  name:'元大中型100',       class:'台股ETF'},
