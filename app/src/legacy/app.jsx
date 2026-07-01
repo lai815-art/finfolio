@@ -192,7 +192,10 @@ function LockScreen({ onUnlock }) {
     setBioBusy(true);
     ffBioVerify().then((ok) => {if (ok) onUnlock();}).catch(() => {}).then(() => setBioBusy(false));
   };
-  useEffectApp(() => {if (bio) tryBio();}, []); // 進入時自動嘗試生物辨識
+  // 一設定生物辨識就在開啟畫面自動啟動；若平台要求手勢（iOS 常見），
+  // 畫面任一處第一次觸碰也會立即啟動，不必特地找按鈕。
+  useEffectApp(() => {if (bio) tryBio();}, []);
+  const onScreenTap = () => {if (bio) tryBio();};
 
   const push = (d) => {
     if (pin.length >= len) return;
@@ -208,12 +211,14 @@ function LockScreen({ onUnlock }) {
 
   const KEYS = ['1', '2', '3', '4', '5', '6', '7', '8', '9', '', '0', 'del'];
   return (
-    <div style={{ position: 'absolute', inset: 0, zIndex: 200, background: TOKENS.bg,
+    <div onPointerDown={onScreenTap} style={{ position: 'absolute', inset: 0, zIndex: 200, background: TOKENS.bg,
       display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: PAD('0 30px') }}>
-      <div style={{ width: 64, height: 64, borderRadius: RS(22), background: TOKENS.ink,
-        display: 'flex', alignItems: 'center', justifyContent: 'center', color: TOKENS.surface }}><Lock size={28} /></div>
-      <div style={{ fontSize: FS(22), fontWeight: 700, color: TOKENS.ink, marginTop: SP(16) }}>輸入密碼解鎖</div>
-      <div style={{ fontSize: FS(16), color: 'rgba(44,44,50,0.5)', marginTop: SP(4) }}>{err ? '密碼錯誤，請再試一次' : 'FinFolio 已鎖定'}</div>
+      <button onClick={tryBio} disabled={!bio} style={{ width: 64, height: 64, borderRadius: RS(22),
+        background: bio ? TOKENS.accent : TOKENS.ink, border: 'none', padding: 0,
+        display: 'flex', alignItems: 'center', justifyContent: 'center', color: TOKENS.surface,
+        opacity: bioBusy ? 0.6 : 1, cursor: bio ? 'pointer' : 'default' }}><Lock size={28} /></button>
+      <div style={{ fontSize: FS(22), fontWeight: 700, color: TOKENS.ink, marginTop: SP(16) }}>{bio ? '以生物辨識解鎖' : '輸入密碼解鎖'}</div>
+      <div style={{ fontSize: FS(16), color: 'rgba(44,44,50,0.5)', marginTop: SP(4) }}>{err ? '密碼錯誤，請再試一次' : bio ? '點畫面任一處，或用下方密碼' : 'FinFolio 已鎖定'}</div>
 
       {/* dots */}
       <div style={{ display: 'flex', gap: SP(14), margin: PAD('26px 0 30px'), animation: err ? 'shake 0.3s' : 'none' }}>
@@ -224,8 +229,8 @@ function LockScreen({ onUnlock }) {
         )}
       </div>
 
-      {/* keypad */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 76px)', gap: SP(16) }}>
+      {/* keypad（點數字鍵不應觸發生物辨識，故阻擋冒泡）*/}
+      <div onPointerDown={(e) => e.stopPropagation()} style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 76px)', gap: SP(16) }}>
         {KEYS.map((k, i) => {
           if (k === '') return <div key={i} />;
           if (k === 'del') return (
@@ -237,11 +242,6 @@ function LockScreen({ onUnlock }) {
               fontSize: FS(28), fontWeight: 500, fontFamily: TOKENS.fontMono }}>{k}</button>);
         })}
       </div>
-      {bio &&
-      <button onClick={tryBio} style={{ marginTop: SP(22), background: 'transparent', border: 'none', color: TOKENS.accent, fontSize: FS(17), fontWeight: 600 }}>
-        使用生物辨識解鎖
-      </button>
-      }
     </div>);
 
 }
