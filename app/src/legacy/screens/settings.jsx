@@ -415,7 +415,7 @@ function SettingsScreen({ masterData, setMasterData, dashWidget, setDashWidget, 
       {/* Danger zone */}
       <Section label="危險操作">
         <Row icon={<Trash size={18} />} iconColor={TOKENS.red}
-        label="清除所有歷史資料" sub="重設記帳、交易與帳戶設定；無法復原"
+        label="清除所有歷史資料" sub="只清除記帳與交易紀錄，不動主檔設定；無法復原"
         onClick={() => setClearOpen(true)} chevron />
       </Section>
 
@@ -2760,10 +2760,10 @@ function ImportSheet({ open, onClose, data, setData, savedFlows, savedTrades, se
 }
 
 /* ===================== 清除所有歷史資料 ===================== */
-// 會清除：記帳/股票交易紀錄、主檔（分類/帳戶，恢復預設）、初始餘額、自動扣款規則、備份時間戳記。
-// 不會清除：App 密碼鎖、AI 金鑰設定、外觀偏好（隱藏金額等）— 這些是裝置設定，不算「歷史資料」。
-const FF_CLEAR_KEYS = ['ff_flows', 'ff_trades', 'ff_master_data', 'ff_init_bal', 'ff_recurring',
-'ff_record_edits', 'ff_record_deletes', 'ff_prices', 'ff_auto_snapshot', 'ff_last_auto_backup', 'ff_last_export'];
+// 只清除記帳交易本身：支出/收入/轉帳紀錄、股票交易紀錄，以及套在這些紀錄上的編輯/刪除覆寫。
+// 不會清除：主檔設定（分類/帳戶/證券戶/交割戶/資產類別）、初始餘額、自動扣款規則、
+// App 密碼鎖、AI 金鑰設定、外觀偏好——這些都是「設定」，不是「記帳交易」。
+const FF_CLEAR_KEYS = ['ff_flows', 'ff_trades', 'ff_record_edits', 'ff_record_deletes'];
 const CLEAR_PHRASE = '清除';
 
 function ClearDataSheet({ open, onClose }) {
@@ -2807,9 +2807,9 @@ function ClearDataSheet({ open, onClose }) {
 
           <>
               <div style={{ padding: PAD('14px 16px'), borderRadius: RS(16), background: 'rgba(184,92,74,0.10)', border: '1px solid rgba(184,92,74,0.3)', color: TOKENS.red, fontSize: FS(15), lineHeight: 1.7 }}>
-                <b>會被清除：</b>所有記帳紀錄（支出/收入/轉帳）、股票交易紀錄、自訂分類與帳戶（恢復成預設）、初始餘額、自動扣款規則。
+                <b>會被清除：</b>所有記帳紀錄（支出/收入/轉帳）、股票交易紀錄。
                 <br /><br />
-                <b>不會清除：</b>App 密碼鎖、AI 金鑰設定、外觀偏好。
+                <b>不會清除：</b>分類、帳戶、證券戶、交割戶等主檔設定、初始餘額、自動扣款規則、App 密碼鎖、AI 金鑰設定、外觀偏好。
               </div>
               <div style={{ marginTop: SP(14), fontSize: FS(15), color: 'rgba(44,44,50,0.6)', lineHeight: 1.6 }}>
                 建議先到「安全與備份 → 加密備份 / 還原」匯出一份備份，以防日後需要找回資料。
