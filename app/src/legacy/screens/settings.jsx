@@ -2038,7 +2038,9 @@ async function ffImportBackup(text, pass) {
 function BackupSheet({ open, onClose }) {
   const { X, Lock, Key, Shield } = window.Icons;
   const [shown, setShown] = useStateSet(false);
-  const [pass, setPass] = useStateSet('');
+  // 匯出與還原各自獨立的密碼欄位，避免共用一格造成「這是設定新密碼還是輸入舊密碼」的混淆。
+  const [exportPass, setExportPass] = useStateSet('');
+  const [importPass, setImportPass] = useStateSet('');
   const [fileText, setFileText] = useStateSet(null);
   const [fileName, setFileName] = useStateSet('');
   const [status, setStatus] = useStateSet(null); // {type:'ok'|'err', msg}
@@ -2047,15 +2049,15 @@ function BackupSheet({ open, onClose }) {
 
   React.useEffect(() => {
     if (open) { const t = setTimeout(() => setShown(true), 20); return () => clearTimeout(t); }
-    setShown(false); setPass(''); setFileText(null); setFileName(''); setStatus(null); setBusy(false);
+    setShown(false); setExportPass(''); setImportPass(''); setFileText(null); setFileName(''); setStatus(null); setBusy(false);
   }, [open]);
 
   if (!open) return null;
 
   const doExport = async () => {
-    if (pass.length < 4) { setStatus({ type: 'err', msg: '請設定至少 4 個字的密碼' }); return; }
+    if (exportPass.length < 4) { setStatus({ type: 'err', msg: '請設定至少 4 個字的密碼' }); return; }
     setBusy(true); setStatus(null);
-    try { await ffExportBackup(pass); ffExportedNow(); setStatus({ type: 'ok', msg: '備份檔已產生 ✓ 接著在跳出的畫面選擇儲存位置（建議存到「檔案」App 或 iCloud/雲端）。完成後這裡會記錄本次匯出時間。密碼請另外保管。' }); }
+    try { await ffExportBackup(exportPass); ffExportedNow(); setStatus({ type: 'ok', msg: '備份檔已產生 ✓ 接著在跳出的畫面選擇儲存位置（建議存到「檔案」App 或 iCloud/雲端）。完成後這裡會記錄本次匯出時間。密碼請另外保管。' }); }
     catch (e) { setStatus({ type: 'err', msg: '匯出失敗：' + e.message }); }
     setBusy(false);
   };
@@ -2063,7 +2065,7 @@ function BackupSheet({ open, onClose }) {
     const f = e.target.files && e.target.files[0];
     if (!f) return;
     const r = new FileReader();
-    r.onload = () => { setFileText(String(r.result)); setFileName(f.name); setStatus(null); };
+    r.onload = () => { setFileText(String(r.result)); setFileName(f.name); setImportPass(''); setStatus(null); };
     r.readAsText(f);
   };
   const doRestoreSnapshot = async () => {
@@ -2079,10 +2081,10 @@ function BackupSheet({ open, onClose }) {
   };
   const doImport = async () => {
     if (!fileText) { setStatus({ type: 'err', msg: '請先選擇備份檔' }); return; }
-    if (pass.length < 4) { setStatus({ type: 'err', msg: '請輸入備份時設定的密碼' }); return; }
+    if (importPass.length < 4) { setStatus({ type: 'err', msg: '請輸入這個備份檔設定時的密碼' }); return; }
     setBusy(true); setStatus(null);
     try {
-      await ffImportBackup(fileText, pass);
+      await ffImportBackup(fileText, importPass);
       setStatus({ type: 'ok', msg: '還原成功，即將重新載入…' });
       setTimeout(() => location.reload(), 900);
     } catch (e) {
@@ -2131,13 +2133,12 @@ function BackupSheet({ open, onClose }) {
                 {t ? '✓ 上次匯出：' + ffFmtTime(t) : '尚未匯出過備份檔'}
               </div>);
           })()}
-          {/* passphrase */}
-          <div style={{ fontSize: FS(16), color: 'rgba(44,44,50,0.6)', marginBottom: SP(6) }}>備份密碼</div>
-          <input type="password" value={pass} onChange={(e) => setPass(e.target.value)} placeholder="設定/輸入密碼（至少 4 字）"
+          {/* ── 匯出：獨立區塊，自己的密碼欄位（設定「新」密碼）── */}
+          <div style={{ fontSize: FS(17), fontWeight: 700, color: TOKENS.ink, marginBottom: SP(10) }}>匯出備份</div>
+          <div style={{ fontSize: FS(15), color: 'rgba(44,44,50,0.6)', marginBottom: SP(6) }}>設定備份密碼（至少 4 字，還原時需要）</div>
+          <input type="password" value={exportPass} onChange={(e) => setExportPass(e.target.value)} placeholder="設定新密碼"
             style={{ width: '100%', height: 50, padding: PAD('0 14px'), borderRadius: RS(14), background: TOKENS.surface, border: '1px solid rgba(0,0,0,0.14)', color: TOKENS.ink, fontSize: FS(17), outline: 'none', boxSizing: 'border-box' }} />
-
-          {/* export */}
-          <div style={{ marginTop: SP(16) }}>
+          <div style={{ marginTop: SP(12) }}>
             <button disabled={busy} onClick={doExport} style={btn('linear-gradient(135deg, ' + TOKENS.accentLight + ', ' + TOKENS.accent + ')', '#fff')}>
               <Shield size={18} /> 加密匯出備份檔
             </button>
@@ -2147,21 +2148,29 @@ function BackupSheet({ open, onClose }) {
           </div>
 
           {/* divider */}
-          <div style={{ display: 'flex', alignItems: 'center', gap: SP(10), margin: PAD('20px 0') }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: SP(10), margin: PAD('22px 0') }}>
             <div style={{ flex: 1, height: 1, background: 'rgba(0,0,0,0.12)' }} />
             <span style={{ fontSize: FS(14), color: 'rgba(44,44,50,0.4)' }}>或從備份還原</span>
             <div style={{ flex: 1, height: 1, background: 'rgba(0,0,0,0.12)' }} />
           </div>
 
-          {/* import */}
+          {/* ── 還原：獨立區塊，選檔後才出現「這個檔案的密碼」欄位，跟上面匯出密碼完全分開 ── */}
+          <div style={{ fontSize: FS(17), fontWeight: 700, color: TOKENS.ink, marginBottom: SP(10) }}>從備份檔還原</div>
           <input ref={fileRef} type="file" accept=".finfolio,application/json,application/octet-stream" onChange={onPickFile} style={{ display: 'none' }} />
           <button disabled={busy} onClick={() => fileRef.current && fileRef.current.click()} style={btn(TOKENS.surface, TOKENS.ink)}>
             <Key size={18} /> {fileName ? '已選：' + fileName : '選擇備份檔'}
           </button>
           {fileText && (
-            <button disabled={busy} onClick={doImport} style={{ ...btn('linear-gradient(135deg, ' + TOKENS.green2 + ', ' + TOKENS.greenDark + ')', '#fff'), marginTop: SP(10) }}>
-              還原此備份（會覆蓋目前資料）
-            </button>
+            <div style={{ marginTop: SP(12), padding: PAD('14px'), borderRadius: RS(16), background: 'rgba(0,0,0,0.04)', border: '1px solid rgba(0,0,0,0.10)' }}>
+              <div style={{ fontSize: FS(15), color: 'rgba(44,44,50,0.65)', marginBottom: SP(6) }}>
+                輸入<b>「{fileName}」這個備份檔</b>設定時的密碼（不是上面剛才設定的新密碼）
+              </div>
+              <input type="password" value={importPass} onChange={(e) => setImportPass(e.target.value)} placeholder="輸入此備份檔的密碼" autoFocus
+                style={{ width: '100%', height: 50, padding: PAD('0 14px'), borderRadius: RS(14), background: TOKENS.surface, border: '1px solid rgba(0,0,0,0.14)', color: TOKENS.ink, fontSize: FS(17), outline: 'none', boxSizing: 'border-box' }} />
+              <button disabled={busy} onClick={doImport} style={{ ...btn('linear-gradient(135deg, ' + TOKENS.green2 + ', ' + TOKENS.greenDark + ')', '#fff'), marginTop: SP(10) }}>
+                還原此備份（會覆蓋目前資料）
+              </button>
+            </div>
           )}
 
           {/* 從本機自動快照還原（免密碼，僅限本機） */}
