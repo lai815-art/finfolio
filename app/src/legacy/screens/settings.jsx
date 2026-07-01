@@ -2018,13 +2018,28 @@ async function ffExportBackup(pass) {
   const key = await _deriveKey(pass, salt);
   const ct = await crypto.subtle.encrypt({ name: 'AES-GCM', iv }, key, pt);
   const blob = { v: 1, app: 'finfolio', ts: new Date().toISOString(), salt: _b64(salt), iv: _b64(iv), data: _b64(ct) };
-  const f = new Blob([JSON.stringify(blob)], { type: 'application/octet-stream' });
-  const url = URL.createObjectURL(f);
-  const a = document.createElement('a');
-  a.href = url;
-  a.download = `finfolio-backup-${new Date().toISOString().slice(0, 10)}.finfolio`;
-  document.body.appendChild(a); a.click(); a.remove();
-  URL.revokeObjectURL(url);
+  const filename = `finfolio-backup-${new Date().toISOString().slice(0, 10)}.finfolio`;
+  const file = new File([JSON.stringify(blob)], filename, { type: 'application/octet-stream' });
+
+  // 已「加入主畫面」的獨立 App：用 <a download> 觸發存檔會被系統丟給 Safari 的存檔
+  // 對話框處理，常導致 App 視窗被降級成一般瀏覽器分頁（狀態列跑出來、全螢幕跟著
+  // 失效，且不會自動恢復，需重開 App 才會好）。優先用原生分享面板（可選「儲存到
+  // 檔案」/ iCloud）存檔，不會有這個副作用；不支援時才退回舊方法。
+  let shared = false;
+  if (navigator.canShare && navigator.canShare({ files: [file] })) {
+    try { await navigator.share({ files: [file], title: filename }); shared = true; }
+    catch (e) { if (e && e.name === 'AbortError') shared = true; /* 使用者自行取消，不再跳第二個存檔視窗 */ }
+  }
+  if (!shared) {
+    const url = URL.createObjectURL(file);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = filename;
+    document.body.appendChild(a); a.click(); a.remove();
+    URL.revokeObjectURL(url);
+  }
+  // 存檔對話框關閉後，保險起見重新套用一次版面（對應上方全螢幕失效的情況）。
+  setTimeout(() => { try { window.fit && window.fit(); } catch (_) {} }, 500);
 }
 async function ffImportBackup(text, pass) {
   const blob = JSON.parse(text);

@@ -131,6 +131,7 @@
     window.addEventListener('resize', fit);
     window.addEventListener('orientationchange', fit);
     window.addEventListener('pageshow', fit);
+    window.addEventListener('focus', fit);
     document.addEventListener('visibilitychange', function () { if (!document.hidden) fit(); });
     // NOTE: intentionally NOT re-fitting on visualViewport resize/scroll — those fire
     // when the keyboard opens and must not resize the canvas (see fit() comment).
