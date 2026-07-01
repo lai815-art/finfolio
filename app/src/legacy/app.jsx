@@ -33,6 +33,23 @@ function ffAutoSnapshot() {
 }
 if (typeof window !== 'undefined') window.ffAutoSnapshot = ffAutoSnapshot;
 
+// 找出「會造成餘額算錯」的重複帳戶名稱：同一類別內同名、或一般↔證券同名。
+// 交割戶名稱與一般帳戶相同視為同一個可交割帳戶（合法、會被合併），不列入衝突。
+function ffFindDupNames(md) {
+  try {
+    md = md || {};
+    const acctNames = (md.accounts || []).map((a) => a && a.name).filter(Boolean);
+    const brokerNames = (md.brokers || []).map((a) => a && a.name).filter(Boolean);
+    const acctSet = new Set(acctNames);
+    const settleExtra = (md.settle || []).map((s) => s && s.name).filter(Boolean).filter((n) => !acctSet.has(n));
+    const all = [...acctNames, ...brokerNames, ...settleExtra];
+    const seen = {},dups = [];
+    all.forEach((n) => {if (seen[n]) {if (dups.indexOf(n) < 0) dups.push(n);} else seen[n] = true;});
+    return dups;
+  } catch {return [];}
+}
+if (typeof window !== 'undefined') window.ffFindDupNames = ffFindDupNames;
+
 /* ── 自動扣款 / 定期支出 ─────────────────────────────────────────────
    規則存於 localStorage ff_recurring：
    { id, type:'expense'|'card', name, enabled, dayOfMonth(1..28), lastRun:'YYYY-MM',
@@ -910,6 +927,8 @@ function SettingsOverlay({ open, onClose, masterData, setMasterData, dashWidget,
 function App() {
   const [tab, setTab] = useStateApp('dashboard');
   const [locked, setLocked] = useStateApp(() => ffLockEnabled());
+  const [dupNames, setDupNames] = useStateApp([]);
+  const [dupDismissed, setDupDismissed] = useStateApp(false);
   const [, _bumpTokens] = useStateApp(0);
   useEffectApp(() => {
     const h = () => _bumpTokens((n) => n + 1);
@@ -1012,6 +1031,8 @@ function App() {
         initBal: initialBalances });
       if (gen && gen.length) setSavedFlows((s) => [...gen, ...s]);
     } catch (e) {console.error('[recurring]', e);}
+    // 還原/開啟時偵測會造成餘額算錯的重複帳戶名稱，提示使用者去改名。
+    try {setDupNames(ffFindDupNames(masterData));} catch {}
   }, []);
 
   // App 鎖定：切到背景時，若已設定密碼則重新上鎖，回到前景需再次解鎖。
@@ -1455,6 +1476,26 @@ function App() {
           </>);
 
       })()}
+
+      {/* 重複帳戶名稱提示（會造成餘額算錯）*/}
+      {dupNames.length > 0 && !dupDismissed && !locked &&
+      <div style={{ position: 'absolute', left: 0, right: 0, bottom: 112, zIndex: 55,
+        display: 'flex', justifyContent: 'center', padding: PAD('0 14px'), pointerEvents: 'none' }}>
+        <div style={{ maxWidth: 380, width: '100%', pointerEvents: 'auto',
+          background: TOKENS.ink, color: TOKENS.surface, borderRadius: RS(16),
+          padding: PAD('12px 14px'), boxShadow: SH('0 12px 30px rgba(0,0,0,0.4)') }}>
+          <div style={{ fontSize: FS(15), lineHeight: 1.5 }}>
+            ⚠️ 偵測到重複的帳戶名稱：<b>{dupNames.join('、')}</b>。同名會造成餘額計算錯誤,請到「設定 → 記帳帳戶」改名。
+          </div>
+          <div style={{ display: 'flex', gap: SP(8), marginTop: SP(10) }}>
+            <button onClick={() => {setDupDismissed(true);setSettingsOpen(true);}} style={{ flex: 1, height: 38, borderRadius: RS(10),
+              background: TOKENS.accent, border: 'none', color: '#fff', fontSize: FS(15), fontWeight: 600 }}>前往設定改名</button>
+            <button onClick={() => setDupDismissed(true)} style={{ width: 72, height: 38, borderRadius: RS(10),
+              background: 'rgba(255,255,255,0.16)', border: 'none', color: TOKENS.surface, fontSize: FS(15) }}>稍後</button>
+          </div>
+        </div>
+      </div>
+      }
 
       {/* App 鎖定畫面（最上層）*/}
       {locked && <LockScreen onUnlock={() => setLocked(false)} />}

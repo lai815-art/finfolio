@@ -390,7 +390,8 @@ function SettingsScreen({ masterData, setMasterData, dashWidget, setDashWidget, 
         value={autoBackup} onChange={setAutoBackup} />
         <Divider />
         <Row icon={<Key size={18} />} iconColor={TOKENS.red}
-        label="加密備份 / 還原" sub="匯出或從備份檔還原 · 跨裝置"
+        label="加密備份 / 還原"
+        sub={(() => {try {const t = localStorage.getItem('ff_last_export');return t ? '上次匯出 ' + ffFmtTime(t) : '尚未匯出 · 建議定期匯出到雲端';} catch {return '匯出或從備份檔還原 · 跨裝置';}})()}
         onClick={() => setBackupOpen(true)} chevron />
       </Section>
 
@@ -2054,7 +2055,7 @@ function BackupSheet({ open, onClose }) {
   const doExport = async () => {
     if (pass.length < 4) { setStatus({ type: 'err', msg: '請設定至少 4 個字的密碼' }); return; }
     setBusy(true); setStatus(null);
-    try { await ffExportBackup(pass); ffExportedNow(); setStatus({ type: 'ok', msg: '已匯出備份檔。請妥善保存「檔案」與「密碼」，還原時兩者缺一不可。' }); }
+    try { await ffExportBackup(pass); ffExportedNow(); setStatus({ type: 'ok', msg: '備份檔已產生 ✓ 接著在跳出的畫面選擇儲存位置（建議存到「檔案」App 或 iCloud/雲端）。完成後這裡會記錄本次匯出時間。密碼請另外保管。' }); }
     catch (e) { setStatus({ type: 'err', msg: '匯出失敗：' + e.message }); }
     setBusy(false);
   };
@@ -2119,6 +2120,17 @@ function BackupSheet({ open, onClose }) {
             ⏰ 已超過 14 天未匯出。本機快照無法對抗「清除網站資料」，建議現在加密匯出一份到 iCloud / 雲端。
           </div>
           }
+          {/* 上次匯出狀態，讓使用者確認是否已備份 */}
+          {(() => {
+            let t = null;try {t = localStorage.getItem('ff_last_export');} catch {}
+            return (
+              <div style={{ marginBottom: SP(14), padding: PAD('12px 14px'), borderRadius: RS(14),
+                background: t ? 'rgba(110,155,106,0.12)' : 'rgba(0,0,0,0.05)',
+                border: '1px solid ' + (t ? 'rgba(110,155,106,0.3)' : 'rgba(0,0,0,0.10)'),
+                color: t ? TOKENS.greenDark : 'rgba(44,44,50,0.6)', fontSize: FS(15) }}>
+                {t ? '✓ 上次匯出：' + ffFmtTime(t) : '尚未匯出過備份檔'}
+              </div>);
+          })()}
           {/* passphrase */}
           <div style={{ fontSize: FS(16), color: 'rgba(44,44,50,0.6)', marginBottom: SP(6) }}>備份密碼</div>
           <input type="password" value={pass} onChange={(e) => setPass(e.target.value)} placeholder="設定/輸入密碼（至少 4 字）"
