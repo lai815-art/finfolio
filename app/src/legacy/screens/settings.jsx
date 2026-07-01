@@ -153,6 +153,10 @@ function SettingsScreen({ masterData, setMasterData, dashWidget, setDashWidget, 
   const [sheet, setSheet] = useStateSet(null);
   const [notice, setNotice] = useStateSet(null);
   const [backupOpen, setBackupOpen] = useStateSet(false);
+  const [recurOpen, setRecurOpen] = useStateSet(false);
+  const [recurCount, setRecurCount] = useStateSet(() => {
+    try {return (JSON.parse(localStorage.getItem('ff_recurring') || '[]') || []).length;} catch {return 0;}
+  });
   React.useEffect(() => {
     if (!notice) return;
     const t = setTimeout(() => setNotice(null), 4000);
@@ -300,6 +304,14 @@ function SettingsScreen({ masterData, setMasterData, dashWidget, setDashWidget, 
         onClick={() => openSheet({ type: 'accounts', title: '記帳帳戶', color: TOKENS.green })} />
       </Section>
 
+      {/* 自動扣款 / 定期支出 */}
+      <Section label="自動扣款 / 定期支出">
+        <ManageRow icon={<ArrowUpRight size={18} />} color={TOKENS.accent}
+        label="自動扣款規則" count={recurCount}
+        sub="每月定期支出 · 自動繳卡費"
+        onClick={() => setRecurOpen(true)} />
+      </Section>
+
       {/* AI default model */}
       <Section label="AI 預設模型">
         <div style={{ position: 'relative' }}>
@@ -399,6 +411,13 @@ function SettingsScreen({ masterData, setMasterData, dashWidget, setDashWidget, 
 
       {/* Encrypted backup / restore sheet */}
       <BackupSheet open={backupOpen} onClose={() => setBackupOpen(false)} />
+
+      {/* 自動扣款 / 定期支出 */}
+      <RecurringSheet open={recurOpen} data={data}
+      onClose={() => {
+        setRecurOpen(false);
+        try {setRecurCount((JSON.parse(localStorage.getItem('ff_recurring') || '[]') || []).length);} catch {}
+      }} />
 
       {/* 主檔刪除阻擋提示 */}
       {notice &&
@@ -2152,6 +2171,187 @@ function BackupSheet({ open, onClose }) {
         </div>
       </div>
     </div>);
+}
+
+/* ===================== 自動扣款 / 定期支出 ===================== */
+function RecurringSheet({ open, onClose, data }) {
+  const { X, Plus, Trash, Check, Calendar, Pencil } = window.Icons;
+  const [shown, setShown] = useStateSet(false);
+  const [rules, setRules] = useStateSet([]);
+  const [form, setForm] = useStateSet(null); // 正在新增/編輯的規則
+  const [err, setErr] = useStateSet('');
+
+  React.useEffect(() => {
+    if (open) {
+      const t = setTimeout(() => setShown(true), 20);
+      try {setRules(JSON.parse(localStorage.getItem('ff_recurring') || '[]') || []);} catch {setRules([]);}
+      setForm(null);setErr('');
+      return () => clearTimeout(t);
+    }
+    setShown(false);
+  }, [open]);
+
+  if (!open) return null;
+
+  const md = data || {};
+  const allAccts = (md.accounts || []).map((a) => a.name);
+  const creditAccts = (md.accounts || []).filter((a) => a.kind === '信用卡').map((a) => a.name);
+  const payAccts = (md.accounts || []).filter((a) => a.kind !== '信用卡').map((a) => a.name);
+  const expItems = (md.cat_exp || []).map((c) => typeof c === 'string' ? c : c.name);
+
+  const persist = (next) => {setRules(next);try {localStorage.setItem('ff_recurring', JSON.stringify(next));} catch {}};
+  const genId = () => 'r' + Date.now() + Math.floor(Math.random() * 1000);
+  const blankExpense = () => ({ id: genId(), type: 'expense', name: '', enabled: true, dayOfMonth: 5, amount: '', category: expItems[0] || '', account: payAccts[0] || allAccts[0] || '', lastRun: '' });
+  const blankCard = () => ({ id: genId(), type: 'card', name: '', enabled: true, dayOfMonth: 15, fromAccount: payAccts[0] || allAccts[0] || '', cardAccount: creditAccts[0] || '', cardMode: 'full', fixedAmount: '', lastRun: '' });
+
+  const upd = (patch) => setForm((f) => ({ ...f, ...patch }));
+  const toggleRule = (id) => persist(rules.map((r) => r.id === id ? { ...r, enabled: !r.enabled } : r));
+  const removeRule = (id) => persist(rules.filter((r) => r.id !== id));
+
+  const saveForm = () => {
+    const f = form;
+    if (!f) return;
+    const day = Math.min(Math.max(parseInt(f.dayOfMonth, 10) || 1, 1), 28);
+    if (f.type === 'expense') {
+      if (!(parseFloat(f.amount) > 0)) {setErr('請輸入大於 0 的金額');return;}
+      if (!f.category) {setErr('請選擇分類');return;}
+      if (!f.account) {setErr('請選擇扣款帳戶');return;}
+    } else {
+      if (!f.fromAccount) {setErr('請選擇轉出帳戶');return;}
+      if (!f.cardAccount) {setErr('請選擇信用卡帳戶（需先在帳戶新增信用卡）');return;}
+      if (f.cardMode === 'fixed' && !(parseFloat(f.fixedAmount) > 0)) {setErr('固定金額需大於 0');return;}
+    }
+    const rule = { ...f, dayOfMonth: day };
+    if (!rule.lastRun) rule.lastRun = window.ffInitialLastRun ? window.ffInitialLastRun(day, new Date()) : '';
+    const idx = rules.findIndex((r) => r.id === rule.id);
+    persist(idx >= 0 ? rules.map((r) => r.id === rule.id ? rule : r) : [...rules, rule]);
+    setForm(null);setErr('');
+  };
+
+  const inp = { width: '100%', height: 46, padding: PAD('0 12px'), borderRadius: RS(12), background: TOKENS.surface, border: '1px solid rgba(0,0,0,0.14)', color: TOKENS.ink, fontSize: FS(17), outline: 'none', boxSizing: 'border-box' };
+  const lbl = { fontSize: FS(15), color: 'rgba(44,44,50,0.6)', margin: PAD('12px 0 5px') };
+  const seg = (on) => ({ flex: 1, height: 44, borderRadius: RS(10), border: on ? `1px solid ${TOKENS.accent}` : '1px solid rgba(0,0,0,0.14)', background: on ? TOKENS.accent : TOKENS.surface, color: on ? '#fff' : 'rgba(44,44,50,0.7)', fontSize: FS(16), fontWeight: on ? 600 : 500 });
+  const bigBtn = (bg, color) => ({ width: '100%', minHeight: 50, borderRadius: RS(14), border: 'none', background: bg, color, fontSize: FS(17), fontWeight: 600, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: SP(8) });
+
+  return (
+    <div style={{ position: 'absolute', inset: 0, zIndex: 70, background: shown ? 'rgba(0,0,0,0.55)' : 'rgba(0,0,0,0)', transition: 'background 220ms ease-out', display: 'flex', alignItems: 'flex-end' }} onClick={onClose}>
+      <div onClick={(e) => e.stopPropagation()} style={{ width: '100%', maxHeight: '92%', background: TOKENS.bg, borderTopLeftRadius: 30, borderTopRightRadius: 30, transform: shown ? 'translateY(0)' : 'translateY(100%)', transition: 'transform 280ms cubic-bezier(0.32,0.72,0.18,1)', boxShadow: SH('0 -20px 40px rgba(0,0,0,0.5)'), display: 'flex', flexDirection: 'column' }}>
+        <div style={{ display: 'flex', justifyContent: 'center', padding: PAD('10px 0 4px') }}>
+          <div style={{ width: 40, height: 4, borderRadius: RS(8), background: 'rgba(0,0,0,0.38)' }} />
+        </div>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: PAD('8px 18px 12px') }}>
+          <div>
+            <div style={{ fontSize: FS(20), fontWeight: 700, color: TOKENS.ink }}>自動扣款 / 定期支出</div>
+            <div style={{ fontSize: FS(16), color: 'rgba(44,44,50,0.5)', marginTop: SP(2) }}>每月開 App 時，到期自動補記入帳</div>
+          </div>
+          <button onClick={onClose} style={{ width: 40, height: 40, borderRadius: RS(18), background: 'rgba(0,0,0,0.14)', border: 'none', color: 'rgba(44,44,50,0.7)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}><X size={18} /></button>
+        </div>
+
+        <div style={{ flex: 1, overflowY: 'auto', overflowX: 'hidden', padding: PAD('0 18px 28px') }}>
+          {!form &&
+          <>
+              {/* 規則清單 */}
+              {rules.length === 0 &&
+            <div style={{ padding: PAD('26px 0'), textAlign: 'center', color: 'rgba(44,44,50,0.4)', fontSize: FS(16) }}>尚無自動扣款規則</div>
+            }
+              {rules.map((r) =>
+            <div key={r.id} style={{ background: TOKENS.surface, borderRadius: RS(16), border: '1px solid rgba(0,0,0,0.12)', padding: PAD('12px 14px'), marginBottom: SP(10), opacity: r.enabled ? 1 : 0.5 }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: SP(10) }}>
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div style={{ fontSize: FS(18), fontWeight: 600, color: TOKENS.ink }}>
+                        {r.name || (r.type === 'card' ? '繳卡費' : '定期支出')}
+                        <span style={{ fontSize: FS(13), fontWeight: 500, color: TOKENS.accent, marginLeft: SP(8) }}>{r.type === 'card' ? '繳卡費' : '定期支出'}</span>
+                      </div>
+                      <div style={{ fontSize: FS(15), color: 'rgba(44,44,50,0.6)', marginTop: SP(2) }}>
+                        每月 {r.dayOfMonth} 日 · {r.type === 'card' ?
+                    `${r.fromAccount} → ${r.cardAccount} · ${r.cardMode === 'full' ? '全額繳清' : '固定 ' + r.fixedAmount}` :
+                    `${r.category} · ${r.account} · ${r.amount}`}
+                      </div>
+                    </div>
+                    <button onClick={() => toggleRule(r.id)} style={{ width: 46, height: 28, borderRadius: RS(16), flexShrink: 0, background: r.enabled ? TOKENS.accent : 'rgba(60,60,67,0.14)', border: 'none', position: 'relative', padding: 0 }}>
+                      <span style={{ position: 'absolute', top: 2, left: r.enabled ? 20 : 2, width: 24, height: 24, borderRadius: RS(14), background: '#fff', transition: 'left 180ms' }} />
+                    </button>
+                  </div>
+                  <div style={{ display: 'flex', gap: SP(8), marginTop: SP(10) }}>
+                    <button onClick={() => {setErr('');setForm({ ...r });}} style={{ flex: 1, height: 38, borderRadius: RS(10), background: 'rgba(0,0,0,0.05)', border: '1px solid rgba(0,0,0,0.12)', color: TOKENS.ink, fontSize: FS(15), fontWeight: 500, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: SP(6) }}><Pencil size={14} /> 編輯</button>
+                    <button onClick={() => removeRule(r.id)} style={{ width: 44, height: 38, borderRadius: RS(10), background: 'rgba(184,92,74,0.10)', border: '1px solid rgba(184,92,74,0.3)', color: TOKENS.red, display: 'flex', alignItems: 'center', justifyContent: 'center' }}><Trash size={15} /></button>
+                  </div>
+                </div>
+            )}
+
+              {/* 新增按鈕 */}
+              <div style={{ display: 'flex', gap: SP(10), marginTop: SP(8) }}>
+                <button onClick={() => {setErr('');setForm(blankExpense());}} style={bigBtn('linear-gradient(135deg, ' + TOKENS.accentLight + ', ' + TOKENS.accent + ')', '#fff')}><Plus size={18} /> 定期支出</button>
+                <button onClick={() => {setErr('');setForm(blankCard());}} style={bigBtn(TOKENS.ink2, '#fff')}><Plus size={18} /> 自動繳卡費</button>
+              </div>
+            </>
+          }
+
+          {form &&
+          <>
+              <div style={{ display: 'flex', gap: SP(8), marginBottom: SP(4) }}>
+                <button onClick={() => upd({ type: 'expense' })} style={seg(form.type === 'expense')}>定期支出</button>
+                <button onClick={() => upd({ type: 'card' })} style={seg(form.type === 'card')}>自動繳卡費</button>
+              </div>
+
+              <div style={lbl}>名稱</div>
+              <input value={form.name} onChange={(e) => upd({ name: e.target.value })} placeholder={form.type === 'card' ? '例：國泰卡費' : '例：房租、Netflix'} style={inp} />
+
+              <div style={lbl}>每月扣款日（1–28）</div>
+              <input value={form.dayOfMonth} onChange={(e) => upd({ dayOfMonth: e.target.value.replace(/[^0-9]/g, '') })} inputMode="numeric" placeholder="5" style={inp} />
+
+              {form.type === 'expense' ?
+            <>
+                  <div style={lbl}>金額</div>
+                  <input value={form.amount} onChange={(e) => upd({ amount: e.target.value.replace(/[^0-9.]/g, '') })} inputMode="decimal" placeholder="0" style={inp} />
+                  <div style={lbl}>分類（項目）</div>
+                  <select value={form.category} onChange={(e) => upd({ category: e.target.value })} style={inp}>
+                    {expItems.map((c) => <option key={c} value={c}>{c}</option>)}
+                  </select>
+                  <div style={lbl}>扣款帳戶</div>
+                  <select value={form.account} onChange={(e) => upd({ account: e.target.value })} style={inp}>
+                    {allAccts.map((a) => <option key={a} value={a}>{a}</option>)}
+                  </select>
+                </> :
+
+            <>
+                  <div style={lbl}>轉出帳戶（付款）</div>
+                  <select value={form.fromAccount} onChange={(e) => upd({ fromAccount: e.target.value })} style={inp}>
+                    {(payAccts.length ? payAccts : allAccts).map((a) => <option key={a} value={a}>{a}</option>)}
+                  </select>
+                  <div style={lbl}>信用卡帳戶</div>
+                  {creditAccts.length === 0 ?
+              <div style={{ ...inp, display: 'flex', alignItems: 'center', color: TOKENS.red, fontSize: FS(15) }}>尚無信用卡帳戶，請先到「記帳帳戶」新增</div> :
+              <select value={form.cardAccount} onChange={(e) => upd({ cardAccount: e.target.value })} style={inp}>
+                      {creditAccts.map((a) => <option key={a} value={a}>{a}</option>)}
+                    </select>
+              }
+                  <div style={lbl}>繳費金額</div>
+                  <div style={{ display: 'flex', gap: SP(8) }}>
+                    <button onClick={() => upd({ cardMode: 'full' })} style={seg(form.cardMode === 'full')}>全額繳清（當期應繳）</button>
+                    <button onClick={() => upd({ cardMode: 'fixed' })} style={seg(form.cardMode === 'fixed')}>固定金額</button>
+                  </div>
+                  {form.cardMode === 'fixed' &&
+              <input value={form.fixedAmount} onChange={(e) => upd({ fixedAmount: e.target.value.replace(/[^0-9.]/g, '') })} inputMode="decimal" placeholder="固定金額" style={{ ...inp, marginTop: SP(8) }} />
+              }
+                  <div style={{ fontSize: FS(13), color: 'rgba(44,44,50,0.45)', marginTop: SP(6), lineHeight: 1.5 }}>
+                    「全額繳清」會在扣款日產生一筆金額 = 該卡目前未繳餘額的轉帳。
+                  </div>
+                </>
+            }
+
+              {err && <div style={{ marginTop: SP(12), padding: PAD('10px 12px'), borderRadius: RS(12), background: 'rgba(184,92,74,0.10)', border: '1px solid rgba(184,92,74,0.3)', color: TOKENS.red, fontSize: FS(15) }}>{err}</div>}
+
+              <div style={{ display: 'flex', gap: SP(10), marginTop: SP(18) }}>
+                <button onClick={() => {setForm(null);setErr('');}} style={{ ...bigBtn(TOKENS.surface, TOKENS.ink), border: '1px solid rgba(0,0,0,0.14)' }}>取消</button>
+                <button onClick={saveForm} style={bigBtn('linear-gradient(135deg, ' + TOKENS.accentLight + ', ' + TOKENS.accent + ')', '#fff')}><Check size={18} /> 儲存規則</button>
+              </div>
+            </>
+          }
+        </div>
+      </div>
+    </div>);
+
 }
 
 window.SettingsScreen = SettingsScreen;

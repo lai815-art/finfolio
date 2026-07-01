@@ -33,6 +33,83 @@ function ffAutoSnapshot() {
 }
 if (typeof window !== 'undefined') window.ffAutoSnapshot = ffAutoSnapshot;
 
+/* ── 自動扣款 / 定期支出 ─────────────────────────────────────────────
+   規則存於 localStorage ff_recurring：
+   { id, type:'expense'|'card', name, enabled, dayOfMonth(1..28), lastRun:'YYYY-MM',
+     // expense: amount, category, account
+     // card:    fromAccount, cardAccount, cardMode:'full'|'fixed', fixedAmount }
+   每次開 App 時把「上次產生之後、到本月為止且已過扣款日」的月份補記入帳。 */
+function ffYM(d) {return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0');}
+function ffPrevYM(ym) {const a = ym.split('-').map(Number);return ffYM(new Date(a[0], a[1] - 2, 1));}
+function ffInitialLastRun(day, now) {
+  const cm = ffYM(now);
+  return now.getDate() >= day ? cm : ffPrevYM(cm); // 扣款日已過→下月才跑；未到→本月仍會跑
+}
+function ffMonthsAfter(lastRun, now) {
+  const res = [];const cy = now.getFullYear(),cm = now.getMonth() + 1;
+  const a = (lastRun || '').split('-').map(Number);
+  let cur = new Date(a[0] || cy, (a[1] || cm) - 1, 1);cur.setMonth(cur.getMonth() + 1);
+  let guard = 0;
+  while ((cur.getFullYear() < cy || cur.getFullYear() === cy && cur.getMonth() + 1 <= cm) && guard < 36) {
+    res.push(ffYM(cur));cur.setMonth(cur.getMonth() + 1);guard++;
+  }
+  return res;
+}
+function ffRunRecurring(ctx) {
+  let rules;
+  try {rules = JSON.parse(localStorage.getItem('ff_recurring') || '[]');} catch {return null;}
+  if (!Array.isArray(rules) || !rules.length) return null;
+  const now = ctx.now || new Date();
+  const cm = ffYM(now);
+  const base = Date.now();let seq = 0;
+  const mkDate = (ym, day) => ym + '-' + String(day).padStart(2, '0');
+  const mkStamp = () => base + seq++;
+  const newFlows = [];
+  let acctGroups = null;
+  let changed = false;
+
+  rules.forEach((r) => {
+    if (!r.enabled) return;
+    const day = Math.min(Math.max(parseInt(r.dayOfMonth, 10) || 1, 1), 28);
+    const due = ffMonthsAfter(r.lastRun || ffPrevYM(cm), now).
+    filter((ym) => ym < cm || ym === cm && now.getDate() >= day);
+    if (!due.length) return;
+
+    const mkExpense = (ym, amt) => ({
+      kind: 'exp', amount: amt, cat: r.category, merchant: '自動 · ' + (r.name || r.category || '定期支出'),
+      account: r.account, date: mkDate(ym, day), icon: '🔁',
+      auto: true, recurringId: r.id, time: '自動', _justAdded: mkStamp() });
+
+    const mkCard = (ym, amt) => ({
+      kind: 'xfer', amount: amt, cat: '繳卡費', merchant: '自動 · ' + (r.name || '繳卡費'),
+      account: r.fromAccount + ' → ' + r.cardAccount, fromAccount: r.fromAccount, toAccount: r.cardAccount,
+      xferFee: 0, date: mkDate(ym, day), icon: '↔️',
+      auto: true, recurringId: r.id, time: '自動', _justAdded: mkStamp() });
+
+    if (r.type === 'card' && r.cardMode === 'full') {
+      // 全額繳清：只補「當期」一筆，金額 = 該卡目前未繳餘額（無欠款則略過）
+      if (!acctGroups) acctGroups = computeAccounts(ctx.accounts, ctx.settle, ctx.flows.concat(newFlows), ctx.trades, ctx.initBal);
+      const item = acctGroups.flatMap((g) => g.items).find((it) => it.name === r.cardAccount);
+      const outstanding = item ? Math.max(0, -(item.amount || 0)) : 0;
+      const ym = due[due.length - 1];
+      if (outstanding > 0) newFlows.push(mkCard(ym, Math.round(outstanding)));
+      r.lastRun = ym;changed = true;
+    } else if (r.type === 'card') {
+      const amt = parseFloat(r.fixedAmount) || 0;
+      due.forEach((ym) => {if (amt > 0) newFlows.push(mkCard(ym, amt));});
+      r.lastRun = due[due.length - 1];changed = true;
+    } else {
+      const amt = parseFloat(r.amount) || 0;
+      due.forEach((ym) => {if (amt > 0) newFlows.push(mkExpense(ym, amt));});
+      r.lastRun = due[due.length - 1];changed = true;
+    }
+  });
+
+  if (changed) {try {localStorage.setItem('ff_recurring', JSON.stringify(rules));} catch {}}
+  return newFlows.length ? newFlows : null;
+}
+if (typeof window !== 'undefined') window.ffInitialLastRun = ffInitialLastRun;
+
 /* ─── Data compute helpers ────────────────────────────────────────── */
 const KIND_TO_GID = {
   '銀行': 'bank', '信用卡': 'credit', '現金': 'cash',
@@ -809,6 +886,19 @@ function App() {
   useEffectApp(() => {
     try {localStorage.setItem('ff_trades', JSON.stringify(savedTrades));} catch {}
   }, [savedTrades]);
+
+  // 自動扣款 / 定期支出：開 App 時把到期的月份補記入帳。
+  useEffectApp(() => {
+    try {
+      const gen = ffRunRecurring({
+        now: new Date(),
+        flows: savedFlows, trades: savedTrades,
+        accounts: masterData && masterData.accounts || [],
+        settle: masterData && masterData.settle || [],
+        initBal: initialBalances });
+      if (gen && gen.length) setSavedFlows((s) => [...gen, ...s]);
+    } catch (e) {console.error('[recurring]', e);}
+  }, []);
 
   // 本機自動備份：開啟 App 時存一份快照，離開（切到背景）時再存最新的一份。
   useEffectApp(() => {
