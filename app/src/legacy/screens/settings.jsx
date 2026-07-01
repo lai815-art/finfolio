@@ -137,7 +137,15 @@ function SettingsScreen({ masterData, setMasterData, dashWidget, setDashWidget, 
   const [smsListen, setSmsListen] = useStateSet(true);
   const [linePush, setLinePush] = useStateSet(false);
   const [biometric, setBiometric] = useStateSet(true);
-  const [autoBackup, setAutoBackup] = useStateSet(false);
+  const [autoBackup, setAutoBackupRaw] = useStateSet(() => {
+    try {return localStorage.getItem('ff_auto_backup') === '1';} catch {return false;}
+  });
+  const setAutoBackup = (v) => {
+    const next = typeof v === 'function' ? v(autoBackup) : v;
+    setAutoBackupRaw(next);
+    try {localStorage.setItem('ff_auto_backup', next ? '1' : '0');} catch {}
+    if (next && window.ffAutoSnapshot) window.ffAutoSnapshot(); // 立即先存一份
+  };
 
   // Master data (lifted to App so 記帳 forms share the same lists)
   const data = masterData;
@@ -364,7 +372,7 @@ function SettingsScreen({ masterData, setMasterData, dashWidget, setDashWidget, 
         value={biometric} onChange={setBiometric} />
         <Divider />
         <ToggleRow icon={<Shield size={18} />} iconColor={TOKENS.gray3}
-        label="本機自動備份" sub="每日凌晨 3:00 加密快照"
+        label="本機自動備份" sub={autoBackup ? ffBackupSubtitle() : '開啟 App 時自動在本機保留資料快照'}
         value={autoBackup} onChange={setAutoBackup} />
         <Divider />
         <Row icon={<Key size={18} />} iconColor={TOKENS.red}
@@ -713,6 +721,23 @@ function ManageSheet({ cfg, data, setData, onClose, initialBalances, setInitialB
     const newNames = newItems.map(nameOf);
     const removed = oldNames.filter((n) => n && !newNames.includes(n));
     const added = newNames.filter((n) => n && !oldNames.includes(n));
+
+    // ── 帳戶名稱不可重複：同一類別內、以及一般/證券/交割三類之間都不可同名 ──
+    if (cfg.type === 'accounts') {
+      const dupWithin = newNames.find((n, i) => n && newNames.indexOf(n) !== i);
+      if (dupWithin) {
+        onBlocked && onBlocked(`「${dupWithin}」名稱重複，同類別內不可有相同名稱。`);
+        return;
+      }
+      const LABELS = { accounts: '一般帳戶', brokers: '證券戶', settle: '交割戶' };
+      const otherKeys = ['accounts', 'brokers', 'settle'].filter((g) => g !== key);
+      const clash = added.find((n) => otherKeys.some((g) => (data[g] || []).map(nameOf).includes(n)));
+      if (clash) {
+        const where = otherKeys.find((g) => (data[g] || []).map(nameOf).includes(clash));
+        onBlocked && onBlocked(`「${clash}」已在「${LABELS[where] || '其他類別'}」使用，三類帳戶名稱不可相同。`);
+        return;
+      }
+    }
 
     const f = savedFlows || [],t = savedTrades || [];
     const usage = (name) => {
@@ -1924,6 +1949,35 @@ async function _deriveKey(pass, salt) {
     { name: 'PBKDF2', salt, iterations: 150000, hash: 'SHA-256' },
     km, { name: 'AES-GCM', length: 256 }, false, ['encrypt', 'decrypt']);
 }
+function ffFmtTime(iso) {
+  try {
+    const d = new Date(iso);const p = (n) => String(n).padStart(2, '0');
+    return `${d.getFullYear()}/${p(d.getMonth() + 1)}/${p(d.getDate())} ${p(d.getHours())}:${p(d.getMinutes())}`;
+  } catch {return '';}
+}
+function ffBackupSubtitle() {
+  try {
+    const ts = localStorage.getItem('ff_last_auto_backup');
+    return ts ? '上次快照 ' + ffFmtTime(ts) : '已開啟 · 開 App 時自動保留快照';
+  } catch {return '已開啟';}
+}
+function ffHasSnapshot() {try {return !!localStorage.getItem('ff_auto_snapshot');} catch {return false;}}
+function ffRestoreSnapshot() {
+  const raw = localStorage.getItem('ff_auto_snapshot');
+  if (!raw) throw new Error('尚無本機快照');
+  const blob = JSON.parse(raw);
+  const data = blob && blob.data || {};
+  Object.keys(data).forEach((k) => {if (k.indexOf('ff_') === 0) localStorage.setItem(k, data[k]);});
+}
+function ffExportedNow() {try {localStorage.setItem('ff_last_export', new Date().toISOString());} catch {}}
+function ffExportOverdue() {
+  try {
+    if (localStorage.getItem('ff_auto_backup') !== '1') return false;
+    const ts = localStorage.getItem('ff_last_export');
+    if (!ts) return true;
+    return Date.now() - new Date(ts).getTime() > 14 * 864e5;
+  } catch {return false;}
+}
 async function ffExportBackup(pass) {
   const data = {};
   for (let i = 0; i < localStorage.length; i++) {
@@ -1973,7 +2027,7 @@ function BackupSheet({ open, onClose }) {
   const doExport = async () => {
     if (pass.length < 4) { setStatus({ type: 'err', msg: '請設定至少 4 個字的密碼' }); return; }
     setBusy(true); setStatus(null);
-    try { await ffExportBackup(pass); setStatus({ type: 'ok', msg: '已匯出備份檔。請妥善保存「檔案」與「密碼」，還原時兩者缺一不可。' }); }
+    try { await ffExportBackup(pass); ffExportedNow(); setStatus({ type: 'ok', msg: '已匯出備份檔。請妥善保存「檔案」與「密碼」，還原時兩者缺一不可。' }); }
     catch (e) { setStatus({ type: 'err', msg: '匯出失敗：' + e.message }); }
     setBusy(false);
   };
@@ -1983,6 +2037,17 @@ function BackupSheet({ open, onClose }) {
     const r = new FileReader();
     r.onload = () => { setFileText(String(r.result)); setFileName(f.name); setStatus(null); };
     r.readAsText(f);
+  };
+  const doRestoreSnapshot = async () => {
+    setBusy(true); setStatus(null);
+    try {
+      ffRestoreSnapshot();
+      setStatus({ type: 'ok', msg: '已從本機快照還原，即將重新載入…' });
+      setTimeout(() => location.reload(), 900);
+    } catch (e) {
+      setStatus({ type: 'err', msg: '還原失敗：' + e.message });
+      setBusy(false);
+    }
   };
   const doImport = async () => {
     if (!fileText) { setStatus({ type: 'err', msg: '請先選擇備份檔' }); return; }
@@ -2020,6 +2085,13 @@ function BackupSheet({ open, onClose }) {
         </div>
 
         <div style={{ flex: 1, overflowY: 'auto', overflowX: 'hidden', padding: PAD('0 18px 28px') }}>
+          {/* 逾期提醒：本機快照無法對抗「手動清除網站資料」，提醒定期匯出到雲端/其他裝置 */}
+          {ffExportOverdue() &&
+          <div style={{ marginBottom: SP(14), padding: PAD('12px 14px'), borderRadius: RS(14), fontSize: FS(15), lineHeight: 1.5,
+            background: 'rgba(212,151,88,0.12)', border: '1px solid rgba(212,151,88,0.35)', color: TOKENS.accent }}>
+            ⏰ 已超過 14 天未匯出。本機快照無法對抗「清除網站資料」，建議現在加密匯出一份到 iCloud / 雲端。
+          </div>
+          }
           {/* passphrase */}
           <div style={{ fontSize: FS(16), color: 'rgba(44,44,50,0.6)', marginBottom: SP(6) }}>備份密碼</div>
           <input type="password" value={pass} onChange={(e) => setPass(e.target.value)} placeholder="設定/輸入密碼（至少 4 字）"
@@ -2051,6 +2123,18 @@ function BackupSheet({ open, onClose }) {
             <button disabled={busy} onClick={doImport} style={{ ...btn('linear-gradient(135deg, ' + TOKENS.green2 + ', ' + TOKENS.greenDark + ')', '#fff'), marginTop: SP(10) }}>
               還原此備份（會覆蓋目前資料）
             </button>
+          )}
+
+          {/* 從本機自動快照還原（免密碼，僅限本機） */}
+          {ffHasSnapshot() && (
+            <>
+              <div style={{ marginTop: SP(16), fontSize: FS(14), color: 'rgba(44,44,50,0.5)' }}>
+                本機自動快照 · {ffFmtTime(localStorage.getItem('ff_last_auto_backup')) || '—'}
+              </div>
+              <button disabled={busy} onClick={doRestoreSnapshot} style={{ ...btn(TOKENS.surface, TOKENS.ink), marginTop: SP(6) }}>
+                <Key size={18} /> 從本機快照還原（會覆蓋目前資料）
+              </button>
+            </>
           )}
 
           {status && (

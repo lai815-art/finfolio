@@ -15,6 +15,24 @@ if (typeof window !== 'undefined') window.FF_SBAR_H = SBAR_H;
 // AI 顧問尚未完成（需使用者自備 API 金鑰），先隱藏整個分頁。改回 true 即可重新顯示。
 const SHOW_ADVISOR = false;
 
+// 本機自動備份：開啟後，於 App 開啟／離開時把所有 ff_ 資料另存一份本機快照。
+// 可在「設定 → 加密備份 / 還原」用「從本機快照還原」回復。（無法對抗手動清除網站資料，故另有匯出提醒。）
+function ffAutoSnapshot() {
+  try {
+    if (localStorage.getItem('ff_auto_backup') !== '1') return;
+    const SKIP = { ff_auto_snapshot: 1, ff_auto_backup: 1, ff_last_auto_backup: 1, ff_last_export: 1 };
+    const data = {};
+    for (let i = 0; i < localStorage.length; i++) {
+      const k = localStorage.key(i);
+      if (k && k.indexOf('ff_') === 0 && !SKIP[k]) data[k] = localStorage.getItem(k);
+    }
+    const ts = new Date().toISOString();
+    localStorage.setItem('ff_auto_snapshot', JSON.stringify({ v: 1, ts, data }));
+    localStorage.setItem('ff_last_auto_backup', ts);
+  } catch (e) {/* localStorage 無法使用時略過 */}
+}
+if (typeof window !== 'undefined') window.ffAutoSnapshot = ffAutoSnapshot;
+
 /* ─── Data compute helpers ────────────────────────────────────────── */
 const KIND_TO_GID = {
   '銀行': 'bank', '信用卡': 'credit', '現金': 'cash',
@@ -791,6 +809,18 @@ function App() {
   useEffectApp(() => {
     try {localStorage.setItem('ff_trades', JSON.stringify(savedTrades));} catch {}
   }, [savedTrades]);
+
+  // 本機自動備份：開啟 App 時存一份快照，離開（切到背景）時再存最新的一份。
+  useEffectApp(() => {
+    ffAutoSnapshot();
+    const onHide = () => {if (document.visibilityState === 'hidden') ffAutoSnapshot();};
+    document.addEventListener('visibilitychange', onHide);
+    window.addEventListener('pagehide', ffAutoSnapshot);
+    return () => {
+      document.removeEventListener('visibilitychange', onHide);
+      window.removeEventListener('pagehide', ffAutoSnapshot);
+    };
+  }, []);
 
   // 同步 ref 並在持倉有變化時拉最新報價
   useEffectApp(() => {
