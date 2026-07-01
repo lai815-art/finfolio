@@ -247,6 +247,13 @@ function LockScreen({ onUnlock }) {
               fontSize: FS(28), fontWeight: 500, fontFamily: TOKENS.fontMono }}>{k}</button>);
         })}
       </div>
+      {bio &&
+      <button onPointerDown={(e) => e.stopPropagation()} onClick={tryBio} style={{
+        marginTop: SP(22), background: 'transparent', border: 'none', color: TOKENS.accent,
+        fontSize: FS(17), fontWeight: 600 }}>
+        使用生物辨識解鎖
+      </button>
+      }
     </div>);
 
 }

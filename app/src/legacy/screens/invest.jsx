@@ -755,29 +755,31 @@ function InvestBreakdownSheet({ open, onClose, computedHoldings = [], masterData
                   })}
               </svg>
 
-              {/* per-year row table */}
-              <div style={{ borderTop: '1px solid rgba(0,0,0,0.07)', marginTop: SP(8), paddingTop: SP(8) }}>
-                <div style={{ display: 'grid', gridTemplateColumns: '0.8fr 1fr 1fr 1fr 1.05fr', gap: SP(2),
-                    fontSize: FS(14), color: 'rgba(44,44,50,0.5)', textAlign: 'right', padding: PAD('4px 4px') }}>
-                  <span style={{ textAlign: 'left' }}>年份</span>
-                  <span>股息</span><span>債息</span><span>損益</span><span>加總</span>
-                </div>
+              {/* per-year row table — 兩行式：年份+加總為主，下面一行才是股息/債息/損益細項 */}
+              <div style={{ borderTop: '1px solid rgba(0,0,0,0.07)', marginTop: SP(8), paddingTop: SP(4) }}>
                 {years.slice().reverse().map((y, i) => {
                     const d = byYear[y];
                     const empty = d.pnl === 0 && d.div === 0 && d.bond === 0;
                     if (empty) return null;
+                    const tot = d.pnl + d.div + d.bond;
                     return (
-                      <div key={y} style={{ display: 'grid', gridTemplateColumns: '0.7fr 1fr 1fr 1fr 1.1fr', gap: SP(2),
-                        fontSize: FS(13), fontFamily: TOKENS.fontMono, textAlign: 'right',
-                        padding: PAD('7px 2px'), borderTop: i > 0 ? '1px solid rgba(0,0,0,0.05)' : 'none' }}>
-                    <span style={{ textAlign: 'left', color: 'rgba(44,44,50,0.7)', fontFamily: 'inherit' }}>{y}</span>
-                    <span style={{ color: d.div > 0 ? C_DIV : 'rgba(60,60,67,0.35)' }}>{d.div > 0 ? mask(d.div) : '—'}</span>
-                    <span style={{ color: d.bond > 0 ? C_BOND : 'rgba(60,60,67,0.35)' }}>{d.bond > 0 ? mask(d.bond) : '—'}</span>
-                    <span style={{ color: d.pnl >= 0 ? C_PNL_POS : C_PNL_NEG, fontWeight: 600 }}>
-                      {d.pnl < 0 ? '-' : ''}{mask(Math.abs(d.pnl))}
-                    </span>
-                    {(() => {const tot = d.pnl + d.div + d.bond;return (
-                    <span style={{ fontWeight: 700, color: tot < 0 ? C_PNL_NEG : TOKENS.ink }}>{tot < 0 ? '-' : ''}{mask(Math.abs(tot))}</span>);})()}
+                      <div key={y} style={{ padding: PAD('12px 2px'), borderTop: i > 0 ? '1px solid rgba(0,0,0,0.05)' : 'none' }}>
+                    <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between' }}>
+                      <span style={{ fontSize: FS(17), fontWeight: 600, color: 'rgba(44,44,50,0.75)', fontFamily: TOKENS.fontMono }}>{y}</span>
+                      <span style={{ fontSize: FS(20), fontWeight: 700, fontFamily: TOKENS.fontMono, color: tot < 0 ? C_PNL_NEG : TOKENS.ink }}>
+                        {tot < 0 ? '-' : ''}{mask(Math.abs(tot))}
+                      </span>
+                    </div>
+                    <div style={{ display: 'flex', alignItems: 'baseline', gap: SP(14), marginTop: SP(4), fontSize: FS(14), fontFamily: TOKENS.fontMono }}>
+                      <span style={{ color: 'rgba(44,44,50,0.4)', fontFamily: TOKENS.fontSans }}>股息</span>
+                      <span style={{ color: d.div > 0 ? C_DIV : 'rgba(60,60,67,0.35)' }}>{d.div > 0 ? mask(d.div) : '—'}</span>
+                      <span style={{ color: 'rgba(44,44,50,0.4)', fontFamily: TOKENS.fontSans }}>債息</span>
+                      <span style={{ color: d.bond > 0 ? C_BOND : 'rgba(60,60,67,0.35)' }}>{d.bond > 0 ? mask(d.bond) : '—'}</span>
+                      <span style={{ color: 'rgba(44,44,50,0.4)', fontFamily: TOKENS.fontSans }}>損益</span>
+                      <span style={{ color: d.pnl >= 0 ? C_PNL_POS : C_PNL_NEG, fontWeight: 600 }}>
+                        {d.pnl === 0 ? '—' : (d.pnl < 0 ? '-' : '') + mask(Math.abs(d.pnl))}
+                      </span>
+                    </div>
                   </div>);
                   })}
               </div>
