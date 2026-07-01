@@ -109,7 +109,7 @@ const DEFAULT_DATA = {
 function SettingsScreen({ masterData, setMasterData, dashWidget, setDashWidget, initialBalances = {}, setInitialBalances, savedFlows = [], savedTrades = [], setSavedFlows, setSavedTrades }) {
   const { Shield, Lock, Key, Bell, MessageCircle, Smartphone, Eye, EyeOff,
     ChevronRight, Sparkles, Check, Info, Mail, Tag, CreditCard, ArrowUpRight,
-    Wallet, ChevronDown, Pencil, X } = window.Icons;
+    Wallet, ChevronDown, Pencil, X, Clipboard } = window.Icons;
 
   // BYOK — dynamic key list
   const DEFAULT_AI_KEYS = [
@@ -159,6 +159,7 @@ function SettingsScreen({ masterData, setMasterData, dashWidget, setDashWidget, 
   });
   const [lockOpen, setLockOpen] = useStateSet(false);
   const [lockOn, setLockOn] = useStateSet(() => {try {return !!localStorage.getItem('ff_lock_pin');} catch {return false;}});
+  const [importOpen, setImportOpen] = useStateSet(false);
   React.useEffect(() => {
     if (!notice) return;
     const t = setTimeout(() => setNotice(null), 4000);
@@ -306,6 +307,14 @@ function SettingsScreen({ masterData, setMasterData, dashWidget, setDashWidget, 
         onClick={() => openSheet({ type: 'accounts', title: '記帳帳戶', color: TOKENS.green })} />
       </Section>
 
+      {/* 匯入歷史紀錄（如：舊 Excel 記帳表） */}
+      <Section label="資料匯入">
+        <ManageRow icon={<Clipboard size={18} />} color={TOKENS.gray3}
+        label="匯入歷史紀錄" count={null}
+        sub="選擇匯入檔 → 對應帳戶 → 確認後才寫入"
+        onClick={() => setImportOpen(true)} />
+      </Section>
+
       {/* 自動扣款 / 定期支出 */}
       <Section label="自動扣款 / 定期支出">
         <ManageRow icon={<ArrowUpRight size={18} />} color={TOKENS.accent}
@@ -428,6 +437,13 @@ function SettingsScreen({ masterData, setMasterData, dashWidget, setDashWidget, 
         try {setLockOn(!!localStorage.getItem('ff_lock_pin'));} catch {}
       }} />
 
+      {/* 匯入歷史紀錄 */}
+      <ImportSheet open={importOpen} onClose={() => setImportOpen(false)}
+      data={data} setData={setData}
+      savedFlows={savedFlows} savedTrades={savedTrades}
+      setSavedFlows={setSavedFlows} setSavedTrades={setSavedTrades}
+      initialBalances={initialBalances} setInitialBalances={setInitialBalances} />
+
       {/* 主檔刪除阻擋提示 */}
       {notice &&
       <div style={{ position: 'fixed', left: 0, right: 0, bottom: 28, zIndex: 90,
@@ -489,10 +505,12 @@ function ManageRow({ icon, color, label, sub, count, onClick }) {
         <div style={{ fontSize: FS(20), fontWeight: 500 }}>{label}</div>
         <div style={{ fontSize: FS(15), color: 'rgba(0,0,0,0.68)', marginTop: SP(2) }}>{sub}</div>
       </div>
+      {count != null &&
       <span style={{
         padding: PAD('3px 10px'), borderRadius: RS(8), fontSize: FS(18), fontWeight: 600,
         background: `${ic}14`, color: ic, fontFamily: TOKENS.fontMono
       }}>{count}</span>
+      }
       <ChevronRight size={18} style={{ color: 'rgba(44,44,50,0.4)', flexShrink: 0 }} />
     </button>);
 }
@@ -2488,6 +2506,229 @@ function LockSheet({ open, onClose }) {
           }
 
           {msg && <div style={{ marginTop: SP(14), padding: PAD('12px 14px'), borderRadius: RS(14), fontSize: FS(15), lineHeight: 1.5, background: msg.t === 'ok' ? 'rgba(110,155,106,0.12)' : 'rgba(184,92,74,0.10)', border: '1px solid ' + (msg.t === 'ok' ? 'rgba(110,155,106,0.3)' : 'rgba(184,92,74,0.3)'), color: msg.t === 'ok' ? TOKENS.greenDark : TOKENS.red }}>{msg.m}</div>}
+        </div>
+      </div>
+    </div>);
+
+}
+
+/* ===================== 匯入歷史紀錄（如：舊 Excel 記帳表） =====================
+   匯入檔是一份「純資料」JSON（由外部工具/對話產生，不含密碼、不會自動寫入）。
+   使用者在這裡自己選檔、自己對應要接到哪個既有帳戶，確認後才會合併寫入本機資料；
+   不會覆蓋任何既有紀錄，只會新增；同一份檔案重複匯入會被偵測並提示。 */
+const NEW_SENTINEL = '__new__';
+
+function ffCatFor(kind, name, amount) {
+  if (kind === 'inc') return /債|定存|利息/.test(name || '') ? '利息' : '股息';
+  return amount >= 0 ? '投資收入' : '台股';
+}
+
+function ImportSheet({ open, onClose, data, setData, savedFlows, savedTrades, setSavedFlows, setSavedTrades, initialBalances, setInitialBalances }) {
+  const { X, Clipboard, Check, ArrowUpRight } = window.Icons;
+  const [shown, setShown] = useStateSet(false);
+  const [parsed, setParsed] = useStateSet(null);
+  const [fileName, setFileName] = useStateSet('');
+  const [brokerSel, setBrokerSel] = useStateSet({}); // key -> { broker, settle }
+  const [ledgerAccount, setLedgerAccount] = useStateSet('歷史投資記錄');
+  const [busy, setBusy] = useStateSet(false);
+  const [status, setStatus] = useStateSet(null);
+  const [force, setForce] = useStateSet(false);
+  const fileRef = React.useRef(null);
+
+  React.useEffect(() => {
+    if (open) { const t = setTimeout(() => setShown(true), 20); return () => clearTimeout(t); }
+    setShown(false); setParsed(null); setFileName(''); setBrokerSel({}); setStatus(null); setBusy(false); setForce(false);
+  }, [open]);
+
+  if (!open) return null;
+
+  const md = data || {};
+  const brokerNames = (md.brokers || []).map((b) => b.name);
+  const settleNames = [...new Set([...(md.settle || []).map((s) => s.name), ...(md.accounts || []).map((a) => a.name)])];
+  const alreadyImported = parsed && (
+    (savedTrades || []).some((t) => t.importBatch === parsed.batchId) ||
+    (savedFlows || []).some((f) => f.importBatch === parsed.batchId));
+
+  const onPickFile = (e) => {
+    const f = e.target.files && e.target.files[0];
+    if (!f) return;
+    const r = new FileReader();
+    r.onload = () => {
+      try {
+        const j = JSON.parse(String(r.result));
+        if (!j || j.v !== 1 || !Array.isArray(j.brokerGroups) || !j.ledger) throw new Error('檔案格式不符');
+        setParsed(j); setFileName(f.name); setStatus(null); setForce(false);
+        const sel = {};
+        j.brokerGroups.forEach((g) => {
+          const b = brokerNames.includes(g.suggestedBroker) ? g.suggestedBroker : NEW_SENTINEL;
+          const s = g.suggestedSettle && settleNames.includes(g.suggestedSettle) ? g.suggestedSettle : NEW_SENTINEL;
+          sel[g.key] = { broker: b, settle: s };
+        });
+        setBrokerSel(sel);
+        setLedgerAccount((j.ledger.suggestedAccount || '歷史投資記錄'));
+      } catch (e) {
+        setStatus({ type: 'err', msg: '讀取失敗：' + e.message });
+        setParsed(null);
+      }
+    };
+    r.readAsText(f);
+  };
+
+  const doImport = () => {
+    if (!parsed) return;
+    setBusy(true);
+    try {
+      const nextData = { ...md, brokers: [...(md.brokers || [])], settle: [...(md.settle || [])], accounts: [...(md.accounts || [])] };
+      const balDelta = {}; // settleName -> 要加的初始餘額
+      const newTrades = [];
+      const base = Date.now(); let seq = 0;
+      const stamp = () => base + seq++;
+
+      parsed.brokerGroups.forEach((g) => {
+        const sel = brokerSel[g.key] || {};
+        const brokerName = sel.broker === NEW_SENTINEL ? g.suggestedBroker : sel.broker;
+        const settleName = sel.settle === NEW_SENTINEL ? (g.suggestedSettle || (g.key + '交割戶')) : sel.settle;
+        if (!nextData.brokers.find((b) => b.name === brokerName)) {
+          nextData.brokers.push({ name: brokerName, settleAccount: settleName, currency: g.currency });
+        }
+        if (!nextData.settle.find((s) => s.name === settleName) && !nextData.accounts.find((a) => a.name === settleName)) {
+          nextData.settle.push({ name: settleName, sub: '對應 ' + brokerName, currency: g.currency });
+        }
+        balDelta[settleName] = (balDelta[settleName] || 0) + (g.totalCost || 0);
+        g.stocks.forEach((s) => {
+          s.lots.forEach((lot) => {
+            const price = lot.shares > 0 ? lot.cost / lot.shares : 0;
+            newTrades.push({
+              side: 'buy', code: s.code, name: s.name, shares: lot.shares, price,
+              fee: 0, net: lot.cost, broker: brokerName, settleAccount: settleName,
+              assetClass: '股票', date: lot.date,
+              importBatch: parsed.batchId, time: '歷史匯入', _justAdded: stamp() });
+          });
+        });
+      });
+
+      const ledgerName = (ledgerAccount || '歷史投資記錄').trim() || '歷史投資記錄';
+      if (!nextData.accounts.find((a) => a.name === ledgerName)) {
+        nextData.accounts.push({ name: ledgerName, kind: '銀行', currency: 'TWD' });
+      }
+      const newFlows = [];
+      (parsed.ledger.income || []).forEach((x) => {
+        newFlows.push({ kind: 'inc', amount: Math.abs(x.amount), cat: ffCatFor('inc', x.name, x.amount),
+          merchant: '歷史匯入 · ' + x.name + (x.precision === 'year' ? '（年度彙總）' : ''),
+          account: ledgerName, date: x.date, icon: '💰', importBatch: parsed.batchId, time: '歷史匯入', _justAdded: stamp() });
+      });
+      (parsed.ledger.realized || []).forEach((x) => {
+        const kind = x.pnl >= 0 ? 'inc' : 'exp';
+        newFlows.push({ kind, amount: Math.abs(x.pnl), cat: ffCatFor(kind, x.name, x.pnl),
+          merchant: '歷史匯入 · ' + x.name + ' 已實現損益' + (x.precision === 'year' ? '（年度彙總）' : ''),
+          account: ledgerName, date: x.date, icon: kind === 'inc' ? '💰' : '📝', importBatch: parsed.batchId, time: '歷史匯入', _justAdded: stamp() });
+      });
+
+      setData(nextData);
+      setSavedTrades((prev) => [...prev, ...newTrades]);
+      setSavedFlows((prev) => [...newFlows, ...prev]);
+      setInitialBalances((prev) => {
+        const next = { ...prev };
+        Object.keys(balDelta).forEach((k) => { next[k] = (parseFloat(next[k]) || 0) + balDelta[k]; });
+        return next;
+      });
+
+      setStatus({ type: 'ok', msg: `匯入完成：新增 ${newTrades.length} 筆股票交易、${newFlows.length} 筆收支記錄。已自動調高 ${Object.keys(balDelta).length} 個交割戶的初始餘額以抵消歷史買進成本，現有現金餘額不受影響。` });
+    } catch (e) {
+      setStatus({ type: 'err', msg: '匯入失敗：' + e.message });
+    }
+    setBusy(false);
+  };
+
+  const inp = { width: '100%', height: 46, padding: PAD('0 12px'), borderRadius: RS(12), background: TOKENS.surface, border: '1px solid rgba(0,0,0,0.14)', color: TOKENS.ink, fontSize: FS(16), outline: 'none', boxSizing: 'border-box' };
+  const lbl = { fontSize: FS(14), color: 'rgba(44,44,50,0.55)', margin: PAD('10px 0 4px') };
+  const bigBtn = (bg, color, extra) => ({ width: '100%', minHeight: 50, borderRadius: RS(14), border: 'none', background: bg, color, fontSize: FS(17), fontWeight: 600, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: SP(8), opacity: busy ? 0.6 : 1, ...extra });
+
+  const totalTrades = parsed ? parsed.brokerGroups.reduce((a, g) => a + g.stocks.reduce((b, s) => b + s.lots.length, 0), 0) : 0;
+  const totalIncomeAmt = parsed ? (parsed.ledger.income || []).reduce((a, x) => a + x.amount, 0) : 0;
+  const totalRealizedAmt = parsed ? (parsed.ledger.realized || []).reduce((a, x) => a + x.pnl, 0) : 0;
+
+  return (
+    <div style={{ position: 'absolute', inset: 0, zIndex: 70, background: shown ? 'rgba(0,0,0,0.55)' : 'rgba(0,0,0,0)', transition: 'background 220ms ease-out', display: 'flex', alignItems: 'flex-end' }} onClick={onClose}>
+      <div onClick={(e) => e.stopPropagation()} style={{ width: '100%', maxHeight: '92%', background: TOKENS.bg, borderTopLeftRadius: 30, borderTopRightRadius: 30, transform: shown ? 'translateY(0)' : 'translateY(100%)', transition: 'transform 280ms cubic-bezier(0.32,0.72,0.18,1)', boxShadow: SH('0 -20px 40px rgba(0,0,0,0.5)'), display: 'flex', flexDirection: 'column' }}>
+        <div style={{ display: 'flex', justifyContent: 'center', padding: PAD('10px 0 4px') }}>
+          <div style={{ width: 40, height: 4, borderRadius: RS(8), background: 'rgba(0,0,0,0.38)' }} />
+        </div>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: PAD('8px 18px 12px') }}>
+          <div>
+            <div style={{ fontSize: FS(20), fontWeight: 700, color: TOKENS.ink, display: 'flex', alignItems: 'center', gap: SP(8) }}><Clipboard size={18} /> 匯入歷史紀錄</div>
+            <div style={{ fontSize: FS(15), color: 'rgba(44,44,50,0.5)', marginTop: SP(2) }}>只會新增，不會覆蓋既有資料；確認前可自由調整對應帳戶</div>
+          </div>
+          <button onClick={onClose} style={{ width: 40, height: 40, borderRadius: RS(18), background: 'rgba(0,0,0,0.14)', border: 'none', color: 'rgba(44,44,50,0.7)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}><X size={18} /></button>
+        </div>
+
+        <div style={{ flex: 1, overflowY: 'auto', overflowX: 'hidden', padding: PAD('0 18px 28px') }}>
+          {!parsed &&
+          <>
+              <input ref={fileRef} type="file" accept=".json,application/json" onChange={onPickFile} style={{ display: 'none' }} />
+              <button onClick={() => fileRef.current && fileRef.current.click()} style={bigBtn('linear-gradient(135deg, ' + TOKENS.accentLight + ', ' + TOKENS.accent + ')', '#fff')}>
+                <ArrowUpRight size={18} /> 選擇匯入檔（.json）
+              </button>
+              {status && <div style={{ marginTop: SP(14), padding: PAD('12px 14px'), borderRadius: RS(14), fontSize: FS(15), background: 'rgba(184,92,74,0.10)', border: '1px solid rgba(184,92,74,0.3)', color: TOKENS.red }}>{status.msg}</div>}
+            </>
+          }
+
+          {parsed &&
+          <>
+              <div style={{ fontSize: FS(15), color: 'rgba(44,44,50,0.6)', marginBottom: SP(14) }}>已選：{fileName}</div>
+
+              {alreadyImported &&
+            <div style={{ marginBottom: SP(14), padding: PAD('12px 14px'), borderRadius: RS(14), background: 'rgba(212,151,88,0.12)', border: '1px solid rgba(212,151,88,0.35)', color: TOKENS.accent, fontSize: FS(15), lineHeight: 1.5 }}>
+                ⚠️ 偵測到這份檔案先前已經匯入過，再匯入一次會造成重複記錄。
+                <label style={{ display: 'flex', alignItems: 'center', gap: SP(8), marginTop: SP(8), fontWeight: 600 }}>
+                  <input type="checkbox" checked={force} onChange={(e) => setForce(e.target.checked)} />
+                  我了解風險，仍要繼續匯入
+                </label>
+              </div>
+            }
+
+              {parsed.brokerGroups.map((g) => (
+            <div key={g.key} style={{ background: TOKENS.surface, borderRadius: RS(16), border: '1px solid rgba(0,0,0,0.12)', padding: PAD('14px'), marginBottom: SP(10) }}>
+                  <div style={{ fontSize: FS(18), fontWeight: 700, color: TOKENS.ink }}>{g.key}</div>
+                  <div style={{ fontSize: FS(14), color: 'rgba(44,44,50,0.55)', marginTop: SP(2) }}>
+                    {g.stocks.length} 檔標的 · {g.stocks.reduce((a, s) => a + s.lots.length, 0)} 筆買進 · 成本 {g.totalCost.toLocaleString()} {g.currency}
+                  </div>
+                  <div style={lbl}>證券戶</div>
+                  <select value={(brokerSel[g.key] || {}).broker || NEW_SENTINEL} onChange={(e) => setBrokerSel((m) => ({ ...m, [g.key]: { ...m[g.key], broker: e.target.value } }))} style={inp}>
+                    {brokerNames.map((n) => <option key={n} value={n}>{n}</option>)}
+                    <option value={NEW_SENTINEL}>➕ 新增：{g.suggestedBroker}</option>
+                  </select>
+                  <div style={lbl}>交割戶（初始餘額會自動調高 {g.totalCost.toLocaleString()} {g.currency} 抵消買進成本）</div>
+                  <select value={(brokerSel[g.key] || {}).settle || NEW_SENTINEL} onChange={(e) => setBrokerSel((m) => ({ ...m, [g.key]: { ...m[g.key], settle: e.target.value } }))} style={inp}>
+                    {settleNames.map((n) => <option key={n} value={n}>{n}</option>)}
+                    <option value={NEW_SENTINEL}>➕ 新增：{g.suggestedSettle || g.key + '交割戶'}</option>
+                  </select>
+                </div>
+            ))}
+
+              <div style={{ background: TOKENS.surface, borderRadius: RS(16), border: '1px solid rgba(0,0,0,0.12)', padding: PAD('14px'), marginBottom: SP(14) }}>
+                <div style={{ fontSize: FS(18), fontWeight: 700, color: TOKENS.ink }}>股息／利息／已實現損益</div>
+                <div style={{ fontSize: FS(14), color: 'rgba(44,44,50,0.55)', marginTop: SP(2), lineHeight: 1.6 }}>
+                  {(parsed.ledger.income || []).length} 筆收入，共 {Math.round(totalIncomeAmt).toLocaleString()} 元<br />
+                  {(parsed.ledger.realized || []).length} 筆已實現損益，淨額 {Math.round(totalRealizedAmt).toLocaleString()} 元<br />
+                  <span style={{ color: 'rgba(44,44,50,0.4)' }}>早期年份僅有年度彙總金額（無法還原到確切日期），會標註「年度彙總」。</span>
+                </div>
+                <div style={lbl}>記入哪個帳戶（會新增此帳戶，只用來放這批歷史記錄，不影響其他帳戶）</div>
+                <input value={ledgerAccount} onChange={(e) => setLedgerAccount(e.target.value)} style={inp} />
+              </div>
+
+              {status && <div style={{ marginBottom: SP(14), padding: PAD('12px 14px'), borderRadius: RS(14), fontSize: FS(15), lineHeight: 1.5, background: status.type === 'ok' ? 'rgba(110,155,106,0.12)' : 'rgba(184,92,74,0.10)', border: '1px solid ' + (status.type === 'ok' ? 'rgba(110,155,106,0.3)' : 'rgba(184,92,74,0.3)'), color: status.type === 'ok' ? TOKENS.greenDark : TOKENS.red }}>{status.msg}</div>}
+
+              {!(status && status.type === 'ok') &&
+            <button disabled={busy || (alreadyImported && !force)} onClick={doImport} style={bigBtn('linear-gradient(135deg, ' + TOKENS.green2 + ', ' + TOKENS.greenDark + ')', '#fff')}>
+                  <Check size={18} /> 確認匯入
+                </button>
+            }
+              {status && status.type === 'ok' &&
+            <button onClick={onClose} style={bigBtn(TOKENS.surface, TOKENS.ink, { border: '1px solid rgba(0,0,0,0.14)' })}>完成</button>
+            }
+            </>
+          }
         </div>
       </div>
     </div>);
