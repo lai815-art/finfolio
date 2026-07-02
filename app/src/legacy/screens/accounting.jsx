@@ -508,14 +508,19 @@ function FlowForm({ state, update, onSaved, onDelete, recordId, masterData }) {
             onChange={(v) => update({ fromAccount: v })}
             icon={<CreditCard size={16} />} />
             </div>
-            <div style={{
-            width: 32, height: 32, borderRadius: RS(18), flexShrink: 0,
+            <button type="button" aria-label="對調轉出與轉入帳戶"
+            onClick={() => update({ fromAccount: state.toAccount, toAccount: state.fromAccount })}
+            style={{
+            width: 36, height: 36, borderRadius: RS(18), flexShrink: 0, padding: 0,
             background: 'rgba(197,160,125,0.18)', border: '1px solid rgba(197,160,125,0.4)',
             color: TOKENS.gray3, display: 'flex', alignItems: 'center', justifyContent: 'center',
-            alignSelf: 'flex-end', marginBottom: SP(14)
-          }}>
-              <ArrowRight size={16} />
-            </div>
+            alignSelf: 'flex-end', marginBottom: SP(12), cursor: 'pointer'
+          }}
+            onPointerDown={(e) => { e.currentTarget.style.transform = 'scale(0.85)'; }}
+            onPointerUp={(e) => { e.currentTarget.style.transform = 'scale(1)'; }}
+            onPointerLeave={(e) => { e.currentTarget.style.transform = 'scale(1)'; }}>
+              <ArrowRight size={16} style={{ transition: 'transform 140ms ease' }} />
+            </button>
             <div style={{ flex: 1, minWidth: 0 }}>
               <DropField label="轉入帳戶" value={state.toAccount}
             options={transferAccounts.filter((a) => a !== state.fromAccount)}
