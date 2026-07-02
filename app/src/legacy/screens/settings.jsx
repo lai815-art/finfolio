@@ -78,6 +78,8 @@ const DEFAULT_DATA = {
   { name: '股息', group: '投資收入' },
   { name: '利息', group: '投資收入' },
   { name: '紅利回饋', group: '投資收入' },
+  { name: '台股', group: '投資收入' },
+  { name: '美股', group: '投資收入' },
   { name: '投資收入', group: '投資收入' },
   { name: '發票中獎', group: '其他' },
   { name: '退稅', group: '其他' },
