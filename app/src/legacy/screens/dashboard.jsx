@@ -756,17 +756,20 @@ function StatDonut({ data, total, label, color, mask }) {
 window.StatDonut = StatDonut;
 
 // 資產 / 投資類別 → 看板風格的 Lucide 圖示名稱
-const ASSET_ICON = { '現金': 'Wallet', '股票': 'TrendUp', '美股': 'Banknote', '債券': 'Receipt',
+const ASSET_ICON = { '現金': 'Banknote', '存款': 'Wallet', '股票': 'TrendUp', '美股': 'Banknote', '債券': 'Receipt',
   '市值 ETF': 'ChartPie', '主動 ETF': 'ChartPie', 'ETF': 'ChartPie', '特別股': 'PiggyBank' };
 function assetIconName(n) {
   if (ASSET_ICON[n]) return ASSET_ICON[n];
   if (/ETF/.test(n)) return 'ChartPie';
   if (/債/.test(n)) return 'Receipt';
   if (/美|US/i.test(n)) return 'Banknote';
-  if (/現金|存款|錢/.test(n)) return 'Wallet';
+  if (/存款|銀行/.test(n)) return 'Wallet';
+  if (/現金|錢/.test(n)) return 'Banknote';
   return 'TrendUp';
 }
 window.assetIconName = assetIconName;
+// 資產配置圓餅圖裡較難理解的類別，給一句白話說明。
+const ASSET_CAT_NOTE = { '現金': '錢包 + 儲值卡 + 電子支付 + 其他', '存款': '銀行帳戶（含交割戶）' };
 
 /* ── MonthlyStatsSheet ─────────────────────────────────────────────── */
 function MonthlyStatsSheet({ open, onClose, savedFlows, masterData, hideAmounts, nowDate, mask }) {
@@ -1036,22 +1039,28 @@ function NetWorthSheet({ open, onClose, total, computedAcctGroups, computedHoldi
   const amtTWD = (x) => x.amountTWD != null ? x.amountTWD : x.amount;
   const mvTWD = (x) => x.mvTWD != null ? x.mvTWD : x.mv || 0;
 
-  // 現金 = 所有資產帳戶餘額（錢包+銀行+儲值卡+電子支付+交割戶）- 負債
-  let cashAssets = 0;
+  // 現金側拆成兩類：
+  //   存款 = 銀行(含交割戶) 所有存款
+  //   現金 = 台幣錢包 + 儲值卡 + 電子支付 + 其他（+ 證券戶餘額，避免遺漏）
+  // 信用卡等負債先從存款扣、不足再扣現金，讓圓餅總和 = 資產淨額。
+  let bankSum = 0, walletSum = 0;
   const liabRows = [];
   computedAcctGroups.forEach((g) => {
     const sum = g.items.reduce((a, it) => a + amtTWD(it), 0);
-    if (g.sign < 0) {if (Math.abs(sum) >= 1) liabRows.push({ name: g.name, value: Math.abs(sum), color: g.color });} else
-    cashAssets += sum;
+    if (g.sign < 0) {if (Math.abs(sum) >= 1) liabRows.push({ name: g.name, value: Math.abs(sum), color: g.color });return;}
+    if (g.id === 'bank') bankSum += sum;else walletSum += sum;
   });
   const totalLiab = liabRows.reduce((a, c) => a + c.value, 0);
-  const netCash = cashAssets - totalLiab;
+  let deposit = bankSum, cash = walletSum, liabLeft = totalLiab;
+  const dCut = Math.min(Math.max(deposit, 0), liabLeft);deposit -= dCut;liabLeft -= dCut;
+  cash -= liabLeft;
 
   // 投資持倉：直接依使用者設定的股票類別（市值型 / 高息型 / 科技型 / 主動型 / 個股 / 債券 …）分組市值，
   // 不再用名稱關鍵字硬猜成「股票/債券/美股」三桶。
   const INV_COLORS = [TOKENS.inv1, TOKENS.inv2, TOKENS.inv3, TOKENS.inv4, TOKENS.inv5, TOKENS.inv6, TOKENS.gold, TOKENS.indigo];
   const cats = [];
-  if (Math.abs(netCash) >= 1) cats.push({ name: '現金', value: netCash, color: TOKENS.green });
+  if (Math.abs(cash) >= 1) cats.push({ name: '現金', value: cash, color: TOKENS.green });
+  if (Math.abs(deposit) >= 1) cats.push({ name: '存款', value: deposit, color: TOKENS.blue2 });
   const buckets = {};
   computedHoldings.forEach((g) => {
     const mv = g.items.reduce((a, it) => a + mvTWD(it), 0);
@@ -1109,7 +1118,10 @@ function NetWorthSheet({ open, onClose, total, computedAcctGroups, computedHoldi
                   </div>
                   <div style={{ flex: 1, minWidth: 0 }}>
                     <div style={{ fontSize: FS(19), fontWeight: 500, color: TOKENS.ink }}>{c.name}</div>
-                    <div style={{ fontSize: FS(14), color: 'rgba(44,44,50,0.5)', marginTop: SP(1) }}>{totalAssets > 0 ? (c.value / totalAssets * 100).toFixed(1) : '0.0'}%</div>
+                    <div style={{ fontSize: FS(14), color: 'rgba(44,44,50,0.5)', marginTop: SP(1) }}>
+                      {totalAssets > 0 ? (c.value / totalAssets * 100).toFixed(1) : '0.0'}%
+                      {ASSET_CAT_NOTE[c.name] ? ' · ' + ASSET_CAT_NOTE[c.name] : ''}
+                    </div>
                   </div>
                   <div style={{ fontFamily: TOKENS.fontMono, fontSize: FS(19), fontWeight: 600, flexShrink: 0, color: TOKENS.ink }}>
                     {mask(c.value)}
@@ -1125,7 +1137,7 @@ function NetWorthSheet({ open, onClose, total, computedAcctGroups, computedHoldi
           {liabRows.length > 0 &&
           <div style={cardStyle}>
             <div style={{ fontSize: FS(14), color: 'rgba(0,0,0,0.62)', fontWeight: 700, letterSpacing: 1,
-              textTransform: 'uppercase', marginBottom: SP(8), paddingLeft: SP(2) }}>負債明細（已自現金扣除）</div>
+              textTransform: 'uppercase', marginBottom: SP(8), paddingLeft: SP(2) }}>負債明細（已自資產扣除）</div>
             {liabRows.map((c, i) =>
             <div key={c.name} style={{ display: 'flex', alignItems: 'center', gap: SP(12),
               padding: PAD('11px 2px'),
