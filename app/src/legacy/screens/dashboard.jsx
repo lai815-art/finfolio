@@ -1047,7 +1047,13 @@ function NetWorthSheet({ open, onClose, total, computedAcctGroups, computedHoldi
   const liabRows = [];
   computedAcctGroups.forEach((g) => {
     const sum = g.items.reduce((a, it) => a + amtTWD(it), 0);
-    if (g.sign < 0) {if (Math.abs(sum) >= 1) liabRows.push({ name: g.name, value: Math.abs(sum), color: g.color });return;}
+    if (g.sign < 0) {
+      // sum > 0 = 欠款(負債)；sum < 0 = 溢繳/預付卡片餘額 → 是資產不是負債。
+      // 不能用 Math.abs 把溢繳硬轉成負債，否則繳完卡費（餘額轉正）後負債反而變大。
+      if (sum >= 1) liabRows.push({ name: g.name, value: sum, color: g.color });
+      else if (sum <= -1) walletSum += -sum; // 併入現金
+      return;
+    }
     if (g.id === 'bank') bankSum += sum;else walletSum += sum;
   });
   const totalLiab = liabRows.reduce((a, c) => a + c.value, 0);
