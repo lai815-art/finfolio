@@ -315,7 +315,7 @@ function AccountDetailSheet({ data, mask, onClose, onSaveItem, savedFlows = [], 
       transition: 'transform 300ms cubic-bezier(0.32,0.72,0.18,1)',
       display: 'flex', flexDirection: 'column'
     }}>
-      <div style={{ height: window.FF_DETAIL_TOP || 62, flexShrink: 0 }} />
+      <div style={{ height: 'var(--ff-detail-top, 62px)', flexShrink: 0 }} />
 
       {/* Header row */}
       <div style={{ display: 'flex', alignItems: 'center', gap: SP(10), padding: PAD('4px 10px 12px') }}>

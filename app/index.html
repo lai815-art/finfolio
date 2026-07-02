@@ -124,6 +124,21 @@
       }
       scale.style.transform = 'scale(' + k + ')';
       document.documentElement.style.setProperty('--app-h', appH + 'px');
+
+      // 頂部安全區（瀏海 / 動態島）換算成畫布座標。整個畫布被 scale(k) 縮放，
+      // 而 env(safe-area-inset-top) 是「螢幕像素」；若直接放進畫布，縮放後只剩 inset×k，
+      // 比真正的安全區短，較寬的標題(如「資產淨額明細」)就會被瀏海切到。
+      // 用畫布外的探針量出真實安全區(螢幕px)，再除以 k，讓縮放後剛好等於安全區高度。
+      var probe = document.getElementById('ff-sat-probe');
+      if (!probe) {
+        probe = document.createElement('div');
+        probe.id = 'ff-sat-probe';
+        probe.style.cssText = 'position:fixed;top:0;left:0;width:0;height:env(safe-area-inset-top,0px);visibility:hidden;pointer-events:none';
+        document.body.appendChild(probe);
+      }
+      var satScreen = probe.getBoundingClientRect().height;
+      var detailTop = window.FF_STANDALONE ? Math.round(satScreen / k) + 4 : 62;
+      document.documentElement.style.setProperty('--ff-detail-top', detailTop + 'px');
     }
 
     // Re-fit on every event that can change the viewport — including warm relaunches
