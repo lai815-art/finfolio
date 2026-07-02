@@ -1361,10 +1361,11 @@ function App() {
           if (Math.abs(pnl) > 0) {
             const pnlNote = `${data.name} 賣出 ${parseFloat(data.price).toLocaleString()} × ${sh.toLocaleString()}股`;
             flows.push({
+              // 損益判斷台/美股：獲利→收入的「台股/美股」(投資收入大類)，虧損→支出的「台股/美股」(投資損失大類)。
               kind: pnl > 0 ? 'inc' : 'exp',
               amount: Math.abs(pnl),
               account: data.settleAccount,
-              cat: pnl > 0 ? '投資收入' : isTW ? '台股' : '美股',
+              cat: isTW ? '台股' : '美股',
               merchant: pnl > 0 ? '投資獲利' : '投資損失',
               note: pnlNote,
               date: settleDate || new Date(),
