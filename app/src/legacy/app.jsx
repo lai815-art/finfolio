@@ -744,23 +744,117 @@ function resolveAccountV(t, md) {
   return '';
 }
 
+// 中文數字轉阿拉伯數字（支援 五 / 十 / 一百 / 兩千五百…；純數字直接回傳）。
+function cnNumV(s) {
+  s = String(s || '').trim();
+  if (!s) return NaN;
+  if (/^[\d,]+$/.test(s)) return parseInt(s.replace(/,/g, ''), 10);
+  const D = { 零: 0, 〇: 0, 一: 1, 二: 2, 兩: 2, 倆: 2, 三: 3, 四: 4, 五: 5, 六: 6, 七: 7, 八: 8, 九: 9 };
+  const U = { 十: 10, 百: 100, 千: 1000, 萬: 10000 };
+  let total = 0, section = 0, cur = 0, matched = false;
+  for (const ch of s) {
+    if (D[ch] != null) {cur = D[ch];matched = true;} else
+    if (U[ch] != null) {
+      matched = true;
+      const u = U[ch];
+      if (u === 10000) {total = (total + section + cur) * u;section = 0;cur = 0;} else
+      {section += (cur || 1) * u;cur = 0;}
+    }
+  }
+  return matched ? total + section + cur : NaN;
+}
+
+// 蒐集可用的股票清單（內建 + 已載入快取）供語音以名稱/代號比對。
+function ffStockUniverseV() {
+  const out = [];
+  const push = (arr) => {if (Array.isArray(arr)) arr.forEach((s) => {if (s && s.code && s.name) out.push({ code: String(s.code), name: String(s.name) });});};
+  try {push(window.TW_STOCK_FALLBACK);} catch {}
+  try {push(window.US_STOCK_LIST);} catch {}
+  try {push(window.US_STOCK_LIST_EXTRA);} catch {}
+  try {const c = JSON.parse(localStorage.getItem('ff_tw_stocks_v7') || 'null');if (c && Array.isArray(c.data)) push(c.data);} catch {}
+  return out;
+}
+// 在文字裡找出被念到的股票（取名稱最長者，避免「台積」先於「台積電」命中）。
+function matchStockV(t, list) {
+  let best = null;
+  for (const s of list) {
+    if (s.name && s.name.length >= 2 && t.includes(s.name) && (!best || s.name.length > best.name.length)) best = s;
+  }
+  return best;
+}
+// 轉帳偵測：抓「轉出→轉入」兩個帳戶。
+function resolveTransferV(t, md) {
+  const strong = /轉帳|匯款|轉入|轉出|轉到|轉給|轉至|匯到|匯給/.test(t);
+  const weak = /轉|匯/.test(t);
+  if (!strong && !weak) return null;
+  const m = t.match(/^(.*?)(?:轉帳|轉出|匯款|匯出|匯|轉)(.*?)(?:到|至|給|轉入)(.*)$/);
+  let fromSeg, toSeg;
+  if (m) {fromSeg = m[1];toSeg = m[3];} else
+  {const parts = t.split(/轉帳|匯款|匯|轉/);fromSeg = parts[0] || '';toSeg = parts.slice(1).join(' ');}
+  const from = resolveAccountV(fromSeg, md);
+  const to = resolveAccountV(toSeg, md);
+  if (strong || from && to) return { from, to };
+  return null;
+}
+
 function parseUtterance(text, masterData = {}) {
   const t = (text || '').trim();
   const nums = (t.match(/\d[\d,]*(?:\.\d+)?/g) || []).map((s) => parseFloat(s.replace(/,/g, '')));
+  const amount = nums.length ? Math.max.apply(null, nums) : '';
   const sideSell = /賣出|賣掉|賣股|出脫|賣/.test(t);
   const sideBuy = /買進|買入|買股|加碼|買/.test(t);
-  const codeM = t.match(/\b\d{4,6}[A-Z]?\b/);
-  if ((sideBuy || sideSell) && codeM && /股/.test(t)) {
-    const code = codeM[0];
-    const shM = t.match(/(\d[\d,]*)\s*股/);
-    const shares = shM ? shM[1].replace(/,/g, '') : '';
-    const leftover = nums.filter((n) => String(n) !== code && String(n) !== shares);
-    const prM = t.match(/(?:成交價|單價|價|@)\s*(\d[\d,]*(?:\.\d+)?)/);
-    const price = prM ? prM[1].replace(/,/g, '') : leftover.length ? String(leftover[leftover.length - 1]) : '';
-    return { intent: 'stock', edit: false, text: t, summary: [],
-      apply: { side: sideSell ? 'sell' : 'buy', code, name: '', shares: String(shares || ''), price: String(price || '') } };
+
+  // 股數（含中文數字、「張」= 1000 股）
+  let shares = '';
+  const shM = t.match(/([0-9,一二三四五六七八九十百千兩零]+)\s*(股|張)/);
+  if (shM) {const n = cnNumV(shM[1]);if (!isNaN(n)) shares = String(shM[2] === '張' ? n * 1000 : n);}
+
+  // ── 股票買賣 ──
+  const stockList = ffStockUniverseV();
+  const matched = matchStockV(t, stockList);
+  const tNoMoney = t.replace(/[$＄]\s?[\d,]+(?:\.\d+)?/g, ' '); // 去掉「$金額」避免被當成代號
+  const codeInText = /\b\d{4,6}[A-Z]?\b/.test(tNoMoney);
+  if ((sideBuy || sideSell) && (matched || codeInText && /股|張/.test(t))) {
+    let code = matched ? matched.code : '';
+    let name = matched ? matched.name : '';
+    if (!code) {
+      const cands = (tNoMoney.match(/\b\d{4,6}[A-Z]?\b/g) || []).filter((c) => c !== shares);
+      code = cands.find((c) => stockList.some((s) => s.code === c)) || cands[0] || '';
+      const found = stockList.find((s) => s.code === code);
+      if (found) name = found.name;
+    }
+    let price = '';
+    const prM = t.match(/(?:成交價|單價|每股|價位|價|@)\s*[$＄]?\s*([\d,]+(?:\.\d+)?)/);
+    if (prM) price = prM[1].replace(/,/g, '');
+    const moneyM = t.match(/[$＄]\s?([\d,]+(?:\.\d+)?)/);
+    const money = moneyM ? parseFloat(moneyM[1].replace(/,/g, '')) : null;
+    if (!price) {
+      if (money != null && shares && parseFloat(shares) > 0) {
+        price = String(Math.round(money / parseFloat(shares) * 100) / 100);
+      } else {
+        const leftover = nums.filter((n) => String(n) !== code && String(n) !== shares && n !== money);
+        if (leftover.length) price = String(leftover[leftover.length - 1]);
+      }
+    }
+    const summary = [];
+    if (code || name) summary.push(['標的', (code ? code + ' ' : '') + (name || '')]);
+    return { intent: 'stock', edit: false, text: t, summary,
+      apply: { side: sideSell ? 'sell' : 'buy', code: code || '', name: name || '', shares: shares || '', price: price || '' } };
   }
-  const amount = nums.length ? Math.max.apply(null, nums) : '';
+
+  // ── 轉帳 ──
+  const xfer = resolveTransferV(t, masterData);
+  if (xfer) {
+    const summary = [];
+    if (xfer.from) summary.push(['轉出', xfer.from]);
+    if (xfer.to) summary.push(['轉入', xfer.to]);
+    const apply = { kind: 'xfer', amount: String(amount), note: '' };
+    if (xfer.from) apply.fromAccount = xfer.from;
+    if (xfer.to) apply.toAccount = xfer.to;
+    return { intent: 'flow', edit: false, text: t, summary, apply };
+  }
+
+  // ── 一般收支 ──
   const kind = INC_WORDS_V.some((w) => t.includes(w)) ? 'inc' : 'exp';
   const category = kind === 'inc' ?
   resolveCategoryV(t, masterData.cat_inc, INC_KW_V) :

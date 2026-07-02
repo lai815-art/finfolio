@@ -87,15 +87,22 @@ function AccountingScreen({ onSaved, onDelete, initialDraft, masterData, compute
     const firstAcct = accts[0] || allAccts[0] || '主要存款帳戶';
     const firstFrom = allAccts[0] || '主要存款帳戶';
     const firstTo = settles[0] || allAccts[1] || allAccts[0] || '券商交割戶';
+    // 初始分類要看記帳類型：語音/編輯若帶入轉帳或收入，分類要用對應類別的第一個，
+    // 不能一律用支出的第一個（否則轉帳/收入的分類欄會顯示「早餐」之類的支出項目）。
+    const draftKind = draftFlow && draftFlow.kind || 'exp';
+    const firstXferCat = (md.cat_xfer || ['轉帳'])[0] || '轉帳';
+    const firstIncCat = (() => {const c = (md.cat_inc || [])[0];return c ? typeof c === 'string' ? c : c.name : '薪資';})();
+    const defaultCat = draftKind === 'xfer' ? firstXferCat : draftKind === 'inc' ? firstIncCat : firstExpCat;
     return {
       kind: 'exp', amount: '',
-      category: firstExpCat,
       account: firstAcct,
       fromAccount: firstFrom,
       toAccount: firstTo,
       xferFee: '',
       date: new Date(window.TODAY_DATE || TODAY_ACC), note: '',
-      ...(draftFlow || {})
+      ...(draftFlow || {}),
+      // category 放在 spread 之後，且只有 draft 沒指定時才用預設（避免覆蓋 draft 帶來的分類）
+      category: draftFlow && draftFlow.category || defaultCat
     };
   });
   const updateFlow = (patch) => setFlow((f) => ({ ...f, ...patch }));
