@@ -112,7 +112,9 @@ function ffRunRecurring(ctx) {
       // 全額繳清：只補「當期」一筆，金額 = 該卡目前未繳餘額（無欠款則略過）
       if (!acctGroups) acctGroups = computeAccounts(ctx.accounts, ctx.settle, ctx.flows.concat(newFlows), ctx.trades, ctx.initBal);
       const item = acctGroups.flatMap((g) => g.items).find((it) => it.name === r.cardAccount);
-      const outstanding = item ? Math.max(0, -(item.amount || 0)) : 0;
+      // 信用卡的 item.amount 已是「正的應繳欠款」（computeAccounts 對負債群組取了 -raw），
+      // 直接用它即可；無欠款(<=0)則略過本次繳款。
+      const outstanding = item ? Math.max(0, item.amount || 0) : 0;
       const ym = due[due.length - 1];
       if (outstanding > 0) newFlows.push(mkCard(ym, Math.round(outstanding)));
       r.lastRun = ym;changed = true;
