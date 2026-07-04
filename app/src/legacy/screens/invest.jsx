@@ -80,7 +80,7 @@ function buildTrades(item) {
   return trades;
 }
 
-function InvestDetailSheet({ data, mask, onClose, savedTrades = [], onEditRecord }) {
+function InvestDetailSheet({ data, mask, onClose, savedTrades = [], onEditRecord, hideAmounts, revealHidden, isHidden, onToggleHidden }) {
   const { ChevronRight, TrendUp, TrendDown } = window.Icons;
   const [shown, setShown] = useStateInv(false);
 
@@ -147,6 +147,12 @@ function InvestDetailSheet({ data, mask, onClose, savedTrades = [], onEditRecord
       display: 'flex', flexDirection: 'column'
     }}>
       <div style={{ height: 'var(--ff-detail-top, 62px)', flexShrink: 0 }} />
+      {/* 開發者隱藏手勢：眼睛關閉或顯示模式時，點右上角空白處切換隱藏此個股 */}
+      {(hideAmounts || revealHidden) &&
+      <button aria-hidden onClick={() => onToggleHidden && onToggleHidden()}
+      style={{ position: 'absolute', top: 'var(--ff-detail-top, 62px)', right: 0, width: 66, height: 58,
+        background: 'transparent', border: 'none', padding: 0, zIndex: 6 }} />
+      }
       {/* Header */}
       <div style={{ display: 'flex', alignItems: 'center', gap: SP(12), padding: PAD('4px 10px 12px') }}>
         <button onClick={onClose} style={{
@@ -159,6 +165,10 @@ function InvestDetailSheet({ data, mask, onClose, savedTrades = [], onEditRecord
             <span style={{ fontFamily: TOKENS.fontMono }}>{data.code}</span>
             <span style={{ fontSize: FS(18), color: 'rgba(44,44,50,0.88)', overflow: 'hidden',
               textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{data.name}</span>
+            {isHidden &&
+            <span style={{ flexShrink: 0, fontSize: FS(12), fontWeight: 700, color: TOKENS.red,
+              background: 'rgba(184,92,74,0.14)', border: '1px solid rgba(184,92,74,0.35)',
+              borderRadius: RS(8), padding: PAD('2px 7px') }}>已隱藏</span>}
           </div>
           <div style={{ fontSize: FS(16), color: 'rgba(0,0,0,0.82)', marginTop: SP(2),
             fontFamily: TOKENS.fontMono }}>

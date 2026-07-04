@@ -112,7 +112,7 @@ const DEFAULT_DATA = {
 
 };
 
-function SettingsScreen({ masterData, setMasterData, dashWidget, setDashWidget, initialBalances = {}, setInitialBalances, savedFlows = [], savedTrades = [], setSavedFlows, setSavedTrades }) {
+function SettingsScreen({ masterData, setMasterData, dashWidget, setDashWidget, initialBalances = {}, setInitialBalances, savedFlows = [], savedTrades = [], setSavedFlows, setSavedTrades, revealHidden, onToggleReveal, hiddenCount = 0 }) {
   const { Shield, Lock, Key, Bell, MessageCircle, Smartphone, Eye, EyeOff,
     ChevronRight, Sparkles, Check, Info, Mail, Tag, CreditCard, ArrowUpRight,
     Wallet, ChevronDown, Pencil, X, Clipboard, Trash } = window.Icons;
@@ -424,7 +424,9 @@ function SettingsScreen({ masterData, setMasterData, dashWidget, setDashWidget, 
 
       {/* About */}
       <Section label="關於">
-        <Row icon={<Info size={18} />} iconColor={TOKENS.gray2} label="版本" detail="0.9.2 · Beta" />
+        <Row icon={<Info size={18} />} iconColor={revealHidden ? TOKENS.red : TOKENS.gray2} label="版本"
+        sub={revealHidden ? `🔓 已顯示 ${hiddenCount} 個隱藏項目並計入統計・再點一下恢復隱藏` : undefined}
+        detail="0.9.2 · Beta" onClick={onToggleReveal} />
       </Section>
 
       <div style={{ textAlign: 'center', marginTop: SP(28), fontSize: FS(18),

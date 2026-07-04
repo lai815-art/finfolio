@@ -180,7 +180,7 @@ function genTxns(group, item) {
 }
 
 /* ─── Account Detail Sheet (per-transaction editing) ────────────────── */
-function AccountDetailSheet({ data, mask, onClose, onSaveItem, savedFlows = [], savedTrades = [], computedHoldings = [], onEditRecord }) {
+function AccountDetailSheet({ data, mask, onClose, onSaveItem, savedFlows = [], savedTrades = [], computedHoldings = [], onEditRecord, hideAmounts, revealHidden, isHidden, onToggleHidden }) {
   const { ChevronRight, Check, X, TrendUp, Pencil } = window.Icons;
   const [shown, setShown] = useStateAcct(false);
   const [txnEdits, setTxnEdits] = useStateAcct({});
@@ -317,6 +317,13 @@ function AccountDetailSheet({ data, mask, onClose, onSaveItem, savedFlows = [], 
     }}>
       <div style={{ height: 'var(--ff-detail-top, 62px)', flexShrink: 0 }} />
 
+      {/* 開發者隱藏手勢：眼睛關閉或顯示模式時，點右上角空白處切換隱藏此帳戶 */}
+      {(hideAmounts || revealHidden) &&
+      <button aria-hidden onClick={() => onToggleHidden && onToggleHidden()}
+      style={{ position: 'absolute', top: 'var(--ff-detail-top, 62px)', right: 0, width: 66, height: 58,
+        background: 'transparent', border: 'none', padding: 0, zIndex: 6 }} />
+      }
+
       {/* Header row */}
       <div style={{ display: 'flex', alignItems: 'center', gap: SP(10), padding: PAD('4px 10px 12px') }}>
         <button onClick={onClose} style={{
@@ -327,7 +334,14 @@ function AccountDetailSheet({ data, mask, onClose, onSaveItem, savedFlows = [], 
 
         <div style={{ flex: 1, minWidth: 0 }}>
           <div style={{ fontSize: FS(21), fontWeight: 700, color: TOKENS.ink,
-            overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{item.name}</div>
+            overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+            display: 'flex', alignItems: 'center', gap: SP(8) }}>
+            <span style={{ overflow: 'hidden', textOverflow: 'ellipsis' }}>{item.name}</span>
+            {isHidden &&
+            <span style={{ flexShrink: 0, fontSize: FS(12), fontWeight: 700, color: TOKENS.red,
+              background: 'rgba(184,92,74,0.14)', border: '1px solid rgba(184,92,74,0.35)',
+              borderRadius: RS(8), padding: PAD('2px 7px') }}>已隱藏</span>}
+          </div>
           {item.sub && <div style={{ fontSize: FS(16), color: 'rgba(0,0,0,0.80)', marginTop: SP(1) }}>{item.sub}</div>}
         </div>
       </div>

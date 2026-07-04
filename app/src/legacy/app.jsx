@@ -1004,7 +1004,7 @@ function VoiceListenOverlay({ open, onDone, onCancel, masterData }) {
 }
 
 /* ─── Settings full-screen overlay ──────────────────────────────────── */
-function SettingsOverlay({ open, onClose, masterData, setMasterData, dashWidget, setDashWidget, initialBalances, setInitialBalances, savedFlows, savedTrades, setSavedFlows, setSavedTrades }) {
+function SettingsOverlay({ open, onClose, masterData, setMasterData, dashWidget, setDashWidget, initialBalances, setInitialBalances, savedFlows, savedTrades, setSavedFlows, setSavedTrades, revealHidden, onToggleReveal, hiddenCount }) {
   const { ChevronRight } = window.Icons;
   const [shown, setShown] = useStateApp(false);
   useEffectApp(() => {
@@ -1034,7 +1034,8 @@ function SettingsOverlay({ open, onClose, masterData, setMasterData, dashWidget,
         dashWidget={dashWidget} setDashWidget={setDashWidget}
         savedFlows={savedFlows} savedTrades={savedTrades}
         setSavedFlows={setSavedFlows} setSavedTrades={setSavedTrades}
-        initialBalances={initialBalances} setInitialBalances={setInitialBalances} />
+        initialBalances={initialBalances} setInitialBalances={setInitialBalances}
+        revealHidden={revealHidden} onToggleReveal={onToggleReveal} hiddenCount={hiddenCount} />
       </div>
     </div>);
 
@@ -1218,14 +1219,48 @@ function App() {
     try {localStorage.setItem('ff_init_bal', JSON.stringify(next));} catch {}
   };
 
+  // ── 開發者隱藏：把特定帳戶／股票從清單與所有統計中排除 ──────────────
+  // ff_hidden 持久保存被隱藏的帳戶名稱 / 股票代號。revealHidden 為工作階段開關
+  // （設定頁點「版本」切換，重開 App 會重置）：開啟時被隱藏的項目暫時全部顯示並重新計入統計。
+  const [hidden, setHidden] = useStateApp(() => {
+    try {
+      const h = JSON.parse(localStorage.getItem('ff_hidden') || 'null');
+      if (h && typeof h === 'object') return { accts: h.accts || [], stocks: h.stocks || [] };
+    } catch {}
+    return { accts: [], stocks: [] };
+  });
+  useEffectApp(() => {try {localStorage.setItem('ff_hidden', JSON.stringify(hidden));} catch {}}, [hidden]);
+  const [revealHidden, setRevealHidden] = useStateApp(false);
+  const hiddenAcctSet = React.useMemo(() => new Set(hidden.accts), [hidden]);
+  const hiddenStockSet = React.useMemo(() => new Set(hidden.stocks), [hidden]);
+  const hiddenCount = hidden.accts.length + hidden.stocks.length;
+  const toggleAcctHidden = (name) => setHidden((h) => ({ ...h,
+    accts: h.accts.includes(name) ? h.accts.filter((n) => n !== name) : [...h.accts, name] }));
+  const toggleStockHidden = (code) => setHidden((h) => ({ ...h,
+    stocks: h.stocks.includes(code) ? h.stocks.filter((c) => c !== code) : [...h.stocks, code] }));
+
+  // 排除隱藏項目後的「有效資料」；revealHidden 開啟或沒有任何隱藏時等同原始資料。
+  const effFlows = React.useMemo(() => revealHidden || !hiddenAcctSet.size ? savedFlows :
+  savedFlows.filter((f) => !(f.account && hiddenAcctSet.has(f.account)) &&
+  !(f.fromAccount && hiddenAcctSet.has(f.fromAccount)) && !(f.toAccount && hiddenAcctSet.has(f.toAccount))),
+  [savedFlows, hiddenAcctSet, revealHidden]);
+  const effTrades = React.useMemo(() => revealHidden || !hiddenStockSet.size && !hiddenAcctSet.size ? savedTrades :
+  savedTrades.filter((t) => !hiddenStockSet.has(t.code) &&
+  !(t.settleAccount && hiddenAcctSet.has(t.settleAccount)) && !(t.broker && hiddenAcctSet.has(t.broker))),
+  [savedTrades, hiddenStockSet, hiddenAcctSet, revealHidden]);
+  const effAccounts = React.useMemo(() => revealHidden || !hiddenAcctSet.size ? masterData?.accounts || [] :
+  (masterData?.accounts || []).filter((a) => !hiddenAcctSet.has(a.name)), [masterData, hiddenAcctSet, revealHidden]);
+  const effSettle = React.useMemo(() => revealHidden || !hiddenAcctSet.size ? masterData?.settle || [] :
+  (masterData?.settle || []).filter((s) => !hiddenAcctSet.has(s.name)), [masterData, hiddenAcctSet, revealHidden]);
+
   // 動態計算：帳戶餘額與投資持倉（必須在所有 state 宣告後）
   const computedAcctGroups = useMemoApp(() =>
-  computeAccounts(masterData?.accounts || [], masterData?.settle || [], savedFlows, savedTrades, initialBalances),
-  [masterData, savedFlows, savedTrades, initialBalances]
+  computeAccounts(effAccounts, effSettle, effFlows, effTrades, initialBalances),
+  [effAccounts, effSettle, effFlows, effTrades, initialBalances]
   );
   const computedHoldings = useMemoApp(() =>
-  computeHoldings(savedTrades, masterData, livePrices),
-  [savedTrades, masterData, livePrices]
+  computeHoldings(effTrades, masterData, livePrices),
+  [effTrades, masterData, livePrices]
   );
   // 帳戶詳情回復：儲存/刪除後回到該帳戶詳情頁（取最新餘額）。
   // 故意依賴 [savedFlows, savedTrades]（實際記帳資料），不依賴 computedAcctGroups——
@@ -1464,7 +1499,7 @@ function App() {
           computedAcctGroups={computedAcctGroups}
           computedHoldings={computedHoldings}
           masterData={masterData}
-          savedFlows={savedFlows}
+          savedFlows={effFlows}
           hideAmounts={hideAmounts}
           onRecord={(draft) => { setRecordReturnTab('advisor'); setRecordDraft(draft); setRecordOpen(true); }} />
         </div> :
@@ -1474,22 +1509,22 @@ function App() {
         overflowY: 'auto', overflowX: 'hidden',
         paddingBottom: SP(130)
       }}>
-          {tab === 'dashboard' && <DashboardScreen hideAmounts={hideAmounts} setHideAmounts={setHideAmounts} savedFlows={savedFlows} savedTrades={savedTrades} dashWidget={dashWidget} recordEdits={recordEdits} recordDeletes={recordDeletes} onEditRecord={(d) => {setRecordReturnTab('dashboard');setRecordDraft(d);setRecordOpen(true);}} computedAcctGroups={computedAcctGroups} computedHoldings={computedHoldings} masterData={masterData} onOpenStats={() => setStatsOpen(true)} />}
+          {tab === 'dashboard' && <DashboardScreen hideAmounts={hideAmounts} setHideAmounts={setHideAmounts} savedFlows={effFlows} savedTrades={effTrades} dashWidget={dashWidget} recordEdits={recordEdits} recordDeletes={recordDeletes} onEditRecord={(d) => {setRecordReturnTab('dashboard');setRecordDraft(d);setRecordOpen(true);}} computedAcctGroups={computedAcctGroups} computedHoldings={computedHoldings} masterData={masterData} onOpenStats={() => setStatsOpen(true)} />}
           {tab === 'accounts' && <AccountsScreen hideAmounts={hideAmounts}
         computedAcctGroups={computedAcctGroups}
         computedHoldings={computedHoldings}
-        savedFlows={savedFlows}
+        savedFlows={effFlows}
         masterData={masterData}
         onOpenNetWorth={() => setNetWorthOpen(true)}
         onOpenDetail={setAcctDetail} />}
           {tab === 'invest' && <InvestScreen hideAmounts={hideAmounts}
         computedHoldings={computedHoldings}
-        savedTrades={savedTrades}
+        savedTrades={effTrades}
         masterData={masterData}
         pricesFetchedAt={pricesFetchedAt}
         onRefreshPrices={fetchLivePrices}
         onOpenBreakdown={() => setInvestBreakdownOpen(true)}
-        onOpenDetail={(d) => setInvestDetail({ ...d, mask: appMask, savedTrades })} />}
+        onOpenDetail={(d) => setInvestDetail({ ...d, mask: appMask, savedTrades: effTrades })} />}
         </div>
       }
 
@@ -1535,12 +1570,13 @@ function App() {
       dashWidget={dashWidget} setDashWidget={setDashWidget}
       savedFlows={savedFlows} savedTrades={savedTrades}
       setSavedFlows={setSavedFlows} setSavedTrades={setSavedTrades}
-      initialBalances={initialBalances} setInitialBalances={setInitialBalances} />
+      initialBalances={initialBalances} setInitialBalances={setInitialBalances}
+      revealHidden={revealHidden} onToggleReveal={() => setRevealHidden((v) => !v)} hiddenCount={hiddenCount} />
 
       {(() => {
         const StatsSheet = window.MonthlyStatsSheet;
         return StatsSheet ? <StatsSheet open={statsOpen} onClose={() => setStatsOpen(false)}
-        savedFlows={savedFlows} masterData={masterData} hideAmounts={hideAmounts}
+        savedFlows={effFlows} masterData={masterData} hideAmounts={hideAmounts}
         nowDate={window.TODAY_DATE || new Date()} mask={appMask} /> : null;
       })()}
       {(() => {
@@ -1559,7 +1595,7 @@ function App() {
         const IBSheet = window.InvestBreakdownSheet;
         return IBSheet ? <IBSheet open={investBreakdownOpen} onClose={() => setInvestBreakdownOpen(false)}
           computedHoldings={computedHoldings} masterData={masterData} mask={appMask}
-          savedTrades={savedTrades} savedFlows={savedFlows} /> : null;
+          savedTrades={effTrades} savedFlows={effFlows} /> : null;
       })()}
 
       {/* ── Detail sheets at phone-frame root (避免被 overflow 容器截切) ── */}
@@ -1570,10 +1606,13 @@ function App() {
           <>
             {AcctSheet && acctDetail &&
             <AcctSheet data={acctDetail} mask={appMask}
-            savedFlows={savedFlows} savedTrades={savedTrades}
+            savedFlows={effFlows} savedTrades={effTrades}
             computedHoldings={computedHoldings}
             onClose={() => setAcctDetail(null)}
             onSaveItem={handleSaveAcctItem}
+            hideAmounts={hideAmounts} revealHidden={revealHidden}
+            isHidden={hiddenAcctSet.has(acctDetail.item.name)}
+            onToggleHidden={() => { toggleAcctHidden(acctDetail.item.name); setAcctDetail(null); }}
             onEditRecord={(d) => {
               const snapshot = acctDetail;
               setAcctDetail(null);
@@ -1585,8 +1624,11 @@ function App() {
             {InvSheet && investDetail &&
             <InvSheet data={investDetail.item}
             mask={investDetail.mask || appMask}
-            savedTrades={investDetail.savedTrades || []}
+            savedTrades={effTrades}
             onClose={() => setInvestDetail(null)}
+            hideAmounts={hideAmounts} revealHidden={revealHidden}
+            isHidden={hiddenStockSet.has(investDetail.item.code)}
+            onToggleHidden={() => { toggleStockHidden(investDetail.item.code); setInvestDetail(null); }}
             onEditRecord={(d) => {
               const code = investDetail.item.code;
               setInvestDetail(null);
