@@ -519,7 +519,13 @@ function FlowForm({ state, update, onSaved, onDelete, recordId, masterData }) {
             onPointerDown={(e) => { e.currentTarget.style.transform = 'scale(0.85)'; }}
             onPointerUp={(e) => { e.currentTarget.style.transform = 'scale(1)'; }}
             onPointerLeave={(e) => { e.currentTarget.style.transform = 'scale(1)'; }}>
-              <ArrowRight size={16} style={{ transition: 'transform 140ms ease' }} />
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none"
+              stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"
+              style={{ transition: 'transform 140ms ease' }}>
+                <path d="M7 8 L3 12 L7 16" />
+                <path d="M17 8 L21 12 L17 16" />
+                <path d="M3 12 H21" />
+              </svg>
             </button>
             <div style={{ flex: 1, minWidth: 0 }}>
               <DropField label="轉入帳戶" value={state.toAccount}
