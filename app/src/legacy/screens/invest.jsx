@@ -373,11 +373,13 @@ function InvestScreen({ hideAmounts, onOpenDetail, savedTrades = [], computedHol
   const tabColor = (dynTabs.find((t) => t.id === validTab) || {}).color || TOKENS.ink2;
 
   // 排序：台股（代號開頭為數字）由 0→9 在前，接著美股由 A→Z。
+  // 用「逐字元字串比較」而非數值比較——否則像 006208 會被當成 6208 而排到 2330 之後。
   const isTWCode = (c) => /^\d/.test(String(c || ''));
   const byCode = (a, b) => {
     const at = isTWCode(a.code), bt = isTWCode(b.code);
     if (at !== bt) return at ? -1 : 1; // 台股排在美股前面
-    return String(a.code || '').localeCompare(String(b.code || ''), undefined, { numeric: true, sensitivity: 'base' });
+    const ca = String(a.code || '').toUpperCase(), cb = String(b.code || '').toUpperCase();
+    return ca < cb ? -1 : ca > cb ? 1 : 0;
   };
   const items = useMemoInv(() =>
   allItems.filter((it) => (it.broker || '未分類') === validTab).slice().sort(byCode),
