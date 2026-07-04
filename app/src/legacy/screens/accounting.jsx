@@ -304,7 +304,7 @@ function UnifiedVoice({ state, text, result, onStart, onReset }) {
 // Global singleton: only one dropdown open at a time
 if (!window.__ddId) window.__ddId = 0;
 
-function DropField({ label, value, options, onChange, icon }) {
+function DropField({ label, value, options, onChange, icon, groups, dotColor }) {
   const { ChevronDown } = window.Icons;
   const myId = React.useRef(++window.__ddId).current;
   const ref = React.useRef(null);
@@ -357,33 +357,61 @@ function DropField({ label, value, options, onChange, icon }) {
           <div style={{ ...{ fontSize: FS(18), color: 'rgba(44,44,50,0.5)', letterSpacing: 0.5,
               textTransform: 'uppercase' }, fontSize: "15px" }}>{label}</div>
           <div style={{ marginTop: SP(1), fontSize: FS(20), fontWeight: 500,
-            overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{value}</div>
+            overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+            display: 'flex', alignItems: 'center', gap: SP(7) }}>
+            {dotColor && <span style={{ width: 9, height: 9, borderRadius: 5, flexShrink: 0,
+              background: dotColor, boxShadow: `0 0 0 2px ${dotColor}33` }} />}
+            <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{value}</span>
+          </div>
         </div>
         <ChevronDown size={16} style={{ color: 'rgba(44,44,50,0.5)', flexShrink: 0,
           transition: 'transform 200ms', transform: open ? 'rotate(180deg)' : 'none' }} />
       </button>
       {open &&
-      <div style={{
-        position: 'absolute',
-        top: drop.up ? 'auto' : 'calc(100% + 6px)',
-        bottom: drop.up ? 'calc(100% + 6px)' : 'auto',
-        left: 0, right: 0, zIndex: 30,
-        background: TOKENS.surface2, borderRadius: RS(18), padding: SP(6),
-        border: '1px solid rgba(0,0,0,0.16)',
-        boxShadow: SH('0 18px 36px rgba(0,0,0,0.12)'),
-        maxHeight: drop.maxH, overflowY: 'auto'
-      }}>
-          {options.map((o) =>
+      (() => {
+        // 每個選項一顆按鈕：帳戶群組時左側加上該類別色點；選中則整列反白。
+        const optBtn = (o, color) =>
         <button key={o} onClick={() => {onChange(o);setOpen(false);}}
         style={{
-          width: '100%', minHeight: 54, padding: PAD('8px 12px'), borderRadius: RS(8),
+          width: '100%', minHeight: 48, padding: PAD('8px 12px'), borderRadius: RS(10),
           background: o === value ? TOKENS.ink2 : 'transparent',
           border: 'none', textAlign: 'left',
           color: o === value ? TOKENS.surface : TOKENS.ink, fontSize: FS(19),
-          fontWeight: o === value ? 600 : 400
-        }}>{o}</button>
-        )}
-        </div>
+          fontWeight: o === value ? 600 : 400,
+          display: 'flex', alignItems: 'center', gap: SP(10)
+        }}>
+          {color && <span style={{ width: 9, height: 9, borderRadius: 5, flexShrink: 0,
+            background: color, boxShadow: o === value ? 'none' : `0 0 0 2px ${color}33` }} />}
+          <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{o}</span>
+        </button>;
+        return (
+        <div style={{
+          position: 'absolute',
+          top: drop.up ? 'auto' : 'calc(100% + 6px)',
+          bottom: drop.up ? 'calc(100% + 6px)' : 'auto',
+          left: 0, right: 0, zIndex: 30,
+          background: TOKENS.surface2, borderRadius: RS(18), padding: SP(6),
+          border: '1px solid rgba(0,0,0,0.16)',
+          boxShadow: SH('0 18px 36px rgba(0,0,0,0.12)'),
+          maxHeight: drop.maxH, overflowY: 'auto'
+        }}>
+          {groups && groups.length ?
+          groups.map((g, gi) =>
+          <div key={g.label} style={{ marginTop: gi ? SP(4) : 0,
+            borderTop: gi ? '1px solid rgba(0,0,0,0.08)' : 'none', paddingTop: gi ? SP(4) : 0 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: SP(7),
+              padding: PAD('6px 12px 4px'), fontSize: FS(13), fontWeight: 700,
+              letterSpacing: 0.6, color: g.color, textTransform: 'uppercase' }}>
+              <span style={{ width: 7, height: 7, borderRadius: 4, background: g.color }} />
+              {g.label}
+            </div>
+            {g.items.map((o) => optBtn(o, g.color))}
+          </div>
+          ) :
+          options.map((o) => optBtn(o, null))
+          }
+        </div>);
+      })()
       }
     </div>);
 
@@ -408,6 +436,25 @@ function FlowForm({ state, update, onSaved, onDelete, recordId, masterData }) {
   const allAccts = (md.accounts || []).map((a) => a.name);
   const allSettle = (md.settle || []).map((s) => s.name);
   const allNames = [...new Set([...allAccts, ...allSettle])];
+
+  // 帳戶下拉：依帳戶「種類」分區並上色，帳戶多時較好找。
+  const ACCT_KIND_COLOR = {
+    '銀行': TOKENS.catBank, '交割戶': TOKENS.catBank, '證券戶': TOKENS.catBrokerage,
+    '信用卡': TOKENS.catCredit, '電子支付': TOKENS.catEpay, '儲值卡': TOKENS.catPrepaid,
+    '現金': TOKENS.catCash, '其他': TOKENS.catOther
+  };
+  const ACCT_KIND_ORDER = ['銀行', '交割戶', '證券戶', '信用卡', '電子支付', '儲值卡', '現金', '其他'];
+  const nameKind = {};
+  (md.accounts || []).forEach((a) => {nameKind[a.name] = a.kind || '其他';});
+  (md.settle || []).forEach((s) => {if (nameKind[s.name] == null) nameKind[s.name] = '交割戶';});
+  const acctColor = (name) => ACCT_KIND_COLOR[nameKind[name]] || TOKENS.gray3;
+  const buildAcctGroups = (names) => {
+    const byKind = {};
+    names.forEach((n) => {const k = nameKind[n] || '其他';(byKind[k] = byKind[k] || []).push(n);});
+    const order = [...ACCT_KIND_ORDER, ...Object.keys(byKind).filter((k) => !ACCT_KIND_ORDER.includes(k))];
+    return order.filter((k) => byKind[k] && byKind[k].length).
+    map((k) => ({ label: k, color: ACCT_KIND_COLOR[k] || TOKENS.gray3, items: byKind[k] }));
+  };
 
   const KINDS = [
   { id: 'exp', label: '支出', color: TOKENS.typeExp },
@@ -505,6 +552,8 @@ function FlowForm({ state, update, onSaved, onDelete, recordId, masterData }) {
             <div style={{ flex: 1, minWidth: 0 }}>
               <DropField label="轉出帳戶" value={state.fromAccount}
             options={transferAccounts.filter((a) => a !== state.toAccount)}
+            groups={buildAcctGroups(transferAccounts.filter((a) => a !== state.toAccount))}
+            dotColor={acctColor(state.fromAccount)}
             onChange={(v) => update({ fromAccount: v })}
             icon={<CreditCard size={16} />} />
             </div>
@@ -530,6 +579,8 @@ function FlowForm({ state, update, onSaved, onDelete, recordId, masterData }) {
             <div style={{ flex: 1, minWidth: 0 }}>
               <DropField label="轉入帳戶" value={state.toAccount}
             options={transferAccounts.filter((a) => a !== state.fromAccount)}
+            groups={buildAcctGroups(transferAccounts.filter((a) => a !== state.fromAccount))}
+            dotColor={acctColor(state.toAccount)}
             onChange={(v) => update({ toAccount: v })}
             icon={<Wallet size={16} />} />
             </div>
@@ -575,6 +626,8 @@ function FlowForm({ state, update, onSaved, onDelete, recordId, masterData }) {
           <SectionLabel>帳戶</SectionLabel>
           <DropField label="帳戶" value={state.account}
         options={accountsByKind.exp}
+        groups={buildAcctGroups(accountsByKind.exp)}
+        dotColor={acctColor(state.account)}
         onChange={(v) => update({ account: v })}
         icon={<CreditCard size={16} />} />
         </> :
@@ -588,6 +641,8 @@ function FlowForm({ state, update, onSaved, onDelete, recordId, masterData }) {
           icon={<Tag size={16} />} />
             <DropField label="帳戶" value={state.account}
           options={accountsByKind[state.kind]}
+          groups={buildAcctGroups(accountsByKind[state.kind])}
+          dotColor={acctColor(state.account)}
           onChange={(v) => update({ account: v })}
           icon={<CreditCard size={16} />} />
           </div>
