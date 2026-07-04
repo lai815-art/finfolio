@@ -361,8 +361,8 @@ function DailyView({ date, hideAmounts, extraFlows = [], extraTrades = [], onEdi
               { kind: 'xfer', amount: String(t.amount), category: t.cat || '轉帳',
                 fromAccount: t.fromAccount, toAccount: t.toAccount,
                 xferFee: t.xferFee != null ? String(t.xferFee) : '',
-                note: t.note || t.merchant || '' } :
-              { kind: t.kind, amount: String(t.amount), category: t.cat, account: t.account, note: t.note || t.merchant || '' }
+                note: t.note || t.merchant || '', date: t.date ? new Date(t.date) : new Date() } :
+              { kind: t.kind, amount: String(t.amount), category: t.cat, account: t.account, note: t.note || t.merchant || '', date: t.date ? new Date(t.date) : new Date() }
             }); }} style={{ ...{
                 cursor: t._autoGen ? 'default' : 'pointer',
                 display: 'flex', alignItems: 'center', gap: SP(14), padding: PAD('12px 14px'),

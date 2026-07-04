@@ -128,12 +128,12 @@ function AccountingScreen({ onSaved, onDelete, initialDraft, masterData, compute
   const updateStock = (patch) => setStock((s) => ({ ...s, ...patch }));
 
   return (
-    <div style={{ paddingTop: SP(4) }}>
+    <div style={{ paddingTop: SP(2) }}>
       {/* AI prefill banner — shown only when data came from voice (not manual edit) */}
       {initialDraft && !initialDraft.edit && <VoicePrefillBanner draft={initialDraft} />}
 
       {/* Mode segmented */}
-      <div style={{ padding: PAD('12px 14px 0') }}>
+      <div style={{ padding: PAD('8px 14px 0') }}>
         <div style={{
           display: 'flex', gap: SP(6), padding: SP(4), borderRadius: RS(18),
           background: TOKENS.warmBorder, border: '1px solid rgba(0,0,0,0.20)'
@@ -143,7 +143,7 @@ function AccountingScreen({ onSaved, onDelete, initialDraft, masterData, compute
           { id: 'stock', label: '股票買賣' }].
           map((t) =>
           <button key={t.id} onClick={() => setMode(t.id)} style={{ ...{
-              flex: 1, height: 52, borderRadius: RS(8),
+              flex: 1, height: 44, borderRadius: RS(8),
               background: mode === t.id ?
               TOKENS.ink2 :
               'transparent',
@@ -348,9 +348,9 @@ function DropField({ label, value, options, onChange, icon }) {
   return (
     <div ref={ref} style={{ position: 'relative' }}>
       <button onClick={toggle} style={{
-        width: '100%', minHeight: 56, padding: PAD('8px 14px'), borderRadius: RS(18),
+        width: '100%', minHeight: 50, padding: PAD('6px 14px'), borderRadius: RS(16),
         background: TOKENS.surface, border: open ? '1px solid rgba(0,0,0,0.30)' : '1px solid rgba(0,0,0,0.12)',
-        color: TOKENS.ink, display: 'flex', alignItems: 'center', gap: SP(10), textAlign: 'left', height: "60px"
+        color: TOKENS.ink, display: 'flex', alignItems: 'center', gap: SP(10), textAlign: 'left', height: "52px"
       }}>
         {icon && <span style={{ color: 'rgba(44,44,50,0.5)', flexShrink: 0 }}>{icon}</span>}
         <div style={{ flex: 1, minWidth: 0 }}>
@@ -391,7 +391,7 @@ function DropField({ label, value, options, onChange, icon }) {
 
 function SectionLabel({ children, action }) {
   return (
-    <div style={{ marginTop: SP(16), marginBottom: SP(8), padding: PAD('0 4px'),
+    <div style={{ marginTop: SP(9), marginBottom: SP(5), padding: PAD('0 4px'),
       display: 'flex', justifyContent: 'space-between', alignItems: 'baseline' }}>
       <div style={{ ...{ fontSize: FS(14), color: 'rgba(0,0,0,0.62)', fontWeight: 600, letterSpacing: 1.2,
           textTransform: 'uppercase', borderLeft: `3px solid ${TOKENS.accent}`,
@@ -446,7 +446,7 @@ function FlowForm({ state, update, onSaved, onDelete, recordId, masterData }) {
   const curExpItems = (expCatStruct.find((s) => s.group === curExpGroup) || { items: [] }).items;
 
   return (
-    <div style={{ padding: PAD('8px 14px 28px'), color: TOKENS.ink }}>
+    <div style={{ padding: PAD('4px 14px 16px'), color: TOKENS.ink }}>
       {/* Big kind toggle */}
       <SectionLabel>記帳類型</SectionLabel>
       <div style={{ display: 'flex', gap: SP(8) }}>
@@ -470,7 +470,7 @@ function FlowForm({ state, update, onSaved, onDelete, recordId, masterData }) {
               color: on ? TOKENS.surface : 'rgba(60,60,67,0.6)',
               display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
               fontSize: FS(20), fontWeight: on ? 700 : 500, gap: SP(2),
-              boxShadow: SH('none'), height: "55px", lineHeight: "1"
+              boxShadow: SH('none'), height: "46px", lineHeight: "1"
             }}>
               {k.label}
             </button>);
@@ -481,18 +481,18 @@ function FlowForm({ state, update, onSaved, onDelete, recordId, masterData }) {
       {/* Amount big */}
       <SectionLabel>金額</SectionLabel>
       <div style={{ ...{
-          padding: PAD('16px 20px'), borderRadius: RS(18), background: TOKENS.surface,
-          border: '1px solid rgba(0,0,0,0.20)', height: "60px", lineHeight: "1.6"
-        }, padding: "13px 20px 16px" }}>
+          padding: PAD('16px 20px'), borderRadius: RS(16), background: TOKENS.surface,
+          border: '1px solid rgba(0,0,0,0.20)', height: "54px", lineHeight: "1.6"
+        }, padding: "9px 20px 12px" }}>
         <div style={{ display: 'flex', alignItems: 'baseline', gap: SP(8), lineHeight: "1.8" }}>
-          
+
           <input value={state.amount} onChange={(e) => update({ amount: e.target.value })}
           placeholder="0" inputMode="decimal"
           style={{
             flex: 1, background: 'transparent', border: 'none', outline: 'none',
-            fontSize: FS(46), fontWeight: 700, color: active.color,
+            fontSize: FS(40), fontWeight: 700, color: active.color,
             fontFamily: TOKENS.fontMono, letterSpacing: -1,
-            minWidth: 0, padding: SP(0), width: "307px", height: "35px"
+            minWidth: 0, padding: SP(0), width: "307px", height: "32px"
           }} />
         </div>
       </div>
@@ -536,8 +536,8 @@ function FlowForm({ state, update, onSaved, onDelete, recordId, masterData }) {
             onChange={(v) => update({ category: v })}
             icon={<Tag size={16} />} />
             </div>
-            <div style={{ flex: '0 0 128px', minWidth: 0, overflow: 'hidden', height: 60, padding: PAD('0 14px'),
-            borderRadius: RS(18), background: TOKENS.surface, border: '1px solid rgba(0,0,0,0.12)',
+            <div style={{ flex: '0 0 128px', minWidth: 0, overflow: 'hidden', height: 52, padding: PAD('0 14px'),
+            borderRadius: RS(16), background: TOKENS.surface, border: '1px solid rgba(0,0,0,0.12)',
             display: 'flex', flexDirection: 'column', justifyContent: 'center' }}>
               <div style={{ fontSize: FS(15), color: 'rgba(44,44,50,0.5)', letterSpacing: 0.5, whiteSpace: 'nowrap' }}>轉帳手續費</div>
               <input value={state.xferFee || ''} onChange={(e) => update({ xferFee: e.target.value })}
@@ -594,7 +594,7 @@ function FlowForm({ state, update, onSaved, onDelete, recordId, masterData }) {
 
       {/* Note */}
       <SectionLabel>備註</SectionLabel>
-      <div style={{ padding: PAD('10px 16px'), borderRadius: RS(18), background: TOKENS.surface,
+      <div style={{ padding: PAD('7px 14px'), borderRadius: RS(16), background: TOKENS.surface,
         border: '1px solid rgba(0,0,0,0.20)' }}>
         <input value={state.note} onChange={(e) => update({ note: e.target.value })}
         placeholder="輸入備註…"
@@ -605,12 +605,12 @@ function FlowForm({ state, update, onSaved, onDelete, recordId, masterData }) {
       </div>
 
       {/* Submit */}
-      <div style={{ marginTop: SP(18), display: 'flex', gap: SP(10) }}>
+      <div style={{ marginTop: SP(14), display: 'flex', gap: SP(10) }}>
         <button onClick={() => {
           if (!state.amount || parseFloat(state.amount) <= 0) return;
           onSaved && onSaved('flow', { ...state, recordId });
         }} style={{ ...{
-            flex: 1, height: 60, borderRadius: RS(18),
+            flex: 1, height: 54, borderRadius: RS(16),
             background: `linear-gradient(135deg, ${active.color}, ${active.color}cc)`,
             border: 'none', color: TOKENS.inkDeep, fontSize: FS(20), fontWeight: 600,
             display: 'flex', alignItems: 'center', justifyContent: 'center', gap: SP(8),
@@ -619,13 +619,25 @@ function FlowForm({ state, update, onSaved, onDelete, recordId, masterData }) {
           <Plus size={20} strokeWidth={2.5} /> {recordId ? '更新' : '儲存'}{active.label}
         </button>
         {recordId &&
-        <button onClick={() => onDelete && onDelete(recordId)} style={{
-          flex: '0 0 auto', padding: PAD('0 22px'), height: 60, borderRadius: RS(18),
+        <button onClick={() => {
+          if (!state.amount || parseFloat(state.amount) <= 0) return;
+          // 以目前欄位另存為「新的一筆」，不動原紀錄
+          onSaved && onSaved('flow', { ...state, recordId: undefined });
+        }} style={{
+          flex: '0 0 auto', padding: PAD('0 14px'), height: 54, borderRadius: RS(16),
+          background: 'transparent', border: `1px solid ${active.color}`,
+          color: active.color, fontSize: FS(17), fontWeight: 600, whiteSpace: 'nowrap',
+          display: 'flex', alignItems: 'center', justifyContent: 'center'
+        }}>記一筆</button>
+        }
+        {recordId &&
+        <button onClick={() => onDelete && onDelete(recordId)} aria-label="刪除" style={{
+          flex: '0 0 auto', padding: PAD('0 15px'), height: 54, borderRadius: RS(16),
           background: 'transparent', border: '1px solid rgba(216,135,112,0.4)',
           color: TOKENS.red, fontSize: FS(20), fontWeight: 600,
-          display: 'flex', alignItems: 'center', justifyContent: 'center', gap: SP(8)
+          display: 'flex', alignItems: 'center', justifyContent: 'center'
         }}>
-            <Trash size={20} strokeWidth={2.2} /> 刪除
+            <Trash size={20} strokeWidth={2.2} />
           </button>
         }
         {!recordId &&
@@ -634,7 +646,7 @@ function FlowForm({ state, update, onSaved, onDelete, recordId, masterData }) {
           onSaved && onSaved('flow', { ...state }, true);
           update({ amount: '', note: '' });
         }} style={{
-          flex: '0 0 auto', padding: PAD('0 16px'), height: 60, borderRadius: RS(18),
+          flex: '0 0 auto', padding: PAD('0 16px'), height: 54, borderRadius: RS(16),
           background: 'transparent', border: `1px solid ${active.color}`,
           color: active.color, fontSize: FS(17), fontWeight: 600, whiteSpace: 'nowrap',
           display: 'flex', alignItems: 'center', justifyContent: 'center'
@@ -736,7 +748,7 @@ function StockForm({ state, update, onSaved, onDelete, recordId, masterData, com
   }, [settleAccounts.join('|'), state.settleAccount]);
 
   return (
-    <div style={{ padding: PAD('8px 14px 28px'), color: TOKENS.ink }}>
+    <div style={{ padding: PAD('4px 14px 16px'), color: TOKENS.ink }}>
       {/* Buy / Sell big toggle */}
       <SectionLabel>交易方向</SectionLabel>
       <div style={{ display: 'flex', gap: SP(10) }}>
@@ -744,14 +756,14 @@ function StockForm({ state, update, onSaved, onDelete, recordId, masterData, com
           const on = s.id === state.side;
           return (
             <button key={s.id} onClick={() => update({ side: s.id })} style={{
-              flex: 1, borderRadius: RS(18),
+              flex: 1, borderRadius: RS(16),
               background: on ?
               s.color :
               TOKENS.surface,
               border: on ? `1px solid ${s.color}` : '1px solid rgba(0,0,0,0.12)',
               color: on ? TOKENS.surface : 'rgba(60,60,67,0.6)',
               display: 'flex', alignItems: 'center', justifyContent: 'center', gap: SP(8),
-              fontSize: FS(20), fontWeight: on ? 700 : 500, height: "55px", lineHeight: "1.25"
+              fontSize: FS(20), fontWeight: on ? 700 : 500, height: "46px", lineHeight: "1.25"
             }}>
               {s.label}
             </button>);
@@ -946,8 +958,8 @@ function StockForm({ state, update, onSaved, onDelete, recordId, masterData, com
 
       {/* Note */}
       <SectionLabel>備註</SectionLabel>
-      <div style={{ ...{ padding: PAD('10px 16px'), borderRadius: RS(18), background: TOKENS.surface,
-          border: '1px solid rgba(0,0,0,0.20)', height: "45px" }, padding: "6px 16px 10px" }}>
+      <div style={{ ...{ padding: PAD('10px 16px'), borderRadius: RS(16), background: TOKENS.surface,
+          border: '1px solid rgba(0,0,0,0.20)', height: "44px" }, padding: "5px 14px 10px" }}>
         <input value={state.note} onChange={(e) => update({ note: e.target.value })}
         placeholder="例：除權息前布局"
         style={{
@@ -957,12 +969,12 @@ function StockForm({ state, update, onSaved, onDelete, recordId, masterData, com
       </div>
 
       {/* Submit */}
-      <div style={{ marginTop: SP(18), display: 'flex', gap: SP(10) }}>
+      <div style={{ marginTop: SP(14), display: 'flex', gap: SP(10) }}>
         <button onClick={() => {
           if (!state.code || !state.shares || !state.price) return;
           onSaved && onSaved('stock', { ...state, fee, tax, net, recordId });
         }} style={{ ...{
-            flex: 1, height: 60, borderRadius: RS(18),
+            flex: 1, height: 54, borderRadius: RS(16),
             background: `linear-gradient(135deg, ${accent}, ${accent}cc)`,
             border: 'none', color: TOKENS.inkDeep, fontSize: FS(20), fontWeight: 600,
             display: 'flex', alignItems: 'center', justifyContent: 'center', gap: SP(8),
@@ -971,13 +983,25 @@ function StockForm({ state, update, onSaved, onDelete, recordId, masterData, com
           <Plus size={20} strokeWidth={2.5} /> {recordId ? '更新' : '儲存'}{state.side === 'buy' ? '買進' : '賣出'}紀錄
         </button>
         {recordId &&
-        <button onClick={() => onDelete && onDelete(recordId)} style={{
-          flex: '0 0 auto', padding: PAD('0 22px'), height: 60, borderRadius: RS(18),
+        <button onClick={() => {
+          if (!state.code || !state.shares || !state.price) return;
+          // 以目前欄位另存為「新的一筆」交易，不動原紀錄
+          onSaved && onSaved('stock', { ...state, fee, tax, net, recordId: undefined });
+        }} style={{
+          flex: '0 0 auto', padding: PAD('0 14px'), height: 54, borderRadius: RS(16),
+          background: 'transparent', border: `1px solid ${accent}`,
+          color: accent, fontSize: FS(17), fontWeight: 600, whiteSpace: 'nowrap',
+          display: 'flex', alignItems: 'center', justifyContent: 'center'
+        }}>記一筆</button>
+        }
+        {recordId &&
+        <button onClick={() => onDelete && onDelete(recordId)} aria-label="刪除" style={{
+          flex: '0 0 auto', padding: PAD('0 15px'), height: 54, borderRadius: RS(16),
           background: 'transparent', border: '1px solid rgba(216,135,112,0.4)',
           color: TOKENS.red, fontSize: FS(20), fontWeight: 600,
-          display: 'flex', alignItems: 'center', justifyContent: 'center', gap: SP(8)
+          display: 'flex', alignItems: 'center', justifyContent: 'center'
         }}>
-            <Trash size={20} strokeWidth={2.2} /> 刪除
+            <Trash size={20} strokeWidth={2.2} />
           </button>
         }
         {!recordId &&
@@ -986,7 +1010,7 @@ function StockForm({ state, update, onSaved, onDelete, recordId, masterData, com
           onSaved && onSaved('stock', { ...state, fee, tax, net }, true);
           update({ code: '', name: '', shares: '', price: '', note: '' });
         }} style={{
-          flex: '0 0 auto', padding: PAD('0 16px'), height: 60, borderRadius: RS(18),
+          flex: '0 0 auto', padding: PAD('0 16px'), height: 54, borderRadius: RS(16),
           background: 'transparent', border: `1px solid ${accent}`,
           color: accent, fontSize: FS(17), fontWeight: 600, whiteSpace: 'nowrap',
           display: 'flex', alignItems: 'center', justifyContent: 'center'
