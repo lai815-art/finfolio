@@ -147,8 +147,8 @@ function InvestDetailSheet({ data, mask, onClose, savedTrades = [], onEditRecord
       display: 'flex', flexDirection: 'column'
     }}>
       <div style={{ height: 'var(--ff-detail-top, 62px)', flexShrink: 0 }} />
-      {/* 開發者隱藏手勢：眼睛關閉或顯示模式時，點右上角空白處切換隱藏此個股 */}
-      {(hideAmounts || revealHidden) &&
+      {/* 開發者隱藏手勢：只有「眼睛關閉」時，點右上角空白處才切換隱藏此個股（眼睛張開時不觸發） */}
+      {hideAmounts &&
       <button aria-hidden onClick={() => onToggleHidden && onToggleHidden()}
       style={{ position: 'absolute', top: 'var(--ff-detail-top, 62px)', right: 0, width: 66, height: 58,
         background: 'transparent', border: 'none', padding: 0, zIndex: 6 }} />

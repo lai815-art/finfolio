@@ -1612,7 +1612,12 @@ function App() {
             onSaveItem={handleSaveAcctItem}
             hideAmounts={hideAmounts} revealHidden={revealHidden}
             isHidden={hiddenAcctSet.has(acctDetail.item.name)}
-            onToggleHidden={() => { toggleAcctHidden(acctDetail.item.name); setAcctDetail(null); }}
+            onToggleHidden={() => {
+              const wasHidden = hiddenAcctSet.has(acctDetail.item.name);
+              toggleAcctHidden(acctDetail.item.name);
+              if (!wasHidden) setRevealHidden(false); // 新隱藏 → 立即從清單與統計消失
+              setAcctDetail(null);
+            }}
             onEditRecord={(d) => {
               const snapshot = acctDetail;
               setAcctDetail(null);
@@ -1628,7 +1633,12 @@ function App() {
             onClose={() => setInvestDetail(null)}
             hideAmounts={hideAmounts} revealHidden={revealHidden}
             isHidden={hiddenStockSet.has(investDetail.item.code)}
-            onToggleHidden={() => { toggleStockHidden(investDetail.item.code); setInvestDetail(null); }}
+            onToggleHidden={() => {
+              const wasHidden = hiddenStockSet.has(investDetail.item.code);
+              toggleStockHidden(investDetail.item.code);
+              if (!wasHidden) setRevealHidden(false); // 新隱藏 → 立即從清單與統計消失
+              setInvestDetail(null);
+            }}
             onEditRecord={(d) => {
               const code = investDetail.item.code;
               setInvestDetail(null);
