@@ -372,8 +372,15 @@ function InvestScreen({ hideAmounts, onOpenDetail, savedTrades = [], computedHol
   const validTab = dynTabs.find((t) => t.id === activeTab) ? activeTab : dynTabs[0]?.id || '未分類';
   const tabColor = (dynTabs.find((t) => t.id === validTab) || {}).color || TOKENS.ink2;
 
+  // 排序：台股（代號開頭為數字）由 0→9 在前，接著美股由 A→Z。
+  const isTWCode = (c) => /^\d/.test(String(c || ''));
+  const byCode = (a, b) => {
+    const at = isTWCode(a.code), bt = isTWCode(b.code);
+    if (at !== bt) return at ? -1 : 1; // 台股排在美股前面
+    return String(a.code || '').localeCompare(String(b.code || ''), undefined, { numeric: true, sensitivity: 'base' });
+  };
   const items = useMemoInv(() =>
-  allItems.filter((it) => (it.broker || '未分類') === validTab),
+  allItems.filter((it) => (it.broker || '未分類') === validTab).slice().sort(byCode),
   [computedHoldings, validTab]
   );
 
