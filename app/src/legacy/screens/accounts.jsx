@@ -663,7 +663,7 @@ function AccountItemRow({ item, group, mask, last, onOpen }) {
 function AccountsScreen({ hideAmounts, onOpenDetail, computedAcctGroups = [], computedHoldings = [], savedFlows = [], masterData, onOpenNetWorth }) {
   const { ChartPie } = window.Icons;
   const mask = (n) => hideAmounts ? '••••••' : fmtAcct(n);
-  const [openId, setOpenId] = useStateAcct('bank');
+  const [openId, setOpenId] = useStateAcct(null);
 
   const LIGHT_TINTS = { cash: TOKENS.surface, stock: TOKENS.accentTintHi, bond: TOKENS.chart2, other: TOKENS.chart1 };
   // Build pieLight from computedAcctGroups（統計加總換算台幣）

@@ -379,11 +379,14 @@ function DailyView({ date, hideAmounts, extraFlows = [], extraTrades = [], onEdi
               <div style={{ flex: 1, minWidth: 0 }}>
                 {t.kind === 'xfer' ?
                 <>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: SP(6), minWidth: 0 }}>
+                  <div style={{ display: 'flex', alignItems: 'baseline', gap: SP(6), minWidth: 0 }}>
                     <span style={{ fontSize: FS(20), fontWeight: 500, overflow: 'hidden',
-                      textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                      textOverflow: 'ellipsis', whiteSpace: 'nowrap', flexShrink: 0 }}>
                       {t._autoGen && (t.merchant === '投資獲利' || t.merchant === '投資損失') ? t.merchant : t.cat}
                     </span>
+                    {!t._autoGen && t.merchant && t.merchant !== t.cat && t.merchant !== t.account &&
+                    <span style={{ fontSize: FS(14), color: 'rgba(0,0,0,0.42)', flex: 1, minWidth: 0,
+                      overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{t.merchant}</span>}
                     {t._autoGen && <span style={{ fontSize: FS(13), fontWeight: 600, color: TOKENS.gray3, background: 'rgba(0,0,0,0.06)', padding: '1px 6px', borderRadius: RS(6), whiteSpace: 'nowrap', flexShrink: 0 }}>系統自動</span>}
                   </div>
                   <div style={{ ...{ fontSize: FS(16), color: 'rgba(0,0,0,0.84)', marginTop: SP(2),
@@ -392,11 +395,14 @@ function DailyView({ date, hideAmounts, extraFlows = [], extraTrades = [], onEdi
                   </div>
                 </> :
                 <>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: SP(6), minWidth: 0 }}>
+                  <div style={{ display: 'flex', alignItems: 'baseline', gap: SP(6), minWidth: 0 }}>
                     <span style={{ ...{ fontSize: FS(20), fontWeight: 500, overflow: 'hidden',
-                        textOverflow: 'ellipsis', whiteSpace: 'nowrap' }, fontSize: "18px" }}>
+                        textOverflow: 'ellipsis', whiteSpace: 'nowrap' }, fontSize: "18px", flexShrink: 0 }}>
                       {t._autoGen && (t.merchant === '投資獲利' || t.merchant === '投資損失') ? t.merchant : t.cat}
                     </span>
+                    {!t._autoGen && t.merchant && t.merchant !== t.cat && t.merchant !== t.account &&
+                    <span style={{ fontSize: FS(14), color: 'rgba(0,0,0,0.42)', flex: 1, minWidth: 0,
+                      overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{t.merchant}</span>}
                     {t._autoGen && <span style={{ fontSize: FS(13), fontWeight: 600, color: TOKENS.gray3, background: 'rgba(0,0,0,0.06)', padding: '1px 6px', borderRadius: RS(6), whiteSpace: 'nowrap', flexShrink: 0 }}>系統自動</span>}
                   </div>
                   <div style={{ ...{ fontSize: FS(16), color: 'rgba(0,0,0,0.84)', marginTop: SP(2),
