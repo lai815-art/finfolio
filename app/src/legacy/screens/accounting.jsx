@@ -592,11 +592,10 @@ function FlowForm({ state, update, onSaved, onDelete, recordId, masterData }) {
             <div style={{ flex: '0 0 128px', minWidth: 0, overflow: 'hidden', height: 52, padding: PAD('0 14px'),
             borderRadius: RS(16), background: TOKENS.surface, border: '1px solid rgba(0,0,0,0.12)',
             display: 'flex', flexDirection: 'column', justifyContent: 'center' }}>
-              <div style={{ fontSize: FS(15), color: 'rgba(44,44,50,0.5)', letterSpacing: 0.5, whiteSpace: 'nowrap' }}>轉帳手續費</div>
               <input value={state.xferFee || ''} onChange={(e) => update({ xferFee: e.target.value })}
-              placeholder="選填" inputMode="decimal"
+              placeholder="手續費" inputMode="decimal"
               style={{
-                marginTop: SP(1), width: '100%', background: 'transparent', border: 'none', outline: 'none',
+                width: '100%', background: 'transparent', border: 'none', outline: 'none',
                 fontSize: FS(20), fontWeight: 500, color: TOKENS.ink, fontFamily: TOKENS.fontMono, minWidth: 0
               }} />
             </div>
