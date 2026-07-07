@@ -1069,7 +1069,9 @@ function NetWorthSheet({ open, onClose, total, computedAcctGroups, computedHoldi
 
   // 投資持倉：直接依使用者設定的股票類別（市值型 / 高息型 / 科技型 / 主動型 / 個股 / 債券 …）分組市值，
   // 不再用名稱關鍵字硬猜成「股票/債券/美股」三桶。
-  const INV_COLORS = [TOKENS.inv1, TOKENS.inv2, TOKENS.inv3, TOKENS.inv4, TOKENS.inv5, TOKENS.inv6, TOKENS.gold, TOKENS.indigo];
+  // 冷暖交錯的序列，且不與 現金(綠)/存款(深藍) 重複——舊序列第一個 inv1 就是存款的深藍，
+  // 相鄰兩塊在圓餅上幾乎分不出來。
+  const INV_COLORS = [TOKENS.orange, TOKENS.indigo, TOKENS.red, TOKENS.teal, TOKENS.gold2, TOKENS.blue, TOKENS.inv5, TOKENS.green2];
   const cats = [];
   if (Math.abs(cash) >= 1) cats.push({ name: '現金', value: cash, color: TOKENS.green });
   if (Math.abs(deposit) >= 1) cats.push({ name: '存款', value: deposit, color: TOKENS.blue2 });
