@@ -2097,8 +2097,21 @@ async function ffImportBackup(text, pass) {
     ptBuf = await crypto.subtle.decrypt({ name: 'AES-GCM', iv: _ub64(blob.iv) }, key, _ub64(blob.data));
   } catch { throw new Error('密碼錯誤（請輸入「匯出這個檔案當時」設定的密碼；注意大小寫、全形/半形與前後空白）'); }
   const data = JSON.parse(new TextDecoder().decode(ptBuf));
+  // 舊版備份把大型快取也打包了（全資料複本 ff_auto_snapshot、台股清單 ff_tw_stocks_v7），
+  // 還原時跳過（會自動重建）；並先清掉即將被覆蓋的舊值再寫入——否則新舊兩份並存，
+  // 在獨立 App 較小的 localStorage 配額下會中途爆掉（Safari 容器較空所以沒事）。
+  const SKIP_RESTORE = { ff_auto_snapshot: 1, ff_tw_stocks_v7: 1 };
+  const keys = Object.keys(data).filter((k) => k.indexOf('ff_') === 0 && !SKIP_RESTORE[k]);
   try {
-    Object.keys(data).forEach((k) => { if (k.indexOf('ff_') === 0) localStorage.setItem(k, data[k]); });
+    const existing = [];
+    for (let i = 0; i < localStorage.length; i++) {
+      const k = localStorage.key(i);
+      if (k && k.indexOf('ff_') === 0) existing.push(k);
+    }
+    existing.forEach((k) => { if (SKIP_RESTORE[k] || data[k] !== undefined) localStorage.removeItem(k); });
+    // 由小到大寫入：萬一空間仍不足，重要的小型設定至少已先寫入
+    keys.sort((a, b) => String(data[a]).length - String(data[b]).length);
+    keys.forEach((k) => localStorage.setItem(k, data[k]));
   } catch { throw new Error('裝置儲存空間不足，資料可能只寫入一部分——請清出空間後再還原一次'); }
 }
 
