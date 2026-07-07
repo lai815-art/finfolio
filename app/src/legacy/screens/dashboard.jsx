@@ -800,11 +800,15 @@ function MonthlyStatsSheet({ open, onClose, savedFlows, masterData, hideAmounts,
   const canNext = monthOffset < 0;
   const canNextYear = yearOffset < 0;
 
-  const curFlows = savedFlows.filter((f) => {
+  // 投資年度彙總（股息/債息/已實現損益，整年一筆）與買賣損益不列入「日常收支統計」，
+  // 否則整年的數字會全擠在 12/31 造成 12 月暴衝；投資收益改在「投資組合明細」完整呈現。
+  const isInvestAgg = (f) => { const s = (f.merchant || '') + (f.note || ''); return /年度彙總/.test(s) || f.merchant === '投資獲利' || f.merchant === '投資損失'; };
+  const baseFlows = savedFlows.filter((f) => !isInvestAgg(f));
+  const curFlows = baseFlows.filter((f) => {
     const d = f.date instanceof Date ? f.date : new Date(f.date);
     return d.getFullYear() === thisY && d.getMonth() === thisM;
   });
-  const yearFlows = savedFlows.filter((f) => {
+  const yearFlows = baseFlows.filter((f) => {
     const d = f.date instanceof Date ? f.date : new Date(f.date);
     return d.getFullYear() === viewYear;
   });
@@ -839,7 +843,7 @@ function MonthlyStatsSheet({ open, onClose, savedFlows, masterData, hideAmounts,
 
   // 歷年總覽：所有年份的收入 / 支出 / 餘額
   const allYearMap = {};
-  savedFlows.forEach((f) => {
+  baseFlows.forEach((f) => {
     const d = f.date instanceof Date ? f.date : new Date(f.date);
     const y = d.getFullYear();
     if (isNaN(y)) return;
