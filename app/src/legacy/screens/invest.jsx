@@ -591,6 +591,13 @@ function InvestBreakdownSheet({ open, onClose, computedHoldings = [], masterData
             <>
               {StatDonut && <StatDonut data={holdingData} total={portfolioMv} label="市值" color={TOKENS.ink} mask={mask} />}
               <div style={{ marginTop: SP(14), display: 'flex', flexDirection: 'column' }}>
+                {/* 未實現損益總計：放最上面，一進來先看到 */}
+                <div style={{ display: 'flex', alignItems: 'center', gap: SP(12), padding: PAD('4px 2px 12px') }}>
+                  <div style={{ flex: 1, fontSize: FS(18), fontWeight: 600, color: TOKENS.ink }}>未實現損益</div>
+                  <div style={{ fontFamily: TOKENS.fontMono, fontSize: FS(18), fontWeight: 700, color: upColor(portPnl) }}>
+                    {portPnl < 0 ? '-' : '+'}{mask(Math.abs(portPnl))} ({portPnl < 0 ? '' : '+'}{portPct.toFixed(1)}%)
+                  </div>
+                </div>
                 {holdings.map((h, i) => {
                   const Ico = window.Icons[assetIconName(h.assetClass)] || window.Icons.TrendUp;
                   return (
@@ -615,12 +622,6 @@ function InvestBreakdownSheet({ open, onClose, computedHoldings = [], masterData
                     </div>
                   </div>);
                 })}
-                <div style={{ display: 'flex', alignItems: 'center', gap: SP(12), padding: PAD('12px 2px') }}>
-                  <div style={{ flex: 1, fontSize: FS(18), fontWeight: 600, color: TOKENS.ink }}>未實現損益</div>
-                  <div style={{ fontFamily: TOKENS.fontMono, fontSize: FS(18), fontWeight: 700, color: upColor(portPnl) }}>
-                    {portPnl < 0 ? '-' : '+'}{mask(Math.abs(portPnl))} ({portPnl < 0 ? '' : '+'}{portPct.toFixed(1)}%)
-                  </div>
-                </div>
               </div>
             </>
             }
