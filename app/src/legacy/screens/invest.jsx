@@ -584,8 +584,6 @@ function InvestBreakdownSheet({ open, onClose, computedHoldings = [], masterData
           {/* 投資配置：所有個股持倉 + 圓餅圖 */}
           {invTab === 'alloc' &&
           <div style={{ ...cardStyle, padding: PAD('20px 16px') }}>
-            <div style={{ fontSize: FS(14), color: 'rgba(0,0,0,0.62)', fontWeight: 700, letterSpacing: 1,
-              textTransform: 'uppercase', marginBottom: SP(6), paddingLeft: SP(2) }}>投資配置</div>
             {holdings.length === 0 ?
             <div style={{ fontSize: FS(17), color: 'rgba(44,44,50,0.4)', textAlign: 'center', padding: PAD('12px 0') }}>尚無持倉</div> :
             <>
