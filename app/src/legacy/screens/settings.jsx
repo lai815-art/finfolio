@@ -1232,6 +1232,23 @@ function StringListManager({ items, onChange, color, placeholder }) {
 
 }
 
+/* 初始餘額正負切換：iOS 的數字鍵盤(inputMode=decimal)沒有負號可按，
+   信用卡要輸入「既有欠款」(負值) 得靠這顆按鈕切換。 */
+function SignBtn({ value, onChange, color }) {
+  const s = String(value || '').trim();
+  const neg = s.startsWith('-');
+  return (
+    <button type="button" aria-label="切換正負號"
+    onClick={() => onChange(neg ? s.slice(1) : '-' + s)}
+    style={{ flexShrink: 0, width: 38, height: 34, borderRadius: RS(8),
+      border: `1px solid ${neg ? 'rgba(184,92,74,0.5)' : 'rgba(0,0,0,0.16)'}`,
+      background: neg ? 'rgba(184,92,74,0.12)' : TOKENS.surface,
+      color: neg ? TOKENS.red : 'rgba(44,44,50,0.7)',
+      fontSize: FS(18), fontWeight: 700, fontFamily: 'JetBrains Mono,monospace' }}>
+      {neg ? '−' : '＋'}
+    </button>);
+}
+
 function AccountsManager({ data, onChange, color, initialBalances, setInitialBalances }) {
   if (!initialBalances) initialBalances = {};
   const { Plus, X, Check, Wallet, Trash, Grip } = window.Icons;
@@ -1320,7 +1337,7 @@ function AccountsManager({ data, onChange, color, initialBalances, setInitialBal
                       </button>
                   }
                     {editingIdx === i ?
-                  <><button onClick={saveEdit} style={{ width: 34, height: 34, borderRadius: RS(8), flexShrink: 0,
+                  <><button onClick={saveEdit} aria-label="儲存帳戶" style={{ width: 34, height: 34, borderRadius: RS(8), flexShrink: 0,
                       background: kc, border: 'none', color: TOKENS.surface,
                       display: 'flex', alignItems: 'center', justifyContent: 'center' }}><Check size={15} strokeWidth={2.5} /></button>
                         <button onClick={() => setEditingIdx(null)} style={{ width: 34, height: 34, borderRadius: RS(8), flexShrink: 0,
@@ -1343,6 +1360,7 @@ function AccountsManager({ data, onChange, color, initialBalances, setInitialBal
                       </div>
                       <div style={{ display: 'flex', alignItems: 'center', gap: SP(8) }}>
                         <span style={{ fontSize: FS(16), color: 'rgba(44,44,50,0.84)', whiteSpace: 'nowrap', flexShrink: 0 }}>初始餘額</span>
+                        <SignBtn value={edit.initBal} onChange={(v) => setEdit({ ...edit, initBal: v })} />
                         <input value={edit.initBal} onChange={(e) => setEdit({ ...edit, initBal: e.target.value })} inputMode="decimal" placeholder="0"
                     style={{ flex: 1, minWidth: 0, height: 34, padding: PAD('0 10px'), borderRadius: RS(8), background: 'rgba(0,0,0,0.06)',
                       border: `1px solid ${kc}40`, fontSize: FS(18), fontFamily: 'JetBrains Mono,monospace', color: TOKENS.ink, outline: 'none' }} />
@@ -1364,6 +1382,7 @@ function AccountsManager({ data, onChange, color, initialBalances, setInitialBal
                 <div style={{ display: 'flex', alignItems: 'center', gap: SP(8), marginBottom: SP(8) }}>
                   <CurrencySelect value={addV.currency} onChange={(v) => setAddV({ ...addV, currency: v })} color={kc} style={{ width: 90, background: TOKENS.surface }} />
                   <span style={{ fontSize: FS(16), color: 'rgba(44,44,50,0.84)', whiteSpace: 'nowrap' }}>初始餘額</span>
+                  <SignBtn value={addV.initBal} onChange={(v) => setAddV({ ...addV, initBal: v })} />
                   <input value={addV.initBal} onChange={(e) => setAddV({ ...addV, initBal: e.target.value })} inputMode="decimal" placeholder="0"
                 style={{ flex: 1, minWidth: 0, height: 34, padding: PAD('0 10px'), borderRadius: RS(8), background: TOKENS.surface,
                   border: `1px solid ${kc}40`, fontSize: FS(18), fontFamily: 'JetBrains Mono,monospace', color: TOKENS.ink, outline: 'none' }} />
@@ -1624,6 +1643,7 @@ function SettleManager({ items, onChange, color, initialBalances = {}, setInitia
                 </div>
                 <div style={{ display: 'flex', alignItems: 'center', gap: SP(8) }}>
                   <span style={{ fontSize: FS(16), color: 'rgba(44,44,50,0.84)', whiteSpace: 'nowrap', flexShrink: 0 }}>初始餘額</span>
+                  <SignBtn value={edit.initBal} onChange={(v) => setEdit({ ...edit, initBal: v })} />
                   <input value={edit.initBal} onChange={(e) => setEdit({ ...edit, initBal: e.target.value })} inputMode="decimal" placeholder="0"
               style={{ flex: 1, minWidth: 0, height: 34, padding: PAD('0 10px'), borderRadius: RS(8), background: 'rgba(0,0,0,0.06)',
                 border: `1px solid ${color}40`, fontSize: FS(18), fontFamily: 'JetBrains Mono,monospace', color: TOKENS.ink, outline: 'none' }} />
@@ -1644,6 +1664,7 @@ function SettleManager({ items, onChange, color, initialBalances = {}, setInitia
           </div>
           <div style={{ display: 'flex', alignItems: 'center', gap: SP(8), marginBottom: SP(10) }}>
             <span style={{ fontSize: FS(16), color: 'rgba(44,44,50,0.84)', whiteSpace: 'nowrap' }}>初始餘額</span>
+            <SignBtn value={addV.initBal} onChange={(v) => setAddV({ ...addV, initBal: v })} />
             <input value={addV.initBal} onChange={(e) => setAddV({ ...addV, initBal: e.target.value })} inputMode="decimal" placeholder="0"
           style={{ flex: 1, height: 34, padding: PAD('0 10px'), borderRadius: RS(8), background: TOKENS.surface,
             border: `1px solid ${color}40`, fontSize: FS(18), fontFamily: 'JetBrains Mono,monospace', color: TOKENS.ink, outline: 'none' }} />
