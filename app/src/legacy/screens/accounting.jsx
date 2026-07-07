@@ -347,22 +347,18 @@ function DropField({ label, value, options, onChange, icon, groups, dotColor }) 
   };
   return (
     <div ref={ref} style={{ position: 'relative' }}>
-      <button onClick={toggle} style={{
-        width: '100%', minHeight: 50, padding: PAD('6px 14px'), borderRadius: RS(16),
+      {/* 單行顯示：欄位用途由上方的區塊標題與圖示表達，欄內不再重複一行小字（太擁擠） */}
+      <button onClick={toggle} aria-label={label} style={{
+        width: '100%', minHeight: 46, padding: PAD('6px 14px'), borderRadius: RS(16),
         background: TOKENS.surface, border: open ? '1px solid rgba(0,0,0,0.30)' : '1px solid rgba(0,0,0,0.12)',
-        color: TOKENS.ink, display: 'flex', alignItems: 'center', gap: SP(10), textAlign: 'left', height: "52px"
+        color: TOKENS.ink, display: 'flex', alignItems: 'center', gap: SP(10), textAlign: 'left', height: "46px"
       }}>
         {icon && <span style={{ color: 'rgba(44,44,50,0.5)', flexShrink: 0 }}>{icon}</span>}
-        <div style={{ flex: 1, minWidth: 0 }}>
-          <div style={{ ...{ fontSize: FS(18), color: 'rgba(44,44,50,0.5)', letterSpacing: 0.5,
-              textTransform: 'uppercase' }, fontSize: "15px" }}>{label}</div>
-          <div style={{ marginTop: SP(1), fontSize: FS(20), fontWeight: 500,
-            overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
-            display: 'flex', alignItems: 'center', gap: SP(7) }}>
-            {dotColor && <span style={{ width: 9, height: 9, borderRadius: 5, flexShrink: 0,
-              background: dotColor, boxShadow: `0 0 0 2px ${dotColor}33` }} />}
-            <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{value}</span>
-          </div>
+        <div style={{ flex: 1, minWidth: 0, fontSize: FS(19), fontWeight: 500,
+          display: 'flex', alignItems: 'center', gap: SP(7) }}>
+          {dotColor && <span style={{ width: 9, height: 9, borderRadius: 5, flexShrink: 0,
+            background: dotColor, boxShadow: `0 0 0 2px ${dotColor}33` }} />}
+          <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{value}</span>
         </div>
         <ChevronDown size={16} style={{ color: 'rgba(44,44,50,0.5)', flexShrink: 0,
           transition: 'transform 200ms', transform: open ? 'rotate(180deg)' : 'none' }} />
