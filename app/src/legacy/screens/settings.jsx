@@ -1365,6 +1365,11 @@ function AccountsManager({ data, onChange, color, initialBalances, setInitialBal
                     style={{ flex: 1, minWidth: 0, height: 34, padding: PAD('0 10px'), borderRadius: RS(8), background: 'rgba(0,0,0,0.06)',
                       border: `1px solid ${kc}40`, fontSize: FS(18), fontFamily: 'JetBrains Mono,monospace', color: TOKENS.ink, outline: 'none' }} />
                       </div>
+                      {edit.kind === '信用卡' &&
+                  <div style={{ fontSize: FS(13), color: 'rgba(44,44,50,0.5)', lineHeight: 1.5 }}>
+                        💡 信用卡若有「開始記帳前」的既有欠款，請用 ＋/− 鈕輸入<b>負數</b>（例如欠 5,000 → -5000）；正數代表溢繳。
+                      </div>
+                  }
                     </div>
                 }
                 </div>
