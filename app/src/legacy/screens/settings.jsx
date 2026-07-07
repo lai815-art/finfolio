@@ -426,7 +426,7 @@ function SettingsScreen({ masterData, setMasterData, dashWidget, setDashWidget, 
       <Section label="關於">
         {/* 點「版本」= 開發者專用的隱藏顯示開關（無任何文字提示，其他使用者不會察覺） */}
         <Row icon={<Info size={18} />} iconColor={TOKENS.gray2} label="版本"
-        detail="0.9.2 · Beta" onClick={onToggleReveal} />
+        detail="0.9.3 · Beta" onClick={onToggleReveal} />
       </Section>
 
       <div style={{ textAlign: 'center', marginTop: SP(28), fontSize: FS(18),
