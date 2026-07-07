@@ -45,6 +45,30 @@ window.ReactDOM = ReactDOMClient;
         }
       } catch (e) {/* 解析失敗就跳過，不影響其他資料 */}
     }
+    // 每次啟動都補齊「投資收入」相關的收入分類（冪等）：還原舊備份、或早期資料的
+    // ff_schema_version 已 ≥4 但 cat_inc 沒有這些項目時，仍能自我修復——否則設定頁看得到
+    // 「投資收入」大類，但記一筆的收入分類下拉卻選不到，兩邊不一致。
+    try {
+      var md2 = JSON.parse(localStorage.getItem('ff_master_data') || 'null');
+      if (md2 && Array.isArray(md2.cat_inc)) {
+        var nameOf2 = function (c) {return typeof c === 'string' ? c : c && c.name;};
+        var has = function (n) {return md2.cat_inc.some(function (c) {return nameOf2(c) === n;});};
+        var before = function (n) {return md2.cat_inc.findIndex(function (c) {return nameOf2(c) === n;});};
+        var ensure2 = function (name, group, beforeName) {
+          if (has(name)) return false;
+          var i = before(beforeName);
+          var item = { name: name, group: group };
+          if (i >= 0) md2.cat_inc.splice(i, 0, item);else md2.cat_inc.push(item);
+          return true;
+        };
+        var changed = false;
+        changed = ensure2('債息', '被動', '利息') || changed;
+        changed = ensure2('台股', '投資收入', '發票中獎') || changed;
+        changed = ensure2('美股', '投資收入', '發票中獎') || changed;
+        changed = ensure2('投資收入', '投資收入', '發票中獎') || changed;
+        if (changed) localStorage.setItem('ff_master_data', JSON.stringify(md2));
+      }
+    } catch (e) {/* 忽略 */}
     if (cur < SCHEMA_VERSION) {
       localStorage.setItem('ff_schema_version', String(SCHEMA_VERSION));
     }
