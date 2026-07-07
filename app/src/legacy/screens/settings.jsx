@@ -2128,17 +2128,27 @@ function BackupSheet({ open, onClose }) {
     catch (e) { setStatus({ type: 'err', msg: '匯出失敗：' + e.message }); }
     setBusy(false);
   };
-  const onPickFile = (e) => {
+  const onPickFile = async (e) => {
     const f = e.target.files && e.target.files[0];
     if (!f) return;
-    const r = new FileReader();
-    r.onload = () => {
-      const t = String(r.result || '');
-      if (!t.trim()) { setStatus({ type: 'err', msg: '讀不到檔案內容（若存在 iCloud，請先在「檔案」App 點開下載後再選取）' }); return; }
-      setFileText(t); setFileName(f.name); setImportPass(''); setStatus(null);
-    };
-    r.onerror = () => setStatus({ type: 'err', msg: '檔案讀取失敗，請再選一次' });
-    r.readAsText(f);
+    // 獨立（加入主畫面）App 讀 iCloud 檔案時常拿到空內容——Safari 會自動下載、
+    // 獨立 App 不會。這裡用 File.text() 讀、失敗再退回 FileReader，並把實際讀到的
+    // 大小顯示出來，讓「讀檔失敗」與「密碼錯誤」可以一眼分辨。
+    const readFallback = () => new Promise((resolve, reject) => {
+      const r = new FileReader();
+      r.onload = () => resolve(String(r.result || ''));
+      r.onerror = () => reject(r.error || new Error('read error'));
+      r.readAsText(f);
+    });
+    let t = '';
+    try { t = f.text ? await f.text() : await readFallback(); }
+    catch { try { t = await readFallback(); } catch { t = ''; } }
+    if (!t.trim()) {
+      setFileText(null); setFileName('');
+      setStatus({ type: 'err', msg: `讀不到「${f.name}」的內容（讀到 ${t.length} 字元，檔案應為 ${f.size ? f.size.toLocaleString() : '?'} bytes）。若檔案存在 iCloud，請先開「檔案」App 點它一下、等雲朵圖示消失（下載完成）後再回來選取；或改用 AirDrop / 存到「我的 iPhone」。` });
+      return;
+    }
+    setFileText(t); setFileName(`${f.name}（${Math.round(t.length / 1024).toLocaleString()} KB）`); setImportPass(''); setStatus(null);
   };
   const doRestoreSnapshot = async () => {
     setBusy(true); setStatus(null);
