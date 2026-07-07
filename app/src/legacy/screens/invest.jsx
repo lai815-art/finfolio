@@ -660,6 +660,9 @@ function InvestBreakdownSheet({ open, onClose, computedHoldings = [], masterData
               const sign = f.kind === 'inc' ? 1 : -1;
               if (mer === '投資獲利') byYear[y].pnl += f.amount;else
               if (mer === '投資損失') byYear[y].pnl -= f.amount;else
+              // 相容早期匯入格式：merchant/備註標「已實現損益」的紀錄也算買賣損益（收入為正、支出為負），
+              // 且要排在股息判斷之前，避免正的已實現被誤當股息灌進股息欄。
+              if (/已實現損益/.test(mer + note)) byYear[y].pnl += sign * f.amount;else
               if (/股息|股利|配息/.test(cat + mer + note)) byYear[y].div += sign * f.amount;else
               if (/債息|利息|coupon/.test(cat + mer + note)) byYear[y].bond += sign * f.amount;
             });

@@ -2715,10 +2715,15 @@ function ImportSheet({ open, onClose, data, setData, savedFlows, savedTrades, se
           account: isUsd ? ledgerNameUSD : ledgerName, date: x.date, icon: '💰', importBatch: parsed.batchId, time: '歷史匯入', _justAdded: stamp() });
       });
       (parsed.ledger.realized || []).forEach((x) => {
-        const kind = x.pnl >= 0 ? 'inc' : 'exp';
-        newFlows.push({ kind, amount: Math.abs(x.pnl), cat: ffCatFor(kind, x.name, x.pnl),
-          merchant: '歷史匯入 · ' + x.name + ' 已實現損益' + (x.precision === 'year' ? '（年度彙總）' : ''),
-          account: ledgerName, date: x.date, icon: kind === 'inc' ? '💰' : '📝', importBatch: parsed.batchId, time: '歷史匯入', _justAdded: stamp() });
+        // 已實現損益比照 App 賣股的自動記錄：merchant 用「投資獲利/投資損失」、分類用
+        // 台股/美股（投資收入/投資損失大類），投資收益年度表才會把它算進「買賣損益」，
+        // 不會被誤當股息。市場預設台股，x.market==='US' 或 currency==='USD' 視為美股。
+        const gain = x.pnl >= 0;
+        const isUS = x.market === 'US' || x.currency === 'USD';
+        newFlows.push({ kind: gain ? 'inc' : 'exp', amount: Math.abs(x.pnl),
+          cat: isUS ? '美股' : '台股', merchant: gain ? '投資獲利' : '投資損失',
+          note: '歷史匯入 · ' + x.name + '　已實現損益' + (x.precision === 'year' ? '（年度彙總）' : ''),
+          account: ledgerName, date: x.date, icon: gain ? '💰' : '📝', importBatch: parsed.batchId, time: '歷史匯入', _justAdded: stamp() });
       });
 
       // 一般收支（檔案2 收支彙總）：直接帶 kind/cat/account，不套投資專用的分類推斷。
