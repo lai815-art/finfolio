@@ -837,6 +837,44 @@ function MonthlyStatsSheet({ open, onClose, savedFlows, masterData, hideAmounts,
   const yearNet = yearInc - yearExp;
   const yMax = Math.max(1, ...yMonths.map((m) => Math.max(m.inc, m.exp)));
 
+  // 歷年總覽：所有年份的收入 / 支出 / 餘額
+  const allYearMap = {};
+  savedFlows.forEach((f) => {
+    const d = f.date instanceof Date ? f.date : new Date(f.date);
+    const y = d.getFullYear();
+    if (isNaN(y)) return;
+    if (!allYearMap[y]) allYearMap[y] = { inc: 0, exp: 0 };
+    if (f.kind === 'inc') allYearMap[y].inc += f.amount;else
+    if (f.kind === 'exp') allYearMap[y].exp += f.amount;
+  });
+  const allYears = Object.keys(allYearMap).map(Number).sort((a, b) => a - b);
+  const grandInc = allYears.reduce((a, y) => a + allYearMap[y].inc, 0);
+  const grandExp = allYears.reduce((a, y) => a + allYearMap[y].exp, 0);
+
+  // 歷年折線圖（逐年收入 / 支出）
+  const MultiYearChart = () => {
+    if (allYears.length < 2) return null;
+    const W = 340, H = 150, pL = 6, pR = 6, pT = 12, pB = 22, n = allYears.length;
+    const maxV = Math.max(1, ...allYears.map((y) => Math.max(allYearMap[y].inc, allYearMap[y].exp)));
+    const xAt = (i) => pL + (W - pL - pR) * (n === 1 ? 0.5 : i / (n - 1));
+    const yAt = (v) => pT + (H - pT - pB) * (1 - v / maxV);
+    const mk = (key) => allYears.map((y, i) => `${xAt(i).toFixed(1)},${yAt(allYearMap[y][key]).toFixed(1)}`).join(' ');
+    const step = Math.ceil(n / 8);
+    return (
+      <svg width="100%" viewBox={`0 0 ${W} ${H}`} style={{ display: 'block' }}>
+        <line x1={pL} y1={H - pB} x2={W - pR} y2={H - pB} stroke="rgba(0,0,0,0.10)" />
+        <polyline points={mk('inc')} fill="none" stroke={TOKENS.incBlue} strokeWidth="2.5" strokeLinejoin="round" strokeLinecap="round" />
+        <polyline points={mk('exp')} fill="none" stroke={TOKENS.red} strokeWidth="2.5" strokeLinejoin="round" strokeLinecap="round" />
+        {allYears.map((y, i) => [
+        <circle key={'i' + i} cx={xAt(i)} cy={yAt(allYearMap[y].inc)} r="2.6" fill={TOKENS.incBlue} />,
+        <circle key={'e' + i} cx={xAt(i)} cy={yAt(allYearMap[y].exp)} r="2.6" fill={TOKENS.red} />]
+        )}
+        {allYears.map((y, i) => i % step === 0 ?
+        <text key={'t' + i} x={xAt(i)} y={H - 6} textAnchor="middle" fill="rgba(44,44,50,0.5)" style={{ fontSize: '10px' }}>{String(y).slice(2)}</text> : null
+        )}
+      </svg>);
+  };
+
   const accent = view === 'inc' ? TOKENS.incBlue : TOKENS.red;
   const cats = view === 'inc' ? incCats : expCats;
   const total = view === 'inc' ? incTotal : expTotal;
@@ -976,9 +1014,49 @@ function MonthlyStatsSheet({ open, onClose, savedFlows, masterData, hideAmounts,
           {/* 年收支：折線圖 + 結餘柱狀圖（置頂）+ 年收入 / 年支出 / 結餘 */}
           {isYear &&
           <>
+            {/* 歷年總覽：逐年折線 + 逐年一覽表（不受上方單年切換影響） */}
+            {allYears.length >= 2 &&
             <div style={{ background: TOKENS.surface, borderRadius: RS(20), border: '1px solid rgba(0,0,0,0.07)', padding: PAD('16px 12px') }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: SP(14), marginBottom: SP(8), paddingLeft: SP(2) }}>
-                <span style={{ fontSize: FS(14), color: 'rgba(0,0,0,0.62)', fontWeight: 700, letterSpacing: 1 }}>收入支出</span>
+                <span style={{ fontSize: FS(15), color: TOKENS.ink, fontWeight: 700, letterSpacing: 1 }}>歷年收支</span>
+                <span style={{ display: 'flex', alignItems: 'center', gap: SP(4), fontSize: FS(13), color: 'rgba(44,44,50,0.6)' }}>
+                  <span style={{ width: 12, height: 3, borderRadius: RS(2), background: TOKENS.incBlue }} />收入</span>
+                <span style={{ display: 'flex', alignItems: 'center', gap: SP(4), fontSize: FS(13), color: 'rgba(44,44,50,0.6)' }}>
+                  <span style={{ width: 12, height: 3, borderRadius: RS(2), background: TOKENS.red }} />支出</span>
+              </div>
+              <MultiYearChart />
+              <div style={{ marginTop: SP(10), display: 'flex', alignItems: 'center', paddingBottom: SP(8), borderBottom: '1px solid rgba(0,0,0,0.10)' }}>
+                <div style={{ width: 54, fontSize: FS(13), color: 'rgba(44,44,50,0.5)', fontWeight: 700 }}>年</div>
+                <div style={{ flex: 1, textAlign: 'right', fontSize: FS(13), color: 'rgba(44,44,50,0.5)', fontWeight: 700 }}>收入</div>
+                <div style={{ flex: 1, textAlign: 'right', fontSize: FS(13), color: 'rgba(44,44,50,0.5)', fontWeight: 700 }}>支出</div>
+                <div style={{ flex: 1, textAlign: 'right', fontSize: FS(13), color: 'rgba(44,44,50,0.5)', fontWeight: 700 }}>餘額</div>
+              </div>
+              {allYears.slice().reverse().map((y) => {
+                const m = allYearMap[y];const net = m.inc - m.exp;
+                return (
+                <button key={y} onClick={() => setYearOffset(y - nowDate.getFullYear())} style={{
+                  width: '100%', display: 'flex', alignItems: 'center', padding: PAD('10px 0'),
+                  borderBottom: '1px solid rgba(0,0,0,0.06)', background: y === viewYear ? 'rgba(0,0,0,0.04)' : 'transparent',
+                  border: 'none', borderRadius: RS(6), cursor: 'pointer' }}>
+                  <div style={{ width: 54, textAlign: 'left', fontSize: FS(16), fontWeight: y === viewYear ? 700 : 500, color: TOKENS.ink, fontFamily: TOKENS.fontMono }}>{y}</div>
+                  <div style={{ flex: 1, textAlign: 'right', fontFamily: TOKENS.fontMono, fontSize: FS(15), color: m.inc > 0 ? TOKENS.incBlue : 'rgba(44,44,50,0.3)' }}>{m.inc > 0 ? mask(m.inc) : '—'}</div>
+                  <div style={{ flex: 1, textAlign: 'right', fontFamily: TOKENS.fontMono, fontSize: FS(15), color: m.exp > 0 ? TOKENS.red : 'rgba(44,44,50,0.3)' }}>{m.exp > 0 ? mask(m.exp) : '—'}</div>
+                  <div style={{ flex: 1, textAlign: 'right', fontFamily: TOKENS.fontMono, fontSize: FS(15), fontWeight: 700, color: net >= 0 ? TOKENS.incBlue : TOKENS.red }}>{net >= 0 ? '+' : '-'}{mask(Math.abs(net))}</div>
+                </button>);
+              })}
+              <div style={{ display: 'flex', alignItems: 'center', paddingTop: SP(11), marginTop: SP(2), borderTop: '1px solid rgba(0,0,0,0.12)' }}>
+                <div style={{ width: 54, fontSize: FS(16), fontWeight: 700, color: TOKENS.ink }}>總計</div>
+                <div style={{ flex: 1, textAlign: 'right', fontFamily: TOKENS.fontMono, fontSize: FS(15), fontWeight: 700, color: TOKENS.incBlue }}>{mask(grandInc)}</div>
+                <div style={{ flex: 1, textAlign: 'right', fontFamily: TOKENS.fontMono, fontSize: FS(15), fontWeight: 700, color: TOKENS.red }}>{mask(grandExp)}</div>
+                <div style={{ flex: 1, textAlign: 'right', fontFamily: TOKENS.fontMono, fontSize: FS(15), fontWeight: 700, color: grandInc - grandExp >= 0 ? TOKENS.incBlue : TOKENS.red }}>{grandInc - grandExp >= 0 ? '+' : '-'}{mask(Math.abs(grandInc - grandExp))}</div>
+              </div>
+              <div style={{ fontSize: FS(12), color: 'rgba(44,44,50,0.4)', marginTop: SP(8), paddingLeft: SP(2) }}>點任一年可跳到下方該年的每月明細</div>
+            </div>
+            }
+
+            <div style={{ background: TOKENS.surface, borderRadius: RS(20), border: '1px solid rgba(0,0,0,0.07)', padding: PAD('16px 12px') }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: SP(14), marginBottom: SP(8), paddingLeft: SP(2) }}>
+                <span style={{ fontSize: FS(14), color: 'rgba(0,0,0,0.62)', fontWeight: 700, letterSpacing: 1 }}>{viewYear} · 收入支出</span>
                 <span style={{ display: 'flex', alignItems: 'center', gap: SP(4), fontSize: FS(13), color: 'rgba(44,44,50,0.6)' }}>
                   <span style={{ width: 12, height: 3, borderRadius: RS(2), background: TOKENS.incBlue }} />收入</span>
                 <span style={{ display: 'flex', alignItems: 'center', gap: SP(4), fontSize: FS(13), color: 'rgba(44,44,50,0.6)' }}>
@@ -1106,7 +1184,7 @@ function NetWorthSheet({ open, onClose, total, computedAcctGroups, computedHoldi
             color: 'rgba(60,60,67,0.88)', display: 'flex', alignItems: 'center', justifyContent: 'center'
           }}><ChevronRight size={20} style={{ transform: 'rotate(180deg)' }} /></button>
           <div>
-            <div style={{ fontSize: FS(28), fontWeight: 700, color: TOKENS.ink, letterSpacing: -0.5, lineHeight: 1.3 }}>資產淨額明細</div>
+            <div style={{ fontSize: FS(28), fontWeight: 700, color: TOKENS.ink, letterSpacing: -0.5, lineHeight: 1.3 }}>資產配置明細</div>
           </div>
         </div>
 
@@ -1119,7 +1197,7 @@ function NetWorthSheet({ open, onClose, total, computedAcctGroups, computedHoldi
             {assets.length === 0 ?
             <div style={{ fontSize: FS(17), color: 'rgba(44,44,50,0.4)', textAlign: 'center', padding: PAD('12px 0') }}>尚無資產</div> :
             <>
-              <StatDonut data={assetData} total={totalAssets} label="資產" color={TOKENS.ink} mask={mask} />
+              <StatDonut data={assetData} total={totalAssets} label="總資產" color={TOKENS.ink} mask={mask} />
               <div style={{ marginTop: SP(14), display: 'flex', flexDirection: 'column' }}>
                 {assets.map((c, i) =>
                 <div key={c.name} style={{ display: 'flex', alignItems: 'center', gap: SP(12), padding: PAD('12px 2px'),

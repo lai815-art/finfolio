@@ -775,34 +775,37 @@ function InvestBreakdownSheet({ open, onClose, computedHoldings = [], masterData
                   })}
               </svg>
 
-              {/* per-year row table — 兩行式：年份+加總為主，下面一行才是股息/債息/損益細項 */}
-              <div style={{ borderTop: '1px solid rgba(0,0,0,0.07)', marginTop: SP(8), paddingTop: SP(4) }}>
-                {years.slice().reverse().map((y, i) => {
-                    const d = byYear[y];
-                    const empty = d.pnl === 0 && d.div === 0 && d.bond === 0;
-                    if (empty) return null;
-                    const tot = d.pnl + d.div + d.bond;
+              {/* per-year 欄位表：年 | 股息 | 債息 | 買賣損益 | 合計，對齊、加對比、含總計 */}
+              {(() => {
+                const yrsRev = years.slice().reverse().filter((y) => { const d = byYear[y]; return !(d.pnl === 0 && d.div === 0 && d.bond === 0); });
+                const sum = { div: 0, bond: 0, pnl: 0 };
+                years.forEach((y) => { sum.div += byYear[y].div; sum.bond += byYear[y].bond; sum.pnl += byYear[y].pnl; });
+                const hcell = (t, c) => <div style={{ flex: c || 1, textAlign: 'right', fontSize: FS(12), fontWeight: 700, letterSpacing: 0.3, color: 'rgba(44,44,50,0.5)' }}>{t}</div>;
+                const num = (v, color, bold) => <div style={{ flex: 1, textAlign: 'right', fontFamily: TOKENS.fontMono, fontSize: FS(14), fontWeight: bold ? 700 : 500, color: v === 0 ? 'rgba(60,60,67,0.3)' : color }}>{v === 0 ? '—' : (v < 0 ? '-' : '') + mask(Math.abs(v))}</div>;
+                return (
+                <div style={{ borderTop: '1px solid rgba(0,0,0,0.10)', marginTop: SP(10), paddingTop: SP(8) }}>
+                  <div style={{ display: 'flex', alignItems: 'center', paddingBottom: SP(8), borderBottom: '1px solid rgba(0,0,0,0.10)' }}>
+                    <div style={{ width: 42, fontSize: FS(12), fontWeight: 700, color: 'rgba(44,44,50,0.5)' }}>年</div>
+                    {hcell('股息')}{hcell('債息')}{hcell('買賣損益', 1.2)}{hcell('合計', 1.1)}
+                  </div>
+                  {yrsRev.map((y) => {
+                    const d = byYear[y];const tot = d.pnl + d.div + d.bond;
                     return (
-                      <div key={y} style={{ padding: PAD('12px 2px'), borderTop: i > 0 ? '1px solid rgba(0,0,0,0.05)' : 'none' }}>
-                    <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between' }}>
-                      <span style={{ fontSize: FS(17), fontWeight: 600, color: 'rgba(44,44,50,0.75)', fontFamily: TOKENS.fontMono }}>{y}</span>
-                      <span style={{ fontSize: FS(20), fontWeight: 700, fontFamily: TOKENS.fontMono, color: tot < 0 ? C_PNL_NEG : TOKENS.ink }}>
-                        {tot < 0 ? '-' : ''}{mask(Math.abs(tot))}
-                      </span>
-                    </div>
-                    <div style={{ display: 'flex', alignItems: 'baseline', gap: SP(14), marginTop: SP(4), fontSize: FS(14), fontFamily: TOKENS.fontMono }}>
-                      <span style={{ color: 'rgba(44,44,50,0.4)', fontFamily: TOKENS.fontSans }}>股息</span>
-                      <span style={{ color: d.div > 0 ? C_DIV : 'rgba(60,60,67,0.35)' }}>{d.div > 0 ? mask(d.div) : '—'}</span>
-                      <span style={{ color: 'rgba(44,44,50,0.4)', fontFamily: TOKENS.fontSans }}>債息</span>
-                      <span style={{ color: d.bond > 0 ? C_BOND : 'rgba(60,60,67,0.35)' }}>{d.bond > 0 ? mask(d.bond) : '—'}</span>
-                      <span style={{ color: 'rgba(44,44,50,0.4)', fontFamily: TOKENS.fontSans }}>損益</span>
-                      <span style={{ color: d.pnl >= 0 ? C_PNL_POS : C_PNL_NEG, fontWeight: 600 }}>
-                        {d.pnl === 0 ? '—' : (d.pnl < 0 ? '-' : '') + mask(Math.abs(d.pnl))}
-                      </span>
-                    </div>
-                  </div>);
+                    <div key={y} style={{ display: 'flex', alignItems: 'center', padding: PAD('10px 0'), borderBottom: '1px solid rgba(0,0,0,0.06)' }}>
+                      <div style={{ width: 42, fontSize: FS(15), fontWeight: 600, color: TOKENS.ink, fontFamily: TOKENS.fontMono }}>{y}</div>
+                      {num(d.div, C_DIV)}{num(d.bond, C_BOND)}
+                      <div style={{ flex: 1.2, textAlign: 'right', fontFamily: TOKENS.fontMono, fontSize: FS(14), fontWeight: 600, color: d.pnl === 0 ? 'rgba(60,60,67,0.3)' : d.pnl < 0 ? C_PNL_NEG : C_PNL_POS }}>{d.pnl === 0 ? '—' : (d.pnl < 0 ? '-' : '') + mask(Math.abs(d.pnl))}</div>
+                      <div style={{ flex: 1.1, textAlign: 'right', fontFamily: TOKENS.fontMono, fontSize: FS(15), fontWeight: 700, color: tot < 0 ? C_PNL_NEG : TOKENS.ink }}>{tot < 0 ? '-' : ''}{mask(Math.abs(tot))}</div>
+                    </div>);
                   })}
-              </div>
+                  <div style={{ display: 'flex', alignItems: 'center', paddingTop: SP(11), marginTop: SP(2), borderTop: '1px solid rgba(0,0,0,0.12)' }}>
+                    <div style={{ width: 42, fontSize: FS(15), fontWeight: 700, color: TOKENS.ink }}>總計</div>
+                    {num(sum.div, C_DIV, true)}{num(sum.bond, C_BOND, true)}
+                    <div style={{ flex: 1.2, textAlign: 'right', fontFamily: TOKENS.fontMono, fontSize: FS(14), fontWeight: 700, color: sum.pnl < 0 ? C_PNL_NEG : C_PNL_POS }}>{sum.pnl === 0 ? '—' : (sum.pnl < 0 ? '-' : '') + mask(Math.abs(sum.pnl))}</div>
+                    <div style={{ flex: 1.1, textAlign: 'right', fontFamily: TOKENS.fontMono, fontSize: FS(15), fontWeight: 700, color: (sum.div + sum.bond + sum.pnl) < 0 ? C_PNL_NEG : TOKENS.ink }}>{(sum.div + sum.bond + sum.pnl) < 0 ? '-' : ''}{mask(Math.abs(sum.div + sum.bond + sum.pnl))}</div>
+                  </div>
+                </div>);
+              })()}
             </div>);
           })()}
         </div>

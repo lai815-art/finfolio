@@ -2666,7 +2666,7 @@ function ImportSheet({ open, onClose, data, setData, savedFlows, savedTrades, se
     if (!parsed) return;
     setBusy(true);
     try {
-      const nextData = { ...md, brokers: [...(md.brokers || [])], settle: [...(md.settle || [])], accounts: [...(md.accounts || [])], asset_class: [...(md.asset_class || [])] };
+      const nextData = { ...md, brokers: [...(md.brokers || [])], settle: [...(md.settle || [])], accounts: [...(md.accounts || [])], asset_class: [...(md.asset_class || [])], cat_inc: [...(md.cat_inc || [])], cat_exp: [...(md.cat_exp || [])] };
       const balDelta = {}; // settleName -> 要加的初始餘額
       const newTrades = [];
       const base = Date.now(); let seq = 0;
@@ -2719,6 +2719,28 @@ function ImportSheet({ open, onClose, data, setData, savedFlows, savedTrades, se
         newFlows.push({ kind, amount: Math.abs(x.pnl), cat: ffCatFor(kind, x.name, x.pnl),
           merchant: '歷史匯入 · ' + x.name + ' 已實現損益' + (x.precision === 'year' ? '（年度彙總）' : ''),
           account: ledgerName, date: x.date, icon: kind === 'inc' ? '💰' : '📝', importBatch: parsed.batchId, time: '歷史匯入', _justAdded: stamp() });
+      });
+
+      // 一般收支（檔案2 收支彙總）：直接帶 kind/cat/account，不套投資專用的分類推斷。
+      // ensureCats 先把要用到但還沒有的收入/支出分類（含新增大類）補進主檔；flows 用到的
+      // 帳戶不存在就自動建立。這樣薪資/餐飲/旅遊…等一般記帳也能正確匯入並歸到對的大類。
+      const L = parsed.ledger || {};
+      const catName = (c) => typeof c === 'string' ? c : c && c.name;
+      if (L.ensureCats) {
+        (L.ensureCats.inc || []).forEach((it) => {
+          if (!nextData.cat_inc.some((c) => catName(c) === it.name)) nextData.cat_inc.push(it);
+        });
+        (L.ensureCats.exp || []).forEach((it) => {
+          if (!nextData.cat_exp.some((c) => catName(c) === it.name)) nextData.cat_exp.push(it);
+        });
+      }
+      (L.flows || []).forEach((x) => {
+        const acct = x.account || ledgerName;
+        const cur = x.currency || 'TWD';
+        if (!nextData.accounts.find((a) => a.name === acct)) nextData.accounts.push({ name: acct, kind: x.acctKind || '銀行', currency: cur });
+        newFlows.push({ kind: x.kind, amount: Math.abs(x.amount), cat: x.cat,
+          merchant: x.merchant || ('歷史匯入 · ' + x.cat), account: acct, date: x.date,
+          icon: x.kind === 'inc' ? '💰' : '📝', importBatch: parsed.batchId, time: '歷史匯入', _justAdded: stamp() });
       });
 
       setData(nextData);
