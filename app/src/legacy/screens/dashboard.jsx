@@ -1190,10 +1190,8 @@ function NetWorthSheet({ open, onClose, total, computedAcctGroups, computedHoldi
 
         <div style={{ ...{ flex: 1, overflowY: 'auto', overflowX: 'hidden', padding: PAD('0 18px 32px'),
             display: 'flex', flexDirection: 'column', gap: SP(20) }, padding: "0px 10px 32px" }}>
-          {/* 資產配置 圓餅 */}
+          {/* 資產配置 圓餅（標題已在頁首，這裡不重複） */}
           <div style={{ ...cardStyle, padding: PAD('20px 16px') }}>
-            <div style={{ fontSize: FS(14), color: 'rgba(0,0,0,0.62)', fontWeight: 700, letterSpacing: 1,
-              textTransform: 'uppercase', marginBottom: SP(6), paddingLeft: SP(2) }}>資產配置</div>
             {assets.length === 0 ?
             <div style={{ fontSize: FS(17), color: 'rgba(44,44,50,0.4)', textAlign: 'center', padding: PAD('12px 0') }}>尚無資產</div> :
             <>
