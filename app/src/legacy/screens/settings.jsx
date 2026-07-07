@@ -2748,14 +2748,20 @@ function ImportSheet({ open, onClose, data, setData, savedFlows, savedTrades, se
           icon: x.kind === 'inc' ? '💰' : '📝', importBatch: parsed.batchId, time: '歷史匯入', _justAdded: stamp() });
       });
 
+      // 重匯 = 取代：先移除「上一次歷史匯入」的紀錄並回退它對交割戶初始餘額的調整，
+      // 才不會每匯一次就重複累加（例如修正檔重匯時交割戶餘額翻倍）。
+      let prevMeta = null;try {prevMeta = JSON.parse(localStorage.getItem('ff_import_meta') || 'null');} catch {}
+      const prevBatch = prevMeta && prevMeta.batchId;
       setData(nextData);
-      setSavedTrades((prev) => [...prev, ...newTrades]);
-      setSavedFlows((prev) => [...newFlows, ...prev]);
+      setSavedTrades((prev) => [...prev.filter((t) => !prevBatch || t.importBatch !== prevBatch), ...newTrades]);
+      setSavedFlows((prev) => [...newFlows, ...prev.filter((f) => !prevBatch || f.importBatch !== prevBatch)]);
       setInitialBalances((prev) => {
         const next = { ...prev };
-        Object.keys(balDelta).forEach((k) => { next[k] = (parseFloat(next[k]) || 0) + balDelta[k]; });
+        if (prevMeta && prevMeta.balDelta) Object.keys(prevMeta.balDelta).forEach((k) => {next[k] = (parseFloat(next[k]) || 0) - prevMeta.balDelta[k];});
+        Object.keys(balDelta).forEach((k) => {next[k] = (parseFloat(next[k]) || 0) + balDelta[k];});
         return next;
       });
+      try {localStorage.setItem('ff_import_meta', JSON.stringify({ batchId: parsed.batchId, balDelta }));} catch {}
 
       setStatus({ type: 'ok', msg: `匯入完成：新增 ${newTrades.length} 筆股票交易、${newFlows.length} 筆收支記錄。已自動調高 ${Object.keys(balDelta).length} 個交割戶的初始餘額以抵消歷史買進成本，現有現金餘額不受影響。` });
     } catch (e) {
