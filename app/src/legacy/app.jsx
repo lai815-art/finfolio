@@ -6,9 +6,10 @@ const IS_STANDALONE = typeof window !== 'undefined' && (
 window.FF_STANDALONE === true ||
 window.matchMedia && window.matchMedia('(display-mode: standalone)').matches ||
 window.navigator && window.navigator.standalone === true);
-// 獨立 App 不畫假狀態列：頂部只留剛好避開瀏海的高度（安全區再收 18px，避免上方空太多）。
-// 這個縮減值只適合主看板：NavHeader 下面還有自己的內距，扣掉 18px 剛好好看。
-const TOP_INSET = IS_STANDALONE ? 'max(0px, calc(env(safe-area-inset-top, 0px) - 18px))' : '62px';
+// 獨立 App 不畫假狀態列：頂部留白用 index.html fit() 算好的 --ff-main-top
+// （畫布外探針量真實安全區、除以縮放比 k 校正，再收 8px）。
+// 舊寫法 env()−18px 沒做縮放校正、又收太多，右上角眼睛按鈕會頂進系統狀態列被切到。
+const TOP_INSET = IS_STANDALONE ? 'var(--ff-main-top, 44px)' : '62px';
 const SBAR_H = TOP_INSET;
 const CONTENT_TOP = IS_STANDALONE ? `calc(${TOP_INSET} + 60px)` : '122px';
 if (typeof window !== 'undefined') window.FF_SBAR_H = SBAR_H;

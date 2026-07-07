@@ -139,6 +139,10 @@
       var satScreen = probe.getBoundingClientRect().height;
       var detailTop = window.FF_STANDALONE ? Math.round(satScreen / k) + 4 : 62;
       document.documentElement.style.setProperty('--ff-detail-top', detailTop + 'px');
+      // 主畫面頂部留白：同樣做縮放校正。比明細頁緊一點(-8)，但不能像舊的 -18 那麼兇，
+      // 否則右上角的眼睛按鈕上緣會頂進系統狀態列被切到。
+      var mainTop = window.FF_STANDALONE ? Math.max(0, Math.round(satScreen / k) - 8) : 62;
+      document.documentElement.style.setProperty('--ff-main-top', mainTop + 'px');
     }
 
     // Re-fit on every event that can change the viewport — including warm relaunches
