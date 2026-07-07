@@ -26,7 +26,7 @@ function AdvisorScreen({ computedAcctGroups = [], computedHoldings = [], masterD
     let cash = 0;
     (computedAcctGroups || []).forEach((g) => {
       const sum = (g.items || []).reduce((a, it) => a + amtTWD(it), 0);
-      cash += g.sign < 0 ? -Math.abs(sum) : sum;
+      cash += g.sign < 0 ? -sum : sum; // 帶號：溢繳的信用卡是資產，不能翻成負債
     });
     cash = Math.max(0, cash);
     let stock = 0,bond = 0;

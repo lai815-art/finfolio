@@ -359,14 +359,14 @@ function AccountDetailSheet({ data, mask, onClose, onSaveItem, savedFlows = [], 
             borderRadius: '50%', background: 'rgba(255,255,255,0.12)', pointerEvents: 'none' }} />
           <div style={{ position: 'relative' }}>
             <div style={{ fontSize: FS(16), color: 'rgba(255,255,255,0.78)', letterSpacing: 1, textTransform: 'uppercase' }}>
-              {isCredit ? '本期帳款' : isBrokerage ? '目前市值' : '目前餘額'}
+              {isCredit ? (item.amount < 0 ? '已溢繳（多付的會折抵下期）' : '本期帳款') : isBrokerage ? '目前市值' : '目前餘額'}
             </div>
 
             <div style={{ marginTop: SP(4), fontFamily: TOKENS.fontMono, fontSize: FS(28), fontWeight: 700, color: TOKENS.surface, letterSpacing: -0.5 }}>
               {item.currency && item.currency !== 'TWD' &&
               <span style={{ fontSize: FS(18), color: 'rgba(255,255,255,0.80)', marginRight: SP(4) }}>{item.currency}</span>
               }
-              {mask(item.amount)}
+              {mask(isCredit ? Math.abs(item.amount) : item.amount)}
             </div>
 
             {/* Credit card detail */}
@@ -582,7 +582,9 @@ function AssetGroupRow({ group, openId, setOpenId, mask, onOpenDetail }) {
         </div>
         <div style={{ textAlign: 'right', marginRight: SP(4) }}>
           {(() => {
-            const sv = group.sign < 0 ? -Math.abs(sum) : sum;
+            // sum 對負債群組已是「應繳為正」；帶號取負即可——溢繳（sum<0）要顯示成正數資產，
+            // 不能用 Math.abs 硬翻成更大的負債（否則繳完卡費看起來反而負更多）。
+            const sv = group.sign < 0 ? -sum : sum;
             const neg = sv < 0;
             return (
           <div style={{ fontFamily: TOKENS.fontMono, fontSize: FS(22), fontWeight: 700, whiteSpace: 'nowrap', flexShrink: 0,
@@ -634,7 +636,7 @@ function AccountItemRow({ item, group, mask, last, onOpen }) {
           {item.sub && <div style={{ fontSize: FS(14), color: 'rgba(0,0,0,0.78)', marginTop: SP(1) }}>{item.sub}</div>}
         </div>
         {(() => {
-          const av = group.sign < 0 ? -Math.abs(item.amount) : item.amount; // signed display value
+          const av = group.sign < 0 ? -item.amount : item.amount; // 帶號顯示：欠款為負、溢繳為正
           const neg = av < 0;
           return (
         <div style={{ fontFamily: TOKENS.fontMono, fontSize: FS(18), fontWeight: 600, flexShrink: 0, whiteSpace: 'nowrap',
