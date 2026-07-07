@@ -2048,10 +2048,13 @@ function ffExportOverdue() {
   } catch {return false;}
 }
 async function ffExportBackup(pass) {
+  // 純快取不進備份：ff_auto_snapshot 是全部資料的複本（會讓檔案倍增）、
+  // ff_tw_stocks_v7 是可重新下載的台股清單快取。還原後會自動重建。
+  const SKIP_EXPORT = { ff_auto_snapshot: 1, ff_tw_stocks_v7: 1 };
   const data = {};
   for (let i = 0; i < localStorage.length; i++) {
     const k = localStorage.key(i);
-    if (k && k.indexOf('ff_') === 0) data[k] = localStorage.getItem(k);
+    if (k && k.indexOf('ff_') === 0 && !SKIP_EXPORT[k]) data[k] = localStorage.getItem(k);
   }
   const pt = new TextEncoder().encode(JSON.stringify(data));
   const salt = crypto.getRandomValues(new Uint8Array(16));
@@ -2083,12 +2086,20 @@ async function ffExportBackup(pass) {
   setTimeout(() => { try { window.fit && window.fit(); } catch (_) {} }, 500);
 }
 async function ffImportBackup(text, pass) {
-  const blob = JSON.parse(text);
-  if (!blob || blob.app !== 'finfolio' || !blob.data) throw new Error('檔案格式不符');
-  const key = await _deriveKey(pass, _ub64(blob.salt));
-  const ptBuf = await crypto.subtle.decrypt({ name: 'AES-GCM', iv: _ub64(blob.iv) }, key, _ub64(blob.data));
+  // 每一步失敗給出「可分辨」的訊息，才能知道到底是選錯檔、密碼錯還是空間不足。
+  if (!text || !String(text).trim()) throw new Error('檔案是空的（若存在 iCloud，請先在「檔案」App 點開下載後再選取）');
+  let blob;
+  try { blob = JSON.parse(text); } catch { throw new Error('檔案格式不符：不是 FinFolio 備份檔（若你要匯入的是 finfolio-import.json，請改用「匯入歷史紀錄」）'); }
+  if (!blob || blob.app !== 'finfolio' || !blob.data) throw new Error('檔案格式不符：不是 FinFolio 備份檔');
+  let ptBuf;
+  try {
+    const key = await _deriveKey(pass, _ub64(blob.salt));
+    ptBuf = await crypto.subtle.decrypt({ name: 'AES-GCM', iv: _ub64(blob.iv) }, key, _ub64(blob.data));
+  } catch { throw new Error('密碼錯誤（請輸入「匯出這個檔案當時」設定的密碼；注意大小寫、全形/半形與前後空白）'); }
   const data = JSON.parse(new TextDecoder().decode(ptBuf));
-  Object.keys(data).forEach((k) => { if (k.indexOf('ff_') === 0) localStorage.setItem(k, data[k]); });
+  try {
+    Object.keys(data).forEach((k) => { if (k.indexOf('ff_') === 0) localStorage.setItem(k, data[k]); });
+  } catch { throw new Error('裝置儲存空間不足，資料可能只寫入一部分——請清出空間後再還原一次'); }
 }
 
 function BackupSheet({ open, onClose }) {
@@ -2121,7 +2132,12 @@ function BackupSheet({ open, onClose }) {
     const f = e.target.files && e.target.files[0];
     if (!f) return;
     const r = new FileReader();
-    r.onload = () => { setFileText(String(r.result)); setFileName(f.name); setImportPass(''); setStatus(null); };
+    r.onload = () => {
+      const t = String(r.result || '');
+      if (!t.trim()) { setStatus({ type: 'err', msg: '讀不到檔案內容（若存在 iCloud，請先在「檔案」App 點開下載後再選取）' }); return; }
+      setFileText(t); setFileName(f.name); setImportPass(''); setStatus(null);
+    };
+    r.onerror = () => setStatus({ type: 'err', msg: '檔案讀取失敗，請再選一次' });
     r.readAsText(f);
   };
   const doRestoreSnapshot = async () => {
@@ -2144,7 +2160,7 @@ function BackupSheet({ open, onClose }) {
       setStatus({ type: 'ok', msg: '還原成功，即將重新載入…' });
       setTimeout(() => location.reload(), 900);
     } catch (e) {
-      setStatus({ type: 'err', msg: '還原失敗：密碼錯誤或檔案損毀。' });
+      setStatus({ type: 'err', msg: '還原失敗：' + (e && e.message || '未知錯誤') });
       setBusy(false);
     }
   };
