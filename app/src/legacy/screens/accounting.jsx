@@ -3,6 +3,15 @@ const { useState: useStateAcc, useEffect: useEffectAcc, useRef: useRefAcc } = Re
 
 const TODAY_ACC = new Date();
 
+// 數字輸入正規化：中文/全形標點與全形數字轉半形（「245。8」→「245.8」），
+// 否則 parseFloat 會在「。」處截斷，金額被少算。
+function ffNormNum(s) {
+  return String(s || '').
+  replace(/[０-９]/g, (c) => String.fromCharCode(c.charCodeAt(0) - 0xFEE0)).
+  replace(/[。｡．]/g, '.').
+  replace(/，/g, ',');
+}
+
 /* ============= shared DatePicker — 使用全站共用 DateNavBar（高度 45） ============= */
 function DatePicker({ value, onChange }) {
   const [open, setOpen] = useStateAcc(false);
@@ -529,7 +538,7 @@ function FlowForm({ state, update, onSaved, onDelete, recordId, masterData }) {
         }, padding: "9px 20px 12px" }}>
         <div style={{ display: 'flex', alignItems: 'baseline', gap: SP(8), lineHeight: "1.8" }}>
 
-          <input value={state.amount} onChange={(e) => update({ amount: e.target.value })}
+          <input value={state.amount} onChange={(e) => update({ amount: ffNormNum(e.target.value) })}
           placeholder="0" inputMode="decimal"
           style={{
             flex: 1, background: 'transparent', border: 'none', outline: 'none',
@@ -592,7 +601,7 @@ function FlowForm({ state, update, onSaved, onDelete, recordId, masterData }) {
             <div style={{ flex: '0 0 128px', minWidth: 0, overflow: 'hidden', height: 52, padding: PAD('0 14px'),
             borderRadius: RS(16), background: TOKENS.surface, border: '1px solid rgba(0,0,0,0.12)',
             display: 'flex', flexDirection: 'column', justifyContent: 'center' }}>
-              <input value={state.xferFee || ''} onChange={(e) => update({ xferFee: e.target.value })}
+              <input value={state.xferFee || ''} onChange={(e) => update({ xferFee: ffNormNum(e.target.value) })}
               placeholder="手續費" inputMode="decimal"
               style={{
                 width: '100%', background: 'transparent', border: 'none', outline: 'none',
@@ -926,7 +935,7 @@ function StockForm({ state, update, onSaved, onDelete, recordId, masterData, com
           }, padding: "6px 14px 10px", height: "70px" }}>
             <div style={{ fontSize: FS(16), color: 'rgba(44,44,50,0.5)', letterSpacing: 0.5,
             textTransform: 'uppercase' }}>{f.label}</div>
-            <input value={state[f.k]} onChange={(e) => update({ [f.k]: e.target.value })}
+            <input value={state[f.k]} onChange={(e) => update({ [f.k]: ffNormNum(e.target.value) })}
           placeholder={f.placeholder} inputMode={f.inputMode}
           style={{
             marginTop: SP(4), width: '100%', background: 'transparent', border: 'none', outline: 'none',

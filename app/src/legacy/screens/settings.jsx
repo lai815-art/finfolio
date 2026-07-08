@@ -1509,7 +1509,7 @@ function BrokerManager({ items, onChange, color, settleOptions = [] }) {
                 </div>
                 <div style={{ display: 'flex', alignItems: 'center', gap: SP(6) }}>
                   <span style={{ fontSize: FS(16), color: 'rgba(44,44,50,0.84)', whiteSpace: 'nowrap', flexShrink: 0 }}>手續費</span>
-                  <input value={edit.feeRate != null ? edit.feeRate : ''} onChange={(e) => setEdit({ ...edit, feeRate: e.target.value })} inputMode="decimal" placeholder="0.1425"
+                  <input value={edit.feeRate != null ? edit.feeRate : ''} onChange={(e) => setEdit({ ...edit, feeRate: e.target.value.replace(/[。｡．]/g, '.') })} inputMode="decimal" placeholder="0.1425"
                     style={{ flex: 1, minWidth: 0, width: 0, height: 34, padding: PAD('0 8px'), borderRadius: RS(8),
                       background: 'rgba(0,0,0,0.06)', border: `1px solid ${color}40`, fontSize: FS(17), color: TOKENS.ink, outline: 'none' }} />
                   <span style={{ fontSize: FS(16), color: 'rgba(44,44,50,0.6)', whiteSpace: 'nowrap', flexShrink: 0 }}>%　折扣</span>
@@ -1518,6 +1518,7 @@ function BrokerManager({ items, onChange, color, settleOptions = [] }) {
                       background: 'rgba(0,0,0,0.06)', border: `1px solid ${color}40`, fontSize: FS(17), color: TOKENS.ink, outline: 'none' }} />
                   <span style={{ fontSize: FS(16), color: 'rgba(44,44,50,0.6)', whiteSpace: 'nowrap', flexShrink: 0 }}>折</span>
                 </div>
+                <FeeHint feeRate={edit.feeRate != null && String(edit.feeRate).trim() !== '' ? edit.feeRate : '0.1425'} discount={edit.discount} />
               </div>
           }
           </div>
@@ -1538,7 +1539,7 @@ function BrokerManager({ items, onChange, color, settleOptions = [] }) {
           </div>
           <div style={{ display: 'flex', alignItems: 'center', gap: SP(6), marginBottom: SP(10) }}>
             <span style={{ fontSize: FS(16), color: 'rgba(44,44,50,0.84)', whiteSpace: 'nowrap', flexShrink: 0 }}>手續費</span>
-            <input value={addV.feeRate != null ? addV.feeRate : ''} onChange={(e) => setAddV({ ...addV, feeRate: e.target.value })} inputMode="decimal" placeholder="0.1425"
+            <input value={addV.feeRate != null ? addV.feeRate : ''} onChange={(e) => setAddV({ ...addV, feeRate: e.target.value.replace(/[。｡．]/g, '.') })} inputMode="decimal" placeholder="0.1425"
               style={{ flex: 1, minWidth: 0, width: 0, height: 34, padding: PAD('0 8px'), borderRadius: RS(8),
                 background: TOKENS.surface, border: `1px solid ${color}40`, fontSize: FS(17), color: TOKENS.ink, outline: 'none' }} />
             <span style={{ fontSize: FS(16), color: 'rgba(44,44,50,0.6)', whiteSpace: 'nowrap', flexShrink: 0 }}>%　折扣</span>
@@ -1546,6 +1547,9 @@ function BrokerManager({ items, onChange, color, settleOptions = [] }) {
               style={{ flex: 1, minWidth: 0, width: 0, height: 34, padding: PAD('0 8px'), borderRadius: RS(8),
                 background: TOKENS.surface, border: `1px solid ${color}40`, fontSize: FS(17), color: TOKENS.ink, outline: 'none' }} />
             <span style={{ fontSize: FS(16), color: 'rgba(44,44,50,0.6)', whiteSpace: 'nowrap', flexShrink: 0 }}>折</span>
+          </div>
+          <div style={{ marginBottom: SP(10) }}>
+            <FeeHint feeRate={addV.feeRate != null && String(addV.feeRate).trim() !== '' ? addV.feeRate : '0.1425'} discount={addV.discount} />
           </div>
           <div style={{ display: 'flex', gap: SP(8) }}>
             <button onClick={() => setAdding(false)} style={{ flex: 1, height: 36, borderRadius: RS(10),
@@ -1561,6 +1565,21 @@ function BrokerManager({ items, onChange, color, settleOptions = [] }) {
       }
     </>);
 
+}
+
+
+/* 費率試算提示：以 10 萬元成交試算，量級打錯（0.1425 打成 0.01425）一眼可見 */
+function FeeHint({ feeRate, discount }) {
+  const r = parseFloat(feeRate);
+  if (isNaN(r) || r < 0) return null;
+  const d = parseFloat(discount);
+  const mult = d > 0 && d <= 10 ? d / 10 : 1;
+  const fee = Math.round(100000 * (r / 100) * mult);
+  const low = r > 0 && r < 0.05;
+  return (
+    <div style={{ fontSize: FS(13), color: low ? TOKENS.red : 'rgba(44,44,50,0.5)', lineHeight: 1.5 }}>
+      試算：成交 100,000 元 ≈ 手續費 {fee.toLocaleString()} 元{low ? '　⚠️ 費率異常偏低，台股一般為 0.1425%' : ''}
+    </div>);
 }
 
 /* ── SettleManager: name + sub + initial balance ───────────────────── */
