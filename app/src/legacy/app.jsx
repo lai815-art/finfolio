@@ -800,8 +800,37 @@ function resolveTransferV(t, md) {
   return null;
 }
 
+// 語音備註擷取：明講「備註…」的內容優先；否則抓句中的店家/品牌名帶入備註。
+const MERCHANTS_V = ['麥當勞', '肯德基', '摩斯', '漢堡王', '必勝客', '達美樂', 'SUBWAY', '星巴克', '路易莎',
+'85度C', '五十嵐', '清心', '可不可', '迷客夏', '麻古', 'COCO', '全聯', '家樂福', '大潤發', '好市多',
+'COSTCO', '愛買', '美廉社', '7-11', '711', '小七', '全家', '萊爾富', 'OK超商', '蝦皮', 'MOMO',
+'PCHOME', '淘寶', 'AMAZON', 'UBEREATS', 'UBER', 'FOODPANDA', '熊貓', 'NETFLIX', 'SPOTIFY',
+'YOUTUBE', 'DISNEY', 'STEAM', 'IKEA', '宜得利', '屈臣氏', '康是美', '寶雅', '誠品', '博客來',
+'中油', '加油站', '高鐵', '台鐵'];
+function extractNoteV(t) {
+  // 1) 明講備註：「備註(是/：)xxx」→ xxx 全部進備註，並從句子移除、避免干擾金額/分類解析
+  const m = t.match(/(?:備註|备注|註記|附註)(?:是|為|：|:|，|,)?\s*(.+)$/);
+  if (m && m[1]) {
+    const note = m[1].replace(/[。.!！]+$/, '').trim();
+    if (note) return { note, rest: t.slice(0, m.index).trim() };
+  }
+  // 2) 店家/品牌名：帶入備註（保留在原句，分類仍可據以判斷，如 麥當勞→午餐）
+  const up = t.toUpperCase();
+  const hit = MERCHANTS_V.find((w) => up.includes(w));
+  if (hit) {
+    const i = up.indexOf(hit);
+    return { note: t.slice(i, i + hit.length), rest: t };
+  }
+  // 3) 「在/去 ○○ 買/吃/喝…」→ ○○ 當店家
+  const g = t.match(/[在去]([^\s0-9$＄，。,]{2,10}?)(?:買|吃飯|吃|喝|消費|用餐|刷)/);
+  if (g && g[1] && !/帳|卡|銀行|錢包/.test(g[1])) return { note: g[1], rest: t };
+  return { note: '', rest: t };
+}
+
 function parseUtterance(text, masterData = {}) {
-  const t = (text || '').trim();
+  const raw = (text || '').trim();
+  const { note: vNote, rest } = extractNoteV(raw);
+  const t = rest || raw;
   const nums = (t.match(/\d[\d,]*(?:\.\d+)?/g) || []).map((s) => parseFloat(s.replace(/,/g, '')));
   const amount = nums.length ? Math.max.apply(null, nums) : '';
   const sideSell = /賣出|賣掉|賣股|出脫|賣/.test(t);
@@ -841,8 +870,9 @@ function parseUtterance(text, masterData = {}) {
     }
     const summary = [];
     if (code || name) summary.push(['標的', (code ? code + ' ' : '') + (name || '')]);
-    return { intent: 'stock', edit: false, text: t, summary,
-      apply: { side: sideSell ? 'sell' : 'buy', code: code || '', name: name || '', shares: shares || '', price: price || '' } };
+    if (vNote) summary.push(['備註', vNote]);
+    return { intent: 'stock', edit: false, text: raw, summary,
+      apply: { side: sideSell ? 'sell' : 'buy', code: code || '', name: name || '', shares: shares || '', price: price || '', note: vNote } };
   }
 
   // ── 轉帳 ──
@@ -851,10 +881,11 @@ function parseUtterance(text, masterData = {}) {
     const summary = [];
     if (xfer.from) summary.push(['轉出', xfer.from]);
     if (xfer.to) summary.push(['轉入', xfer.to]);
-    const apply = { kind: 'xfer', amount: String(amount), note: '' };
+    if (vNote) summary.push(['備註', vNote]);
+    const apply = { kind: 'xfer', amount: String(amount), note: vNote };
     if (xfer.from) apply.fromAccount = xfer.from;
     if (xfer.to) apply.toAccount = xfer.to;
-    return { intent: 'flow', edit: false, text: t, summary, apply };
+    return { intent: 'flow', edit: false, text: raw, summary, apply };
   }
 
   // ── 一般收支 ──
@@ -863,15 +894,18 @@ function parseUtterance(text, masterData = {}) {
   resolveCategoryV(t, masterData.cat_inc, INC_KW_V) :
   resolveCategoryV(t, masterData.cat_exp, EXP_KW_V);
   const account = resolveAccountV(t, masterData);
-  // 語音記帳不把辨識文字帶入備註欄（原句仍顯示在「AI 已帶入」提示）。
+  // 備註只帶「明講的備註內容」或「店家/品牌名」，不把整句辨識文字塞進去
+  //（原句仍顯示在「AI 已帶入」提示）。
   const summary = [];
   if (category) summary.push(['分類', category]);
   if (account) summary.push(['帳戶', account]);
-  const apply = { kind, amount: String(amount), note: '' };
+  if (vNote) summary.push(['備註', vNote]);
+  const apply = { kind, amount: String(amount), note: vNote };
   if (category) apply.category = category;
   if (account) apply.account = account;
-  return { intent: 'flow', edit: false, text: t, summary, apply };
+  return { intent: 'flow', edit: false, text: raw, summary, apply };
 }
+if (typeof window !== 'undefined') window.ffParseUtterance = parseUtterance;
 
 function VoiceListenOverlay({ open, onDone, onCancel, masterData }) {
   const { Mic, X, Volume, Sparkles, Check } = window.Icons;
