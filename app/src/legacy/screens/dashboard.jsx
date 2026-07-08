@@ -329,27 +329,24 @@ function DailyView({ date, hideAmounts, extraFlows = [], extraTrades = [], onEdi
   const buyTotal = trades.filter((t) => t.side === 'buy').reduce((a, t) => a + tradeTWD(t), 0);
   const sellTotal = trades.filter((t) => t.side === 'sell').reduce((a, t) => a + tradeTWD(t), 0);
 
-  return (
-    <div>
-      {/* 收支 */}
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: "0px 5px" }}>
-        <div style={{ color: 'rgba(0,0,0,0.90)', fontSize: FS(18), letterSpacing: 1,
-          textTransform: 'uppercase', display: 'flex', alignItems: 'center', gap: SP(8) }}>
-          <Calendar size={14} /> 當日收支
-        </div>
-        <span style={{ fontSize: FS(18), fontFamily: TOKENS.fontMono, fontWeight: 600,
-          whiteSpace: 'nowrap', flexShrink: 0,
-          color: incTotal - expTotal < 0 ? TOKENS.red : TOKENS.ink2 }}>
-          餘額 {incTotal - expTotal < 0 ? '-' : ''}{mask(Math.abs(incTotal - expTotal))}
-        </span>
-      </div>
-      <div style={{ ...{ marginTop: SP(8), background: TOKENS.surface, borderRadius: RS(18),
-          border: '1px solid rgba(0,0,0,0.12)', overflow: 'hidden', width: "382px" }, borderRadius: "11px", background: "rgb(248, 247, 243)" }}>
-        {flows.length === 0 &&
-        <div style={{ padding: PAD('20px 16px'), textAlign: 'center', fontSize: FS(18),
-          color: 'rgba(44,44,50,0.4)', width: "382px" }}>當日無紀錄</div>
-        }
-        {flows.map((t, i, arr) => {
+  // 分區塊顯示：支出／收入／轉帳／股票買賣 各自一塊，當日沒有該類紀錄就整塊隱藏
+  const expFlows = flows.filter((t) => t.kind === 'exp');
+  const incFlows = flows.filter((t) => t.kind === 'inc');
+  const xferFlows = flows.filter((t) => t.kind === 'xfer');
+  const xferTotal = xferFlows.reduce((a, t) => a + flowTWD(t), 0);
+  const XferIcon = window.Icons.RefreshCw || Calendar;
+  const cardBox = { ...{ marginTop: SP(8), background: TOKENS.surface, borderRadius: RS(18),
+      border: '1px solid rgba(0,0,0,0.12)', overflow: 'hidden', width: "382px" }, borderRadius: "11px", background: "rgb(248, 247, 243)" };
+  const secHead = (Ico, label, right, rightColor, first) =>
+  <div style={{ marginTop: first ? 0 : SP(16), display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: "0px 5px" }}>
+    <div style={{ color: 'rgba(0,0,0,0.90)', fontSize: FS(18), letterSpacing: 1,
+      textTransform: 'uppercase', display: 'flex', alignItems: 'center', gap: SP(8) }}>
+      <Ico size={14} /> {label}
+    </div>
+    <span style={{ fontSize: FS(18), fontFamily: TOKENS.fontMono, fontWeight: 600,
+      whiteSpace: 'nowrap', flexShrink: 0, color: rightColor }}>{right}</span>
+  </div>;
+  const renderFlow = (t, i, arr) => {
           const color = t.kind === 'inc' ? TOKENS.typeInc : t.kind === 'xfer' ? TOKENS.typeXfer : TOKENS.typeExp;
           const amtColor = t.kind === 'exp' ? TOKENS.red : t.kind === 'inc' ? TOKENS.incBlue : TOKENS.ink2;
           const sign = t.kind === 'exp' ? '-' : '';
@@ -418,28 +415,8 @@ function DailyView({ date, hideAmounts, extraFlows = [], extraTrades = [], onEdi
               </div>
             </div>);
 
-        })}
-      </div>
-
-      {/* 股票買賣 */}
-      <div style={{ marginTop: SP(16), display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: "0px 5px" }}>
-        <div style={{ color: 'rgba(0,0,0,0.90)', fontSize: FS(18), letterSpacing: 1,
-          textTransform: 'uppercase', display: 'flex', alignItems: 'center', gap: SP(8) }}>
-          <ArrowUpRight size={14} /> 當日股票買賣
-        </div>
-        <span style={{ fontSize: FS(18), fontFamily: TOKENS.fontMono, fontWeight: 600,
-          whiteSpace: 'nowrap', flexShrink: 0,
-          color: sellTotal - buyTotal < 0 ? TOKENS.red : TOKENS.ink2 }}>
-          餘額 {sellTotal - buyTotal < 0 ? '-' : ''}{mask(Math.abs(sellTotal - buyTotal))}
-        </span>
-      </div>
-      <div style={{ ...{ marginTop: SP(8), background: TOKENS.surface, borderRadius: RS(18),
-          border: '1px solid rgba(0,0,0,0.12)', overflow: 'hidden' }, borderRadius: "11px", background: "rgb(248, 247, 243)" }}>
-        {trades.length === 0 &&
-        <div style={{ padding: PAD('20px 16px'), textAlign: 'center', fontSize: FS(18),
-          color: 'rgba(44,44,50,0.4)', width: "382px" }}>當日無交易</div>
-        }
-        {trades.map((t, i, arr) => {
+  };
+  const renderTrade = (t, i, arr) => {
           const color = t.side === 'buy' ? TOKENS.typeBuy : TOKENS.typeSell;
           const amtColor = t.side === 'buy' ? TOKENS.red : TOKENS.ink2;
           const total = t.net != null && t.net > 0 ? Math.round(t.net) : Math.round(t.shares * t.price);
@@ -494,8 +471,35 @@ function DailyView({ date, hideAmounts, extraFlows = [], extraTrades = [], onEdi
               </div>
             </div>);
 
-        })}
+  };
+
+  const noAny = flows.length === 0 && trades.length === 0;
+  let firstSec = true;
+  const takeFirst = () => {const f = firstSec;firstSec = false;return f;};
+  return (
+    <div>
+      {noAny &&
+      <div style={cardBox}>
+        <div style={{ padding: PAD('20px 16px'), textAlign: 'center', fontSize: FS(18),
+          color: 'rgba(44,44,50,0.4)', width: "382px" }}>當日無紀錄</div>
       </div>
+      }
+      {expFlows.length > 0 && <React.Fragment>
+        {secHead(Calendar, '當日支出', '-' + mask(expTotal), TOKENS.red, takeFirst())}
+        <div style={cardBox}>{expFlows.map(renderFlow)}</div>
+      </React.Fragment>}
+      {incFlows.length > 0 && <React.Fragment>
+        {secHead(Calendar, '當日收入', '+' + mask(incTotal), TOKENS.incBlue, takeFirst())}
+        <div style={cardBox}>{incFlows.map(renderFlow)}</div>
+      </React.Fragment>}
+      {xferFlows.length > 0 && <React.Fragment>
+        {secHead(XferIcon, '當日轉帳', mask(xferTotal), TOKENS.ink2, takeFirst())}
+        <div style={cardBox}>{xferFlows.map(renderFlow)}</div>
+      </React.Fragment>}
+      {trades.length > 0 && <React.Fragment>
+        {secHead(ArrowUpRight, '當日股票買賣', (sellTotal - buyTotal < 0 ? '餘額 -' : '餘額 ') + mask(Math.abs(sellTotal - buyTotal)), sellTotal - buyTotal < 0 ? TOKENS.red : TOKENS.ink2, takeFirst())}
+        <div style={cardBox}>{trades.map(renderTrade)}</div>
+      </React.Fragment>}
     </div>);
 
 }
