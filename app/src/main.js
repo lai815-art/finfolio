@@ -69,6 +69,17 @@ window.ReactDOM = ReactDOMClient;
         if (changed) localStorage.setItem('ff_master_data', JSON.stringify(md2));
       }
     } catch (e) {/* 忽略 */}
+    // 券商手續費率：沒設定的一律明確補上預設 0.1425（%），使用者仍可在設定中自行修改。
+    try {
+      var md3 = JSON.parse(localStorage.getItem('ff_master_data') || 'null');
+      if (md3 && Array.isArray(md3.brokers)) {
+        var bChanged = false;
+        md3.brokers.forEach(function (b) {
+          if (b && (b.feeRate == null || String(b.feeRate).trim() === '')) {b.feeRate = '0.1425';bChanged = true;}
+        });
+        if (bChanged) localStorage.setItem('ff_master_data', JSON.stringify(md3));
+      }
+    } catch (e) {/* 忽略 */}
     if (cur < SCHEMA_VERSION) {
       localStorage.setItem('ff_schema_version', String(SCHEMA_VERSION));
     }
