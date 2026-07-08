@@ -329,9 +329,8 @@ function DailyView({ date, hideAmounts, extraFlows = [], extraTrades = [], onEdi
   const buyTotal = trades.filter((t) => t.side === 'buy').reduce((a, t) => a + tradeTWD(t), 0);
   const sellTotal = trades.filter((t) => t.side === 'sell').reduce((a, t) => a + tradeTWD(t), 0);
 
-  // 分區塊顯示：支出／收入／轉帳／股票買賣 各自一塊，當日沒有該類紀錄就整塊隱藏
-  const expFlows = flows.filter((t) => t.kind === 'exp');
-  const incFlows = flows.filter((t) => t.kind === 'inc');
+  // 分區塊顯示：收支（支出+收入）／轉帳／股票買賣 各自一塊，當日沒有該類紀錄就整塊隱藏
+  const incExpFlows = flows.filter((t) => t.kind !== 'xfer');
   const xferFlows = flows.filter((t) => t.kind === 'xfer');
   const xferTotal = xferFlows.reduce((a, t) => a + flowTWD(t), 0);
   const XferIcon = window.Icons.RefreshCw || Calendar;
@@ -484,13 +483,9 @@ function DailyView({ date, hideAmounts, extraFlows = [], extraTrades = [], onEdi
           color: 'rgba(44,44,50,0.4)', width: "382px" }}>當日無紀錄</div>
       </div>
       }
-      {expFlows.length > 0 && <React.Fragment>
-        {secHead(Calendar, '當日支出', '-' + mask(expTotal), TOKENS.red, takeFirst())}
-        <div style={cardBox}>{expFlows.map(renderFlow)}</div>
-      </React.Fragment>}
-      {incFlows.length > 0 && <React.Fragment>
-        {secHead(Calendar, '當日收入', '+' + mask(incTotal), TOKENS.incBlue, takeFirst())}
-        <div style={cardBox}>{incFlows.map(renderFlow)}</div>
+      {incExpFlows.length > 0 && <React.Fragment>
+        {secHead(Calendar, '當日收支', '餘額 ' + (incTotal - expTotal < 0 ? '-' : '') + mask(Math.abs(incTotal - expTotal)), incTotal - expTotal < 0 ? TOKENS.red : TOKENS.ink2, takeFirst())}
+        <div style={cardBox}>{incExpFlows.map(renderFlow)}</div>
       </React.Fragment>}
       {xferFlows.length > 0 && <React.Fragment>
         {secHead(XferIcon, '當日轉帳', mask(xferTotal), TOKENS.ink2, takeFirst())}
