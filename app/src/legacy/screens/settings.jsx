@@ -2752,9 +2752,23 @@ function ImportSheet({ open, onClose, data, setData, savedFlows, savedTrades, se
       // 才不會每匯一次就重複累加（例如修正檔重匯時交割戶餘額翻倍）。
       let prevMeta = null;try {prevMeta = JSON.parse(localStorage.getItem('ff_import_meta') || 'null');} catch {}
       const prevBatch = prevMeta && prevMeta.batchId;
+      const nextTrades = [...(savedTrades || []).filter((t) => !prevBatch || t.importBatch !== prevBatch), ...newTrades];
+      const nextFlows = [...newFlows, ...(savedFlows || []).filter((f) => !prevBatch || f.importBatch !== prevBatch)];
+
+      // 匯入資料量大：背景的持久化 effect 遇到空間不足會「靜默失敗」——畫面顯示成功、
+      // 重開 App 資料卻消失。所以這裡先清掉可自動重建的快取釋放空間，再「同步」寫入；
+      // 寫不進去就直接讓匯入失敗，誠實告知，而不是假裝成功。
+      try { localStorage.removeItem('ff_auto_snapshot'); localStorage.removeItem('ff_tw_stocks_v7'); } catch {}
+      try {
+        localStorage.setItem('ff_trades', JSON.stringify(nextTrades));
+        localStorage.setItem('ff_flows', JSON.stringify(nextFlows));
+      } catch (qe) {
+        throw new Error('裝置儲存空間不足，匯入已中止（資料未寫入，現有資料不受影響）。請重新整理 App 後再試一次。');
+      }
+
       setData(nextData);
-      setSavedTrades((prev) => [...prev.filter((t) => !prevBatch || t.importBatch !== prevBatch), ...newTrades]);
-      setSavedFlows((prev) => [...newFlows, ...prev.filter((f) => !prevBatch || f.importBatch !== prevBatch)]);
+      setSavedTrades(nextTrades);
+      setSavedFlows(nextFlows);
       setInitialBalances((prev) => {
         const next = { ...prev };
         if (prevMeta && prevMeta.balDelta) Object.keys(prevMeta.balDelta).forEach((k) => {next[k] = (parseFloat(next[k]) || 0) - prevMeta.balDelta[k];});
@@ -2880,7 +2894,10 @@ function ImportSheet({ open, onClose, data, setData, savedFlows, savedTrades, se
 // 只清除記帳交易本身：支出/收入/轉帳紀錄、股票交易紀錄，以及套在這些紀錄上的編輯/刪除覆寫。
 // 不會清除：主檔設定（分類/帳戶/證券戶/交割戶/資產類別）、初始餘額、自動扣款規則、
 // App 密碼鎖、AI 金鑰設定、外觀偏好——這些都是「設定」，不是「記帳交易」。
-const FF_CLEAR_KEYS = ['ff_flows', 'ff_trades', 'ff_record_edits', 'ff_record_deletes'];
+// ff_auto_snapshot 一併清：它是被清除紀錄的完整複本，留著會佔掉數 MB 儲存空間，
+// 造成之後匯入/儲存時空間不足。ff_import_meta 也清：紀錄已刪，舊批次的初始餘額
+// 回退資訊已無意義，留著會讓下次匯入誤扣一次交割戶餘額。
+const FF_CLEAR_KEYS = ['ff_flows', 'ff_trades', 'ff_record_edits', 'ff_record_deletes', 'ff_auto_snapshot', 'ff_import_meta'];
 const CLEAR_PHRASE = '清除';
 
 function ClearDataSheet({ open, onClose }) {
