@@ -33,7 +33,7 @@ function CurrencySelect({ value, onChange, color, style }) {
     <select value={value || 'TWD'} onChange={(e) => onChange(e.target.value)}
     style={{ ...{ height: 34, padding: PAD('0 8px'), borderRadius: RS(8),
         background: 'rgba(0,0,0,0.06)', border: `1px solid ${color}40`,
-        fontSize: FS(17), fontFamily: 'JetBrains Mono,monospace', color: TOKENS.ink, outline: 'none', ...style }, padding: "0px 6px", margin: "0px" }}>
+        fontSize: FS(17), fontFamily: 'Roboto Mono,monospace', color: TOKENS.ink, outline: 'none', ...style }, padding: "0px 6px", margin: "0px" }}>
       {CURRENCIES.map((c) => <option key={c} value={c}>{c}</option>)}
     </select>);
 
@@ -42,7 +42,7 @@ function CurrencyChip({ code }) {
   return (
     <span style={{ fontSize: FS(13), padding: PAD('1px 6px'), borderRadius: RS(5), flexShrink: 0,
       background: 'rgba(46,114,216,0.10)', color: TOKENS.blue2,
-      fontFamily: 'JetBrains Mono,monospace', fontWeight: 600 }}>{code || 'TWD'}</span>);
+      fontFamily: 'Roboto Mono,monospace', fontWeight: 600 }}>{code || 'TWD'}</span>);
 
 }
 
@@ -588,7 +588,7 @@ function AIKeyEditForm({ v, setV, onSave, onCancel, colors }) {
         type="text" autoComplete="off" autoCorrect="off" autoCapitalize="off" spellCheck={false} placeholder="貼上 API Key…"
         style={{ width: '100%', height: 40, padding: PAD('0 12px'), borderRadius: RS(10),
           background: 'rgba(0,0,0,0.04)', border: '1px solid ' + (v.color || TOKENS.ink2) + '40',
-          fontSize: FS(17), fontFamily: 'JetBrains Mono,monospace', color: TOKENS.ink, outline: 'none' }} />
+          fontSize: FS(17), fontFamily: 'Roboto Mono,monospace', color: TOKENS.ink, outline: 'none' }} />
       </div>
       <div style={{ display: 'flex', gap: SP(6) }}>
         {(colors || []).map((c) =>
@@ -688,7 +688,7 @@ function AIKeyManager({ keys = [], onChange }) {
               display: 'flex', alignItems: 'center', gap: SP(8), flexWrap: 'wrap' }}>
                     {k.sub && <span>{k.sub}</span>}
                     {k.key ?
-              <span style={{ fontFamily: 'JetBrains Mono,monospace', fontSize: FS(14) }}>{masked(k.key)}</span> :
+              <span style={{ fontFamily: 'Roboto Mono,monospace', fontSize: FS(14) }}>{masked(k.key)}</span> :
               <span style={{ color: TOKENS.red, fontWeight: 500 }}>未設定</span>
               }
                   </div>
@@ -1244,7 +1244,7 @@ function SignBtn({ value, onChange, color }) {
       border: `1px solid ${neg ? 'rgba(184,92,74,0.5)' : 'rgba(0,0,0,0.16)'}`,
       background: neg ? 'rgba(184,92,74,0.12)' : TOKENS.surface,
       color: neg ? TOKENS.red : 'rgba(44,44,50,0.7)',
-      fontSize: FS(18), fontWeight: 700, fontFamily: 'JetBrains Mono,monospace' }}>
+      fontSize: FS(18), fontWeight: 700, fontFamily: 'Roboto Mono,monospace' }}>
       {neg ? '−' : '＋'}
     </button>);
 }
@@ -1330,7 +1330,7 @@ function AccountsManager({ data, onChange, color, initialBalances, setInitialBal
                           <span style={{ fontSize: FS(19), fontWeight: 500, color: TOKENS.ink }}>{it.name}</span>
                           <CurrencyChip code={it.currency} />
                         </div>
-                        <div style={{ fontSize: FS(15), color: 'rgba(44,44,50,0.78)', fontFamily: 'JetBrains Mono,monospace' }}>
+                        <div style={{ fontSize: FS(15), color: 'rgba(44,44,50,0.78)', fontFamily: 'Roboto Mono,monospace' }}>
                           {initialBalances[it.name] !== undefined && initialBalances[it.name] !== 0 ?
                       '初始 ' + Math.round(initialBalances[it.name]).toLocaleString() : '尚未設定初始餘額'}
                         </div>
@@ -1363,7 +1363,7 @@ function AccountsManager({ data, onChange, color, initialBalances, setInitialBal
                         <SignBtn value={edit.initBal} onChange={(v) => setEdit({ ...edit, initBal: v })} />
                         <input value={edit.initBal} onChange={(e) => setEdit({ ...edit, initBal: e.target.value })} inputMode="decimal" placeholder="0"
                     style={{ flex: 1, minWidth: 0, height: 34, padding: PAD('0 10px'), borderRadius: RS(8), background: 'rgba(0,0,0,0.06)',
-                      border: `1px solid ${kc}40`, fontSize: FS(18), fontFamily: 'JetBrains Mono,monospace', color: TOKENS.ink, outline: 'none' }} />
+                      border: `1px solid ${kc}40`, fontSize: FS(18), fontFamily: 'Roboto Mono,monospace', color: TOKENS.ink, outline: 'none' }} />
                       </div>
                       {edit.kind === '信用卡' &&
                   <div style={{ fontSize: FS(13), color: 'rgba(44,44,50,0.5)', lineHeight: 1.5 }}>
@@ -1390,7 +1390,7 @@ function AccountsManager({ data, onChange, color, initialBalances, setInitialBal
                   <SignBtn value={addV.initBal} onChange={(v) => setAddV({ ...addV, initBal: v })} />
                   <input value={addV.initBal} onChange={(e) => setAddV({ ...addV, initBal: e.target.value })} inputMode="decimal" placeholder="0"
                 style={{ flex: 1, minWidth: 0, height: 34, padding: PAD('0 10px'), borderRadius: RS(8), background: TOKENS.surface,
-                  border: `1px solid ${kc}40`, fontSize: FS(18), fontFamily: 'JetBrains Mono,monospace', color: TOKENS.ink, outline: 'none' }} />
+                  border: `1px solid ${kc}40`, fontSize: FS(18), fontFamily: 'Roboto Mono,monospace', color: TOKENS.ink, outline: 'none' }} />
                 </div>
                 <div style={{ display: 'flex', gap: SP(8) }}>
                   <button onClick={() => setAdding(null)} style={{ flex: 1, height: 36, borderRadius: RS(10),
@@ -1641,7 +1641,7 @@ function SettleManager({ items, onChange, color, initialBalances = {}, setInitia
                       <CurrencyChip code={it.currency} />
                     </div>
                     <div style={{ display: 'flex', alignItems: 'center', gap: SP(8) }}>
-                      {initialBalances[it.name] ? <span style={{ fontSize: FS(15), color: 'rgba(44,44,50,0.55)', fontFamily: 'JetBrains Mono,monospace' }}>
+                      {initialBalances[it.name] ? <span style={{ fontSize: FS(15), color: 'rgba(44,44,50,0.55)', fontFamily: 'Roboto Mono,monospace' }}>
                         ${Math.round(initialBalances[it.name]).toLocaleString()}
                       </span> : null}
                     </div>
@@ -1670,7 +1670,7 @@ function SettleManager({ items, onChange, color, initialBalances = {}, setInitia
                   <SignBtn value={edit.initBal} onChange={(v) => setEdit({ ...edit, initBal: v })} />
                   <input value={edit.initBal} onChange={(e) => setEdit({ ...edit, initBal: e.target.value })} inputMode="decimal" placeholder="0"
               style={{ flex: 1, minWidth: 0, height: 34, padding: PAD('0 10px'), borderRadius: RS(8), background: 'rgba(0,0,0,0.06)',
-                border: `1px solid ${color}40`, fontSize: FS(18), fontFamily: 'JetBrains Mono,monospace', color: TOKENS.ink, outline: 'none' }} />
+                border: `1px solid ${color}40`, fontSize: FS(18), fontFamily: 'Roboto Mono,monospace', color: TOKENS.ink, outline: 'none' }} />
                 </div>
               </div>
           }
@@ -1691,7 +1691,7 @@ function SettleManager({ items, onChange, color, initialBalances = {}, setInitia
             <SignBtn value={addV.initBal} onChange={(v) => setAddV({ ...addV, initBal: v })} />
             <input value={addV.initBal} onChange={(e) => setAddV({ ...addV, initBal: e.target.value })} inputMode="decimal" placeholder="0"
           style={{ flex: 1, height: 34, padding: PAD('0 10px'), borderRadius: RS(8), background: TOKENS.surface,
-            border: `1px solid ${color}40`, fontSize: FS(18), fontFamily: 'JetBrains Mono,monospace', color: TOKENS.ink, outline: 'none' }} />
+            border: `1px solid ${color}40`, fontSize: FS(18), fontFamily: 'Roboto Mono,monospace', color: TOKENS.ink, outline: 'none' }} />
           </div>
           <div style={{ display: 'flex', gap: SP(8) }}>
             <button onClick={() => setAdding(false)} style={{ flex: 1, height: 36, borderRadius: RS(10),

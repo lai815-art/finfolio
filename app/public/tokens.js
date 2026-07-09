@@ -50,7 +50,7 @@
 
   var FONT = {
     fontSans: '"Noto Sans TC", -apple-system, system-ui, sans-serif',
-    fontMono: '"JetBrains Mono", monospace',
+    fontMono: '"Roboto Mono", monospace',
   };
 
   var SCALE = {
