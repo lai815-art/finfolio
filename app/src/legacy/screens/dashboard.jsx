@@ -850,16 +850,20 @@ function MonthlyStatsSheet({ open, onClose, savedFlows, masterData, hideAmounts,
         {data.map((_, i) => i % step === 0 ? <text key={i} x={xAt(i)} y={H - 6} textAnchor="middle" fill="rgba(44,44,50,0.5)" style={{ fontSize: '10px' }}>{labels[i]}</text> : null)}
       </svg>);
   };
-  // 收支餘額柱狀圖
+  // 收支餘額柱狀圖：沒有任何透支（全正）時，零基準線落在底部、整個高度都給正值，
+  // 不預留下方負值空間；有透支才把基準線依正負比例上移，保留上下兩側。
   const NetBars2 = ({ data, labels }) => {
     const nets = data.map((a) => a.inc - a.exp);
-    const maxAbs = Math.max(1, ...nets.map((v) => Math.abs(v)));
+    const maxPos = Math.max(0, ...nets), maxNeg = Math.max(0, ...nets.map((v) => -v));
+    const range = maxPos + maxNeg || 1;
     const W = 340, H = 150, pT = 10, pB = 22, n = data.length;
-    const zeroY = pT + (H - pT - pB) / 2, bw = Math.max(6, W / n * 0.5), step = Math.ceil(n / 12);
+    const chartH = H - pT - pB;
+    const zeroY = pT + chartH * (maxPos / range); // 全正時 maxNeg=0 → zeroY 落在底部
+    const bw = Math.max(6, W / n * 0.5), step = Math.ceil(n / 12);
     return (
       <svg width="100%" viewBox={`0 0 ${W} ${H}`} style={{ display: 'block' }}>
         <line x1={0} y1={zeroY} x2={W} y2={zeroY} stroke="rgba(0,0,0,0.14)" />
-        {nets.map((v, i) => { const c = W / n * (i + 0.5), h = Math.abs(v) / maxAbs * ((H - pT - pB) / 2), pos = v >= 0; return <rect key={i} x={c - bw / 2} y={pos ? zeroY - h : zeroY} width={bw} height={h} rx="2" fill={pos ? TOKENS.incBlue : TOKENS.red} />; })}
+        {nets.map((v, i) => { const c = W / n * (i + 0.5), h = Math.abs(v) / range * chartH, pos = v >= 0; return <rect key={i} x={c - bw / 2} y={pos ? zeroY - h : zeroY} width={bw} height={h} rx="2" fill={pos ? TOKENS.incBlue : TOKENS.red} />; })}
         {data.map((_, i) => i % step === 0 ? <text key={'t' + i} x={W / n * (i + 0.5)} y={H - 6} textAnchor="middle" fill="rgba(44,44,50,0.5)" style={{ fontSize: '10px' }}>{labels[i]}</text> : null)}
       </svg>);
   };
@@ -887,7 +891,7 @@ function MonthlyStatsSheet({ open, onClose, savedFlows, masterData, hideAmounts,
                 <div style={{ width: 54, textAlign: 'left', fontSize: FS(16), color: TOKENS.ink, fontWeight: isOpen ? 700 : 500 }}>{r.label}</div>
                 {cell(r.inc, TOKENS.incBlue)}
                 {cell(r.exp, TOKENS.red)}
-                <div style={{ flex: 1, textAlign: 'right', fontFamily: TOKENS.fontMono, fontSize: FS(14), fontWeight: 600, color: net >= 0 ? TOKENS.incBlue : TOKENS.red }}>{net >= 0 ? '+' : '-'}{mask(Math.abs(net))}</div>
+                <div style={{ flex: 1, textAlign: 'right', fontFamily: TOKENS.fontMono, fontSize: FS(14), fontWeight: 600, color: net >= 0 ? TOKENS.ink : TOKENS.red }}>{net < 0 ? '-' : ''}{mask(Math.abs(net))}</div>
                 <ChevronDown size={14} style={{ width: 22, color: 'rgba(44,44,50,0.35)', flexShrink: 0, transform: isOpen ? 'rotate(180deg)' : 'none', transition: 'transform 200ms' }} />
               </button>
               {isOpen &&
@@ -909,7 +913,7 @@ function MonthlyStatsSheet({ open, onClose, savedFlows, masterData, hideAmounts,
           <div style={{ width: 54, fontSize: FS(16), fontWeight: 700, color: TOKENS.ink }}>合計</div>
           <div style={{ flex: 1, textAlign: 'right', fontFamily: TOKENS.fontMono, fontSize: FS(14), fontWeight: 700, color: TOKENS.incBlue }}>{mask(tot.inc)}</div>
           <div style={{ flex: 1, textAlign: 'right', fontFamily: TOKENS.fontMono, fontSize: FS(14), fontWeight: 700, color: TOKENS.red }}>{mask(tot.exp)}</div>
-          <div style={{ flex: 1, textAlign: 'right', fontFamily: TOKENS.fontMono, fontSize: FS(14), fontWeight: 700, color: tot.inc - tot.exp >= 0 ? TOKENS.incBlue : TOKENS.red }}>{tot.inc - tot.exp >= 0 ? '+' : '-'}{mask(Math.abs(tot.inc - tot.exp))}</div>
+          <div style={{ flex: 1, textAlign: 'right', fontFamily: TOKENS.fontMono, fontSize: FS(14), fontWeight: 700, color: tot.inc - tot.exp >= 0 ? TOKENS.ink : TOKENS.red }}>{tot.inc - tot.exp < 0 ? '-' : ''}{mask(Math.abs(tot.inc - tot.exp))}</div>
           <div style={{ width: 22 }} />
         </div>
       </>);
