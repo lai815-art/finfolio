@@ -131,6 +131,7 @@ function AccountingScreen({ onSaved, onDelete, initialDraft, masterData, compute
       broker: firstBroker,
       settleAccount: firstSettle,
       feeOverride: '', // 空 = 依費率自動計算；有值 = 使用者手動改過的手續費金額
+      taxOverride: '', // 空 = 賣出依 0.3% 自動計算；有值 = 手動改過的證交稅金額
       date: new Date(window.TODAY_DATE || TODAY_ACC), note: '',
       ...(draftStock || {})
     };
@@ -786,10 +787,12 @@ function StockForm({ state, update, onSaved, onDelete, recordId, masterData, com
   const _feeDisc = _brokerObj && _brokerObj.discount != null && String(_brokerObj.discount).trim() !== '' ? parseFloat(_brokerObj.discount) : 10;
   const feeMult = _feeDisc > 0 && _feeDisc <= 10 ? _feeDisc / 10 : 1;
   const autoFee = sh > 0 && pr > 0 && _feeRate > 0 ? Math.max(1, Math.round(gross * (_feeRate / 100) * feeMult)) : 0;
-  // 手續費預設依費率試算，但可直接修改金額；清空即恢復自動計算
+  // 手續費／證交稅：預設自動試算（0.1425% / 賣出 0.3%），但可直接修改金額；清空即恢復自動
   const feeOverridden = state.feeOverride !== '' && state.feeOverride != null && !isNaN(parseFloat(state.feeOverride));
   const fee = feeOverridden ? Math.round(parseFloat(state.feeOverride)) : autoFee;
-  const tax = state.side === 'sell' ? Math.round(gross * 0.003) : 0;
+  const autoTax = state.side === 'sell' ? Math.round(gross * 0.003) : 0;
+  const taxOverridden = state.side === 'sell' && state.taxOverride !== '' && state.taxOverride != null && !isNaN(parseFloat(state.taxOverride));
+  const tax = taxOverridden ? Math.round(parseFloat(state.taxOverride)) : autoTax;
   const net = state.side === 'buy' ? gross + fee : gross - fee - tax;
 
   const accent = state.side === 'buy' ? TOKENS.typeBuy : TOKENS.typeSell;
@@ -824,7 +827,7 @@ function StockForm({ state, update, onSaved, onDelete, recordId, masterData, com
         {SIDES.map((s) => {
           const on = s.id === state.side;
           return (
-            <button key={s.id} onClick={() => update({ side: s.id, feeOverride: '' })} style={{
+            <button key={s.id} onClick={() => update({ side: s.id, feeOverride: '', taxOverride: '' })} style={{
               flex: 1, borderRadius: RS(16),
               background: on ?
               s.color :
@@ -939,7 +942,7 @@ function StockForm({ state, update, onSaved, onDelete, recordId, masterData, com
           }, padding: "6px 14px 10px", height: "70px" }}>
             <div style={{ fontSize: FS(16), color: 'rgba(44,44,50,0.5)', letterSpacing: 0.5,
             textTransform: 'uppercase' }}>{f.label}</div>
-            <input value={state[f.k]} onChange={(e) => update({ [f.k]: ffNormNum(e.target.value), feeOverride: '' })}
+            <input value={state[f.k]} onChange={(e) => update({ [f.k]: ffNormNum(e.target.value), feeOverride: '', taxOverride: '' })}
           placeholder={f.placeholder} inputMode={f.inputMode}
           style={{
             marginTop: SP(4), width: '100%', background: 'transparent', border: 'none', outline: 'none',
@@ -951,14 +954,14 @@ function StockForm({ state, update, onSaved, onDelete, recordId, masterData, com
       </div>
       <div style={{ marginTop: SP(10), display: 'flex', gap: SP(6), alignItems: 'center' }}>
         {[10, 100, 1000].map((n) =>
-        <button key={n} onClick={() => update({ shares: String((parseFloat(state.shares) || 0) + n), feeOverride: '' })} style={{ ...{
+        <button key={n} onClick={() => update({ shares: String((parseFloat(state.shares) || 0) + n), feeOverride: '', taxOverride: '' })} style={{ ...{
             flex: 1, height: 40, borderRadius: RS(8),
             background: 'rgba(0,0,0,0.12)', border: '1px solid rgba(0,0,0,0.14)',
             color: 'rgba(44,44,50,0.7)', fontFamily: TOKENS.fontMono,
             fontSize: FS(18), fontWeight: 500
           }, fontSize: "15px" }}>+{n.toLocaleString()}</button>
         )}
-        <button onClick={() => update({ shares: '', feeOverride: '' })} style={{
+        <button onClick={() => update({ shares: '', feeOverride: '', taxOverride: '' })} style={{
           flex: '0 0 auto', padding: PAD('0 12px'), height: 40, borderRadius: RS(8),
           background: 'transparent', border: '1px solid rgba(0,0,0,0.14)',
           color: 'rgba(44,44,50,0.6)', fontSize: FS(16) }}>清除</button>
@@ -988,12 +991,16 @@ function StockForm({ state, update, onSaved, onDelete, recordId, masterData, com
             fontFamily: TOKENS.fontMono, fontSize: FS(16), color: TOKENS.ink, outline: 'none' }} />
         </div>
         {state.side === 'sell' &&
-        <div style={{ marginTop: SP(4), display: 'flex', justifyContent: 'space-between', fontSize: FS(16),
+        <div style={{ marginTop: SP(4), display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: FS(16),
           color: 'rgba(44,44,50,0.6)' }}>
-            <span>證交稅 0.3%</span>
-            <span style={{ fontFamily: TOKENS.fontMono, color: TOKENS.ink }}>
-              {tax.toLocaleString()}
-            </span>
+            <span>證交稅 0.3%{taxOverridden ? ' · 手動' : ''}</span>
+            <input value={taxOverridden ? state.taxOverride : sh > 0 && pr > 0 ? String(autoTax) : ''}
+          onChange={(e) => update({ taxOverride: ffNormNum(e.target.value).replace(/[^0-9.]/g, '') })}
+          inputMode="decimal" placeholder="0" aria-label="證交稅金額（可修改）"
+          style={{ width: 90, height: 28, padding: PAD('0 8px'), textAlign: 'right',
+            borderRadius: RS(8), background: 'rgba(255,255,255,0.6)',
+            border: taxOverridden ? `1px solid ${accent}88` : '1px solid rgba(0,0,0,0.14)',
+            fontFamily: TOKENS.fontMono, fontSize: FS(16), color: TOKENS.ink, outline: 'none' }} />
           </div>
         }
         <div style={{ marginTop: SP(10), paddingTop: SP(10),
@@ -1017,7 +1024,7 @@ function StockForm({ state, update, onSaved, onDelete, recordId, masterData, com
         <DropField label="證券戶" value={state.broker}
         options={brokers} onChange={(v) => {
           const autoSettle = brokerSettleMap[v];
-          update({ broker: v, feeOverride: '', ...(autoSettle ? { settleAccount: autoSettle } : {}) });
+          update({ broker: v, feeOverride: '', taxOverride: '', ...(autoSettle ? { settleAccount: autoSettle } : {}) });
         }} />
       </div>
       <div style={{ marginTop: SP(10) }}>
