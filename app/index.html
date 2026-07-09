@@ -137,6 +137,19 @@
         document.body.appendChild(probe);
       }
       var satScreen = probe.getBoundingClientRect().height;
+      // 開檔案選擇器（還原/匯入）或鍵盤關閉回到 App 的瞬間，iOS 有時會短暫回報
+      // safe-area-inset-top = 0；若照這個 0 重算，頂部留白會縮成 0、標題列上移、
+      // 右上角眼睛按鈕被狀態列切到。所以直向裝置量到 0 時，沿用上次量到的正確值，
+      // 並排一次延後重量，等系統把安全區還原後再更新。
+      if (window.FF_STANDALONE && satScreen === 0 && window.innerHeight > window.innerWidth) {
+        if (window.__ffLastSat > 0) {
+          satScreen = window.__ffLastSat;
+        }
+        clearTimeout(window.__ffSatRetry);
+        window.__ffSatRetry = setTimeout(fit, 350);
+      } else if (satScreen > 0) {
+        window.__ffLastSat = satScreen;
+      }
       var detailTop = window.FF_STANDALONE ? Math.round(satScreen / k) + 4 : 62;
       document.documentElement.style.setProperty('--ff-detail-top', detailTop + 'px');
       // 主畫面頂部留白：同樣做縮放校正。比明細頁緊一點(-8)，但不能像舊的 -18 那麼兇，
