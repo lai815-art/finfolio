@@ -786,8 +786,9 @@ function MonthlyStatsSheet({ open, onClose, savedFlows, masterData, hideAmounts,
   const [yearOffset, setYearOffset] = useStateDash(0);
   const [decadeOffset, setDecadeOffset] = useStateDash(0);
   const [expanded, setExpanded] = useStateDash(null);
+  const [selIdx, setSelIdx] = useStateDash(null); // 圖表點選的月/年（顯示金額小視窗）
   useEffectDash(() => {
-    if (open) { setMonthOffset(0); setYearOffset(0); setDecadeOffset(0); setExpanded(null); setView('spend'); const t = setTimeout(() => setShown(true), 20); return () => clearTimeout(t); }
+    if (open) { setMonthOffset(0); setYearOffset(0); setDecadeOffset(0); setExpanded(null); setSelIdx(null); setView('spend'); const t = setTimeout(() => setShown(true), 20); return () => clearTimeout(t); }
     setShown(false);
   }, [open]);
   if (!open) return null;
@@ -833,38 +834,72 @@ function MonthlyStatsSheet({ open, onClose, savedFlows, masterData, hideAmounts,
 
   const canNextMonth = monthOffset < 0, canNextYear = yearOffset < 0, canNextDecade = decadeOffset < 0;
 
-  // 收入四類折線圖
+  // 點選月/年 → 圖卡內顯示金額小視窗（兩張圖共用同一個選取狀態）
+  const toggleSel = (i) => setSelIdx(selIdx === i ? null : i);
+  const SelInfo = ({ data, labels, mode }) => {
+    if (selIdx == null || !data[selIdx]) return null;
+    const a = data[selIdx];const net = a.inc - a.exp;
+    const row = (label, v, color, sign) =>
+    <div style={{ display: 'flex', justifyContent: 'space-between', gap: SP(10), padding: PAD('2px 0') }}>
+      <span style={{ fontSize: FS(13), color: 'rgba(44,44,50,0.6)' }}>{label}</span>
+      <span style={{ fontFamily: TOKENS.fontMono, fontSize: FS(13), fontWeight: 600, color }}>{sign || ''}{mask(Math.abs(v))}</span>
+    </div>;
+    return (
+      <div style={{ marginTop: SP(8), padding: PAD('8px 12px'), borderRadius: RS(12),
+        background: 'rgba(0,0,0,0.045)', border: '1px solid rgba(0,0,0,0.08)' }}>
+        <div style={{ fontSize: FS(13), fontWeight: 700, color: TOKENS.ink, marginBottom: SP(3) }}>{labels[selIdx]}{view === 'month' ? '月' : ''}</div>
+        {mode === 'lines' ?
+        <>
+          {INC_GROUPS.map((g) => a.groups[g.k] > 0 ? <React.Fragment key={g.k}>{row(g.k, a.groups[g.k], g.c)}</React.Fragment> : null)}
+          {row('總支出', a.exp, TOKENS.red, a.exp > 0 ? '-' : '')}
+        </> :
+        <>
+          {row('總收入', a.inc, TOKENS.incBlue)}
+          {row('總支出', a.exp, TOKENS.red, a.exp > 0 ? '-' : '')}
+          {row('餘額', net, net < 0 ? TOKENS.red : TOKENS.ink, net < 0 ? '-' : '')}
+        </>
+        }
+      </div>);
+  };
+  // 收入四類 + 總支出 折線圖（可點選）
   const GroupLines = ({ data, labels }) => {
     const W = 340, H = 150, pL = 6, pR = 6, pT = 12, pB = 22, n = data.length;
-    let maxV = 1; data.forEach((a) => INC_GROUPS.forEach((g) => { maxV = Math.max(maxV, a.groups[g.k] || 0); }));
+    let maxV = 1; data.forEach((a) => { INC_GROUPS.forEach((g) => { maxV = Math.max(maxV, a.groups[g.k] || 0); }); maxV = Math.max(maxV, a.exp || 0); });
     const xAt = (i) => pL + (W - pL - pR) * (n === 1 ? 0.5 : i / (n - 1));
     const yAt = (v) => pT + (H - pT - pB) * (1 - v / maxV);
     const step = Math.ceil(n / 8);
+    const cw = (W - pL - pR) / Math.max(1, n - 1);
     return (
       <svg width="100%" viewBox={`0 0 ${W} ${H}`} style={{ display: 'block' }}>
         <line x1={pL} y1={H - pB} x2={W - pR} y2={H - pB} stroke="rgba(0,0,0,0.10)" />
+        {selIdx != null && selIdx < n &&
+        <line x1={xAt(selIdx)} y1={pT} x2={xAt(selIdx)} y2={H - pB} stroke="rgba(0,0,0,0.22)" strokeWidth="1.5" strokeDasharray="3 3" />}
         {INC_GROUPS.map((g) =>
         <polyline key={g.k} points={data.map((a, i) => `${xAt(i).toFixed(1)},${yAt(a.groups[g.k] || 0).toFixed(1)}`).join(' ')}
           fill="none" stroke={g.c} strokeWidth="2" strokeLinejoin="round" strokeLinecap="round" />
         )}
+        <polyline points={data.map((a, i) => `${xAt(i).toFixed(1)},${yAt(a.exp || 0).toFixed(1)}`).join(' ')}
+          fill="none" stroke={TOKENS.red} strokeWidth="2" strokeDasharray="5 3" strokeLinejoin="round" strokeLinecap="round" />
         {data.map((_, i) => i % step === 0 ? <text key={i} x={xAt(i)} y={H - 6} textAnchor="middle" fill="rgba(44,44,50,0.5)" style={{ fontSize: '10px' }}>{labels[i]}</text> : null)}
+        {/* 點擊熱區：每欄一條 */}
+        {data.map((_, i) => <rect key={'h' + i} x={xAt(i) - cw / 2} y={0} width={cw} height={H} fill="transparent" onClick={() => toggleSel(i)} style={{ cursor: 'pointer' }} />)}
       </svg>);
   };
-  // 收支餘額柱狀圖：沒有任何透支（全正）時，零基準線落在底部、整個高度都給正值，
-  // 不預留下方負值空間；有透支才把基準線依正負比例上移，保留上下兩側。
+  // 收支餘額柱狀圖（可點選）：全正時零基準線落在底部、高度全給正值；有透支才上移。
   const NetBars2 = ({ data, labels }) => {
     const nets = data.map((a) => a.inc - a.exp);
     const maxPos = Math.max(0, ...nets), maxNeg = Math.max(0, ...nets.map((v) => -v));
     const range = maxPos + maxNeg || 1;
     const W = 340, H = 150, pT = 10, pB = 22, n = data.length;
     const chartH = H - pT - pB;
-    const zeroY = pT + chartH * (maxPos / range); // 全正時 maxNeg=0 → zeroY 落在底部
+    const zeroY = pT + chartH * (maxPos / range);
     const bw = Math.max(6, W / n * 0.5), step = Math.ceil(n / 12);
     return (
       <svg width="100%" viewBox={`0 0 ${W} ${H}`} style={{ display: 'block' }}>
         <line x1={0} y1={zeroY} x2={W} y2={zeroY} stroke="rgba(0,0,0,0.14)" />
-        {nets.map((v, i) => { const c = W / n * (i + 0.5), h = Math.abs(v) / range * chartH, pos = v >= 0; return <rect key={i} x={c - bw / 2} y={pos ? zeroY - h : zeroY} width={bw} height={h} rx="2" fill={pos ? TOKENS.incBlue : TOKENS.red} />; })}
+        {nets.map((v, i) => { const c = W / n * (i + 0.5), h = Math.abs(v) / range * chartH, pos = v >= 0; return <rect key={i} x={c - bw / 2} y={pos ? zeroY - h : zeroY} width={bw} height={h} rx="2" fill={pos ? TOKENS.incBlue : TOKENS.red} opacity={selIdx == null || selIdx === i ? 1 : 0.4} />; })}
         {data.map((_, i) => i % step === 0 ? <text key={'t' + i} x={W / n * (i + 0.5)} y={H - 6} textAnchor="middle" fill="rgba(44,44,50,0.5)" style={{ fontSize: '10px' }}>{labels[i]}</text> : null)}
+        {data.map((_, i) => <rect key={'h' + i} x={W / n * i} y={0} width={W / n} height={H} fill="transparent" onClick={() => toggleSel(i)} style={{ cursor: 'pointer' }} />)}
       </svg>);
   };
   // 可展開表格：每月/每年 總收入/總支出/餘額，點擊展開收入分類
@@ -884,7 +919,8 @@ function MonthlyStatsSheet({ open, onClose, savedFlows, masterData, hideAmounts,
         </div>
         {shown.map((r) => {
           const net = r.inc - r.exp, isOpen = expanded === r.key;
-          const cats = Object.entries(r.incCats).sort((a, b) => b[1] - a[1]);
+          // 展開只整合顯示收入大類（主動/被動/投資/其他），不列個別項目
+          const cats = INC_GROUPS.filter((g) => (r.groups && r.groups[g.k] || 0) > 0).map((g) => [g.k, r.groups[g.k], g.c]);
           return (
             <div key={r.key}>
               <button onClick={() => setExpanded(isOpen ? null : r.key)} style={{ width: '100%', display: 'flex', alignItems: 'center', padding: PAD('10px 0'), borderBottom: '1px solid rgba(0,0,0,0.06)', background: isOpen ? 'rgba(0,0,0,0.03)' : 'transparent', border: 'none', borderRadius: RS(6), cursor: 'pointer' }}>
@@ -898,11 +934,11 @@ function MonthlyStatsSheet({ open, onClose, savedFlows, masterData, hideAmounts,
               <div style={{ padding: PAD('4px 22px 12px 6px') }}>
                 {cats.length === 0 ?
                 <div style={{ fontSize: FS(14), color: 'rgba(44,44,50,0.4)', padding: PAD('4px 0') }}>此期間無收入</div> :
-                cats.map(([name, v]) =>
+                cats.map(([name, v, color]) =>
                 <div key={name} style={{ display: 'flex', alignItems: 'center', gap: SP(8), padding: PAD('5px 0') }}>
-                  <span style={{ width: 7, height: 7, borderRadius: 4, flexShrink: 0, background: (INC_GROUPS.find((g) => g.k === incGroupOf(name)) || {}).c || TOKENS.gray3 }} />
-                  <span style={{ flex: 1, fontSize: FS(15), color: 'rgba(44,44,50,0.82)' }}>{name}</span>
-                  <span style={{ fontFamily: TOKENS.fontMono, fontSize: FS(14), color: TOKENS.incBlue }}>{mask(v)}</span>
+                  <span style={{ width: 7, height: 7, borderRadius: 4, flexShrink: 0, background: color }} />
+                  <span style={{ flex: 1, fontSize: FS(15), color: 'rgba(44,44,50,0.82)' }}>{name === '其他' ? '其他收入' : name}</span>
+                  <span style={{ fontFamily: TOKENS.fontMono, fontSize: FS(14), color: color }}>{mask(v)}</span>
                 </div>)
                 }
               </div>
@@ -922,20 +958,21 @@ function MonthlyStatsSheet({ open, onClose, savedFlows, masterData, hideAmounts,
   const IncLegend = () =>
   <div style={{ display: 'flex', flexWrap: 'wrap', gap: SP(10), marginBottom: SP(8), paddingLeft: SP(2) }}>
     {INC_GROUPS.map((g) => <span key={g.k} style={{ display: 'flex', alignItems: 'center', gap: SP(4), fontSize: FS(13), color: 'rgba(44,44,50,0.6)' }}><span style={{ width: 12, height: 3, borderRadius: RS(2), background: g.c }} />{g.k}</span>)}
+    <span style={{ display: 'flex', alignItems: 'center', gap: SP(4), fontSize: FS(13), color: 'rgba(44,44,50,0.6)' }}><span style={{ width: 12, height: 3, borderRadius: RS(2), background: TOKENS.red, opacity: 0.85 }} />總支出</span>
   </div>;
 
   const cardStyle = { background: TOKENS.surface, borderRadius: RS(20), border: '1px solid rgba(0,0,0,0.07)', padding: PAD('16px 12px') };
   const secTitle = (t) => <span style={{ fontSize: FS(14), color: 'rgba(0,0,0,0.62)', fontWeight: 700, letterSpacing: 1 }}>{t}</span>;
-  const segBtn = (id, lbl) => { const on = view === id; return <button key={id} onClick={() => { setView(id); setExpanded(null); }} style={{ flex: 1, height: 44, borderRadius: RS(14), border: 'none', background: on ? TOKENS.surface : 'transparent', boxShadow: on ? SH('0 2px 8px rgba(0,0,0,0.12)') : 'none', color: on ? TOKENS.ink : 'rgba(44,44,50,0.55)', fontSize: FS(16), fontWeight: on ? 700 : 500, cursor: 'pointer' }}>{lbl}</button>; };
+  const segBtn = (id, lbl) => { const on = view === id; return <button key={id} onClick={() => { setView(id); setExpanded(null); setSelIdx(null); }} style={{ flex: 1, height: 44, borderRadius: RS(14), border: 'none', background: on ? TOKENS.surface : 'transparent', boxShadow: on ? SH('0 2px 8px rgba(0,0,0,0.12)') : 'none', color: on ? TOKENS.ink : 'rgba(44,44,50,0.55)', fontSize: FS(16), fontWeight: on ? 700 : 500, cursor: 'pointer' }}>{lbl}</button>; };
   const stepper = (onClick, enabled, flip) => <button onClick={onClick} disabled={!enabled} style={{ width: 38, height: 38, borderRadius: RS(12), flexShrink: 0, background: TOKENS.surface, border: '1px solid rgba(0,0,0,0.12)', color: TOKENS.ink, opacity: enabled ? 1 : 0.35, cursor: enabled ? 'pointer' : 'default', display: 'flex', alignItems: 'center', justifyContent: 'center' }}><ChevronRight size={18} style={flip ? { transform: 'rotate(180deg)' } : undefined} /></button>;
 
   const periodLabel = view === 'spend' ? `${spY} 年 ${spM + 1} 月` : view === 'month' ? `${viewYear} 年` : `${decadeYears[0]}–${decadeYears[9]}`;
-  const prevStep = () => { if (view === 'spend') setMonthOffset(monthOffset - 1);else if (view === 'month') setYearOffset(yearOffset - 1);else setDecadeOffset(decadeOffset - 1);setExpanded(null); };
+  const prevStep = () => { if (view === 'spend') setMonthOffset(monthOffset - 1);else if (view === 'month') setYearOffset(yearOffset - 1);else setDecadeOffset(decadeOffset - 1);setExpanded(null);setSelIdx(null); };
   const nextEnabled = view === 'spend' ? canNextMonth : view === 'month' ? canNextYear : canNextDecade;
-  const nextStep = () => { if (!nextEnabled) return; if (view === 'spend') setMonthOffset(monthOffset + 1);else if (view === 'month') setYearOffset(yearOffset + 1);else setDecadeOffset(decadeOffset + 1);setExpanded(null); };
+  const nextStep = () => { if (!nextEnabled) return; if (view === 'spend') setMonthOffset(monthOffset + 1);else if (view === 'month') setYearOffset(yearOffset + 1);else setDecadeOffset(decadeOffset + 1);setExpanded(null);setSelIdx(null); };
 
-  const monthRows = months.map((a, mo) => ({ key: 'm' + mo, label: mo + 1 + '月', inc: a.inc, exp: a.exp, incCats: a.incCats }));
-  const yearRows = decadeYears.map((y) => ({ key: 'y' + y, label: String(y), inc: yearAgg[y].inc, exp: yearAgg[y].exp, incCats: yearAgg[y].incCats }));
+  const monthRows = months.map((a, mo) => ({ key: 'm' + mo, label: mo + 1 + '月', inc: a.inc, exp: a.exp, groups: a.groups }));
+  const yearRows = decadeYears.map((y) => ({ key: 'y' + y, label: String(y), inc: yearAgg[y].inc, exp: yearAgg[y].exp, groups: yearAgg[y].groups }));
   const monthLabels = Array.from({ length: 12 }, (_, i) => String(i + 1));
   const yearLabels = decadeYears.map((y) => "'" + String(y).slice(2));
 
@@ -993,7 +1030,8 @@ function MonthlyStatsSheet({ open, onClose, savedFlows, masterData, hideAmounts,
             <div style={cardStyle}>
               <div style={{ marginBottom: SP(4) }}>{secTitle(view === 'month' ? '每月收入（依分類）' : '每年收入（依分類）')}</div>
               <IncLegend />
-              <GroupLines data={view === 'month' ? months : yearRows.map((r) => yearAgg[+r.label])} labels={view === 'month' ? monthLabels : yearLabels} />
+              <GroupLines data={view === 'month' ? months : decadeYears.map((y) => yearAgg[y])} labels={view === 'month' ? monthLabels : yearLabels} />
+              <SelInfo data={view === 'month' ? months : decadeYears.map((y) => yearAgg[y])} labels={view === 'month' ? monthLabels : yearLabels} mode="lines" />
             </div>
             <div style={cardStyle}>
               <div style={{ display: 'flex', alignItems: 'center', gap: SP(12), marginBottom: SP(8), paddingLeft: SP(2) }}>
@@ -1002,6 +1040,7 @@ function MonthlyStatsSheet({ open, onClose, savedFlows, masterData, hideAmounts,
                 <span style={{ display: 'flex', alignItems: 'center', gap: SP(4), fontSize: FS(13), color: 'rgba(44,44,50,0.6)' }}><span style={{ width: 9, height: 9, borderRadius: RS(2), background: TOKENS.red }} />透支</span>
               </div>
               <NetBars2 data={view === 'month' ? months : decadeYears.map((y) => yearAgg[y])} labels={view === 'month' ? monthLabels : yearLabels} />
+              <SelInfo data={view === 'month' ? months : decadeYears.map((y) => yearAgg[y])} labels={view === 'month' ? monthLabels : yearLabels} mode="bars" />
             </div>
             <div style={{ ...cardStyle, padding: PAD('14px') }}>
               <StatTable rows={view === 'month' ? monthRows : yearRows} unitLabel={view === 'month' ? '月' : '年'} />
