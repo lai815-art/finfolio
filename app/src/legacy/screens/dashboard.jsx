@@ -778,234 +778,204 @@ const ASSET_CAT_NOTE = { '現金': '錢包 + 儲值卡 + 電子支付 + 其他',
 
 /* ── MonthlyStatsSheet ─────────────────────────────────────────────── */
 function MonthlyStatsSheet({ open, onClose, savedFlows, masterData, hideAmounts, nowDate, mask }) {
-  const { X, ChevronRight } = window.Icons;
+  const { X, ChevronRight, ChevronDown } = window.Icons;
+  const StatDonut = window.StatDonut;
   const [shown, setShown] = useStateDash(false);
-  const [view, setView] = useStateDash('exp'); // exp | inc | year
+  const [view, setView] = useStateDash('spend'); // spend | month | year
   const [monthOffset, setMonthOffset] = useStateDash(0);
   const [yearOffset, setYearOffset] = useStateDash(0);
-  const [pickOpen, setPickOpen] = useStateDash(false);
-  const [pickYear, setPickYear] = useStateDash((nowDate || new Date()).getFullYear());
+  const [decadeOffset, setDecadeOffset] = useStateDash(0);
+  const [expanded, setExpanded] = useStateDash(null);
   useEffectDash(() => {
-    if (open) {setMonthOffset(0);setYearOffset(0);setPickOpen(false);setView('exp');const t = setTimeout(() => setShown(true), 20);return () => clearTimeout(t);}
+    if (open) { setMonthOffset(0); setYearOffset(0); setDecadeOffset(0); setExpanded(null); setView('spend'); const t = setTimeout(() => setShown(true), 20); return () => clearTimeout(t); }
     setShown(false);
   }, [open]);
-
   if (!open) return null;
 
-  const isYear = view === 'year';
-  const viewDate = new Date(nowDate.getFullYear(), nowDate.getMonth() + monthOffset, 1);
-  const thisY = viewDate.getFullYear(),thisM = viewDate.getMonth();
-  const viewYear = nowDate.getFullYear() + yearOffset;
-  const canNext = monthOffset < 0;
-  const canNextYear = yearOffset < 0;
+  const now = nowDate || new Date();
+  // 收入大類：依 cat_inc 的 group 對應到顯示名（主動/被動/投資收入/其他）
+  const INC_LABEL = { '主動': '主動收入', '被動': '被動收入', '投資收入': '投資收入', '其他': '其他' };
+  const catIncGroup = {};
+  (masterData.cat_inc || []).forEach((c) => { const o = typeof c === 'string' ? { name: c, group: '其他' } : c; catIncGroup[o.name] = o.group || '其他'; });
+  const incGroupOf = (cat) => INC_LABEL[catIncGroup[cat]] || '其他';
+  const INC_GROUPS = [{ k: '主動收入', c: TOKENS.incBlue }, { k: '被動收入', c: TOKENS.green }, { k: '投資收入', c: TOKENS.gold }, { k: '其他', c: TOKENS.gray3 }];
+  // 支出：投資損失（賣股虧損）不算「消費」，消費分析排除
+  const catExpGroup = {};
+  (masterData.cat_exp || []).forEach((c) => { const o = typeof c === 'string' ? { name: c, group: c } : c; catExpGroup[o.name] = o.group || ''; });
+  const isInvestExp = (cat) => catExpGroup[cat] === '投資損失';
 
-  // 投資年度彙總（股息/債息/已實現損益，整年一筆）與買賣損益不列入「日常收支統計」，
-  // 否則整年的數字會全擠在 12/31 造成 12 月暴衝；投資收益改在「投資組合明細」完整呈現。
-  const isInvestAgg = (f) => { const s = (f.merchant || '') + (f.note || ''); return /年度彙總/.test(s) || f.merchant === '投資獲利' || f.merchant === '投資損失'; };
-  const baseFlows = savedFlows.filter((f) => !isInvestAgg(f));
-  const curFlows = baseFlows.filter((f) => {
-    const d = f.date instanceof Date ? f.date : new Date(f.date);
-    return d.getFullYear() === thisY && d.getMonth() === thisM;
-  });
-  const yearFlows = baseFlows.filter((f) => {
-    const d = f.date instanceof Date ? f.date : new Date(f.date);
-    return d.getFullYear() === viewYear;
-  });
-
-  // 暖色調（支出）/ 冷色調（收入）
-  const EXP_COLORS = [TOKENS.red, TOKENS.orange, TOKENS.gold, TOKENS.red2, TOKENS.gold2, '#A85638', '#D9A05B', TOKENS.gray4];
-  const INC_COLORS = [TOKENS.blue2, TOKENS.teal, TOKENS.green, TOKENS.indigo, TOKENS.blue, TOKENS.green2, '#3E6E8C', TOKENS.gray4];
-  const buildCats = (flows, kind, palette) => {
-    const m = {};
-    flows.filter((f) => f.kind === kind).forEach((f) => { const k = f.cat || '其他'; m[k] = (m[k] || 0) + f.amount; });
-    const total = Object.values(m).reduce((a, v) => a + v, 0);
-    const cats = Object.entries(m).sort((a, b) => b[1] - a[1]).map(([k, v], i) => ({
-      name: k, value: v, color: palette[i % palette.length], pct: total > 0 ? v / total * 100 : 0
-    }));
-    return { cats, total };
+  const dOf = (f) => f.date instanceof Date ? f.date : new Date(f.date);
+  const emptyAgg = () => ({ inc: 0, exp: 0, groups: { '主動收入': 0, '被動收入': 0, '投資收入': 0, '其他': 0 }, incCats: {} });
+  const addFlow = (a, f) => {
+    if (f.kind === 'inc') { a.inc += f.amount; const g = incGroupOf(f.cat); a.groups[g] = (a.groups[g] || 0) + f.amount; a.incCats[f.cat] = (a.incCats[f.cat] || 0) + f.amount; } else
+    if (f.kind === 'exp') { a.exp += f.amount; }
   };
-  const { cats: expCats, total: expTotal } = buildCats(curFlows, 'exp', EXP_COLORS);
-  const { cats: incCats, total: incTotal } = buildCats(curFlows, 'inc', INC_COLORS);
 
-  // 年收支：12 個月的收入 / 支出
-  const yMonths = Array.from({ length: 12 }, (_, mo) => ({ inc: 0, exp: 0 }));
-  yearFlows.forEach((f) => {
-    const d = f.date instanceof Date ? f.date : new Date(f.date);
-    const mo = d.getMonth();
-    if (f.kind === 'inc') yMonths[mo].inc += f.amount;
-    else if (f.kind === 'exp') yMonths[mo].exp += f.amount;
-  });
-  const yearInc = yMonths.reduce((a, m) => a + m.inc, 0);
-  const yearExp = yMonths.reduce((a, m) => a + m.exp, 0);
-  const yearNet = yearInc - yearExp;
-  const yMax = Math.max(1, ...yMonths.map((m) => Math.max(m.inc, m.exp)));
+  // ── 消費分析（月）──
+  const viewDate = new Date(now.getFullYear(), now.getMonth() + monthOffset, 1);
+  const spY = viewDate.getFullYear(), spM = viewDate.getMonth();
+  const EXP_COLORS = [TOKENS.red, TOKENS.orange, TOKENS.gold, TOKENS.red2, TOKENS.gold2, '#A85638', '#D9A05B', TOKENS.indigo, TOKENS.teal, TOKENS.gray4];
+  const spendMap = {};
+  savedFlows.forEach((f) => { if (f.kind !== 'exp') return; const d = dOf(f); if (d.getFullYear() !== spY || d.getMonth() !== spM) return; if (isInvestExp(f.cat)) return; const k = f.cat || '其他'; spendMap[k] = (spendMap[k] || 0) + f.amount; });
+  const spendTotal = Object.values(spendMap).reduce((a, v) => a + v, 0);
+  const spendCats = Object.entries(spendMap).sort((a, b) => b[1] - a[1]).map(([k, v], i) => ({ name: k, value: v, color: EXP_COLORS[i % EXP_COLORS.length], pct: spendTotal > 0 ? v / spendTotal * 100 : 0 }));
 
-  // 歷年總覽：所有年份的收入 / 支出 / 餘額
-  const allYearMap = {};
-  baseFlows.forEach((f) => {
-    const d = f.date instanceof Date ? f.date : new Date(f.date);
-    const y = d.getFullYear();
-    if (isNaN(y)) return;
-    if (!allYearMap[y]) allYearMap[y] = { inc: 0, exp: 0 };
-    if (f.kind === 'inc') allYearMap[y].inc += f.amount;else
-    if (f.kind === 'exp') allYearMap[y].exp += f.amount;
-  });
-  const allYears = Object.keys(allYearMap).map(Number).sort((a, b) => a - b);
-  const grandInc = allYears.reduce((a, y) => a + allYearMap[y].inc, 0);
-  const grandExp = allYears.reduce((a, y) => a + allYearMap[y].exp, 0);
+  // ── 每月收支（年）──
+  const viewYear = now.getFullYear() + yearOffset;
+  const months = Array.from({ length: 12 }, emptyAgg);
+  savedFlows.forEach((f) => { const d = dOf(f); if (d.getFullYear() !== viewYear) return; addFlow(months[d.getMonth()], f); });
 
-  // 歷年折線圖（逐年收入 / 支出）
-  const MultiYearChart = () => {
-    if (allYears.length < 2) return null;
-    const W = 340, H = 150, pL = 6, pR = 6, pT = 12, pB = 22, n = allYears.length;
-    const maxV = Math.max(1, ...allYears.map((y) => Math.max(allYearMap[y].inc, allYearMap[y].exp)));
+  // ── 年度收支（十年）──
+  const decadeEnd = now.getFullYear() + decadeOffset * 10;
+  const decadeYears = Array.from({ length: 10 }, (_, i) => decadeEnd - 9 + i);
+  const yearAgg = {}; decadeYears.forEach((y) => { yearAgg[y] = emptyAgg(); });
+  savedFlows.forEach((f) => { const y = dOf(f).getFullYear(); if (yearAgg[y]) addFlow(yearAgg[y], f); });
+
+  const canNextMonth = monthOffset < 0, canNextYear = yearOffset < 0, canNextDecade = decadeOffset < 0;
+
+  // 收入四類折線圖
+  const GroupLines = ({ data, labels }) => {
+    const W = 340, H = 150, pL = 6, pR = 6, pT = 12, pB = 22, n = data.length;
+    let maxV = 1; data.forEach((a) => INC_GROUPS.forEach((g) => { maxV = Math.max(maxV, a.groups[g.k] || 0); }));
     const xAt = (i) => pL + (W - pL - pR) * (n === 1 ? 0.5 : i / (n - 1));
     const yAt = (v) => pT + (H - pT - pB) * (1 - v / maxV);
-    const mk = (key) => allYears.map((y, i) => `${xAt(i).toFixed(1)},${yAt(allYearMap[y][key]).toFixed(1)}`).join(' ');
     const step = Math.ceil(n / 8);
     return (
       <svg width="100%" viewBox={`0 0 ${W} ${H}`} style={{ display: 'block' }}>
         <line x1={pL} y1={H - pB} x2={W - pR} y2={H - pB} stroke="rgba(0,0,0,0.10)" />
-        <polyline points={mk('inc')} fill="none" stroke={TOKENS.incBlue} strokeWidth="2.5" strokeLinejoin="round" strokeLinecap="round" />
-        <polyline points={mk('exp')} fill="none" stroke={TOKENS.red} strokeWidth="2.5" strokeLinejoin="round" strokeLinecap="round" />
-        {allYears.map((y, i) => [
-        <circle key={'i' + i} cx={xAt(i)} cy={yAt(allYearMap[y].inc)} r="2.6" fill={TOKENS.incBlue} />,
-        <circle key={'e' + i} cx={xAt(i)} cy={yAt(allYearMap[y].exp)} r="2.6" fill={TOKENS.red} />]
+        {INC_GROUPS.map((g) =>
+        <polyline key={g.k} points={data.map((a, i) => `${xAt(i).toFixed(1)},${yAt(a.groups[g.k] || 0).toFixed(1)}`).join(' ')}
+          fill="none" stroke={g.c} strokeWidth="2" strokeLinejoin="round" strokeLinecap="round" />
         )}
-        {allYears.map((y, i) => i % step === 0 ?
-        <text key={'t' + i} x={xAt(i)} y={H - 6} textAnchor="middle" fill="rgba(44,44,50,0.5)" style={{ fontSize: '10px' }}>{String(y).slice(2)}</text> : null
-        )}
+        {data.map((_, i) => i % step === 0 ? <text key={i} x={xAt(i)} y={H - 6} textAnchor="middle" fill="rgba(44,44,50,0.5)" style={{ fontSize: '10px' }}>{labels[i]}</text> : null)}
       </svg>);
   };
-
-  const accent = view === 'inc' ? TOKENS.incBlue : TOKENS.red;
-  const cats = view === 'inc' ? incCats : expCats;
-  const total = view === 'inc' ? incTotal : expTotal;
-  const centerLabel = view === 'inc' ? '總收入' : '總支出';
-
-  // 年收支折線圖（收入 / 支出）
-  const LineChart = () => {
-    const W = 340,H = 150,pL = 6,pR = 6,pT = 12,pB = 22,n = 12;
-    const maxV = Math.max(1, ...yMonths.map((m) => Math.max(m.inc, m.exp)));
-    const xAt = (i) => pL + (W - pL - pR) * (i / (n - 1));
-    const yAt = (v) => pT + (H - pT - pB) * (1 - v / maxV);
-    const mk = (key) => yMonths.map((m, i) => `${xAt(i).toFixed(1)},${yAt(m[key]).toFixed(1)}`).join(' ');
-    return (
-      <svg width="100%" viewBox={`0 0 ${W} ${H}`} style={{ display: 'block' }}>
-        <line x1={pL} y1={H - pB} x2={W - pR} y2={H - pB} stroke="rgba(0,0,0,0.10)" />
-        <polyline points={mk('inc')} fill="none" stroke={TOKENS.incBlue} strokeWidth="2.5" strokeLinejoin="round" strokeLinecap="round" />
-        <polyline points={mk('exp')} fill="none" stroke={TOKENS.red} strokeWidth="2.5" strokeLinejoin="round" strokeLinecap="round" />
-        {yMonths.map((m, i) => [
-        <circle key={'i' + i} cx={xAt(i)} cy={yAt(m.inc)} r="2.6" fill={TOKENS.incBlue} />,
-        <circle key={'e' + i} cx={xAt(i)} cy={yAt(m.exp)} r="2.6" fill={TOKENS.red} />]
-        )}
-        {yMonths.map((_, i) => <text key={'t' + i} x={xAt(i)} y={H - 6} textAnchor="middle" fill="rgba(44,44,50,0.5)" style={{ fontSize: '10px' }}>{i + 1}</text>)}
-      </svg>);
-  };
-
-  // 年收支：每月結餘柱狀圖（正藍 / 負紅，零基準線置中）
-  const NetBars = () => {
-    const nets = yMonths.map((m) => m.inc - m.exp);
+  // 收支餘額柱狀圖
+  const NetBars2 = ({ data, labels }) => {
+    const nets = data.map((a) => a.inc - a.exp);
     const maxAbs = Math.max(1, ...nets.map((v) => Math.abs(v)));
-    const W = 340,H = 150,pT = 10,pB = 22,n = 12;
-    const zeroY = pT + (H - pT - pB) / 2;
-    const bw = W / n * 0.5;
+    const W = 340, H = 150, pT = 10, pB = 22, n = data.length;
+    const zeroY = pT + (H - pT - pB) / 2, bw = Math.max(6, W / n * 0.5), step = Math.ceil(n / 12);
     return (
       <svg width="100%" viewBox={`0 0 ${W} ${H}`} style={{ display: 'block' }}>
         <line x1={0} y1={zeroY} x2={W} y2={zeroY} stroke="rgba(0,0,0,0.14)" />
-        {nets.map((v, i) => {
-          const c = W / n * (i + 0.5),h = Math.abs(v) / maxAbs * ((H - pT - pB) / 2),pos = v >= 0;
-          return <rect key={i} x={c - bw / 2} y={pos ? zeroY - h : zeroY} width={bw} height={h} rx="2" fill={pos ? TOKENS.incBlue : TOKENS.red} />;
-        })}
-        {nets.map((_, i) => <text key={'t' + i} x={W / n * (i + 0.5)} y={H - 6} textAnchor="middle" fill="rgba(44,44,50,0.5)" style={{ fontSize: '10px' }}>{i + 1}</text>)}
+        {nets.map((v, i) => { const c = W / n * (i + 0.5), h = Math.abs(v) / maxAbs * ((H - pT - pB) / 2), pos = v >= 0; return <rect key={i} x={c - bw / 2} y={pos ? zeroY - h : zeroY} width={bw} height={h} rx="2" fill={pos ? TOKENS.incBlue : TOKENS.red} />; })}
+        {data.map((_, i) => i % step === 0 ? <text key={'t' + i} x={W / n * (i + 0.5)} y={H - 6} textAnchor="middle" fill="rgba(44,44,50,0.5)" style={{ fontSize: '10px' }}>{labels[i]}</text> : null)}
       </svg>);
   };
-
-  const segBtn = (id, lbl) => {
-    const on = view === id;
+  // 可展開表格：每月/每年 總收入/總支出/餘額，點擊展開收入分類
+  const StatTable = ({ rows, unitLabel }) => {
+    const tot = rows.reduce((a, r) => ({ inc: a.inc + r.inc, exp: a.exp + r.exp }), { inc: 0, exp: 0 });
+    const shown = rows.filter((r) => r.inc > 0 || r.exp > 0);
+    if (!shown.length) return <div style={{ fontSize: FS(16), color: 'rgba(44,44,50,0.4)', textAlign: 'center', padding: PAD('16px 0') }}>尚無紀錄</div>;
+    const cell = (v, color, bold) => <div style={{ flex: 1, textAlign: 'right', fontFamily: TOKENS.fontMono, fontSize: FS(14), fontWeight: bold ? 700 : 400, color: v > 0 ? color : 'rgba(44,44,50,0.3)' }}>{v > 0 ? mask(v) : '—'}</div>;
     return (
-      <button key={id} onClick={() => { setView(id); setPickOpen(false); }} style={{
-        flex: 1, height: 44, borderRadius: RS(14), border: 'none',
-        background: on ? TOKENS.surface : 'transparent',
-        boxShadow: on ? SH('0 2px 8px rgba(0,0,0,0.12)') : 'none',
-        color: on ? TOKENS.ink : 'rgba(44,44,50,0.55)', fontSize: FS(17), fontWeight: on ? 700 : 500,
-        cursor: 'pointer' }}>{lbl}</button>);
+      <>
+        <div style={{ display: 'flex', alignItems: 'center', paddingBottom: SP(8), borderBottom: '1px solid rgba(0,0,0,0.10)' }}>
+          <div style={{ width: 54, fontSize: FS(13), color: 'rgba(44,44,50,0.5)', fontWeight: 700 }}>{unitLabel}</div>
+          <div style={{ flex: 1, textAlign: 'right', fontSize: FS(13), color: 'rgba(44,44,50,0.5)', fontWeight: 700 }}>總收入</div>
+          <div style={{ flex: 1, textAlign: 'right', fontSize: FS(13), color: 'rgba(44,44,50,0.5)', fontWeight: 700 }}>總支出</div>
+          <div style={{ flex: 1, textAlign: 'right', fontSize: FS(13), color: 'rgba(44,44,50,0.5)', fontWeight: 700 }}>餘額</div>
+          <div style={{ width: 22 }} />
+        </div>
+        {shown.map((r) => {
+          const net = r.inc - r.exp, isOpen = expanded === r.key;
+          const cats = Object.entries(r.incCats).sort((a, b) => b[1] - a[1]);
+          return (
+            <div key={r.key}>
+              <button onClick={() => setExpanded(isOpen ? null : r.key)} style={{ width: '100%', display: 'flex', alignItems: 'center', padding: PAD('10px 0'), borderBottom: '1px solid rgba(0,0,0,0.06)', background: isOpen ? 'rgba(0,0,0,0.03)' : 'transparent', border: 'none', borderRadius: RS(6), cursor: 'pointer' }}>
+                <div style={{ width: 54, textAlign: 'left', fontSize: FS(16), color: TOKENS.ink, fontWeight: isOpen ? 700 : 500 }}>{r.label}</div>
+                {cell(r.inc, TOKENS.incBlue)}
+                {cell(r.exp, TOKENS.red)}
+                <div style={{ flex: 1, textAlign: 'right', fontFamily: TOKENS.fontMono, fontSize: FS(14), fontWeight: 600, color: net >= 0 ? TOKENS.incBlue : TOKENS.red }}>{net >= 0 ? '+' : '-'}{mask(Math.abs(net))}</div>
+                <ChevronDown size={14} style={{ width: 22, color: 'rgba(44,44,50,0.35)', flexShrink: 0, transform: isOpen ? 'rotate(180deg)' : 'none', transition: 'transform 200ms' }} />
+              </button>
+              {isOpen &&
+              <div style={{ padding: PAD('4px 22px 12px 6px') }}>
+                {cats.length === 0 ?
+                <div style={{ fontSize: FS(14), color: 'rgba(44,44,50,0.4)', padding: PAD('4px 0') }}>此期間無收入</div> :
+                cats.map(([name, v]) =>
+                <div key={name} style={{ display: 'flex', alignItems: 'center', gap: SP(8), padding: PAD('5px 0') }}>
+                  <span style={{ width: 7, height: 7, borderRadius: 4, flexShrink: 0, background: (INC_GROUPS.find((g) => g.k === incGroupOf(name)) || {}).c || TOKENS.gray3 }} />
+                  <span style={{ flex: 1, fontSize: FS(15), color: 'rgba(44,44,50,0.82)' }}>{name}</span>
+                  <span style={{ fontFamily: TOKENS.fontMono, fontSize: FS(14), color: TOKENS.incBlue }}>{mask(v)}</span>
+                </div>)
+                }
+              </div>
+              }
+            </div>);
+        })}
+        <div style={{ display: 'flex', alignItems: 'center', paddingTop: SP(11), marginTop: SP(2), borderTop: '1px solid rgba(0,0,0,0.12)' }}>
+          <div style={{ width: 54, fontSize: FS(16), fontWeight: 700, color: TOKENS.ink }}>合計</div>
+          <div style={{ flex: 1, textAlign: 'right', fontFamily: TOKENS.fontMono, fontSize: FS(14), fontWeight: 700, color: TOKENS.incBlue }}>{mask(tot.inc)}</div>
+          <div style={{ flex: 1, textAlign: 'right', fontFamily: TOKENS.fontMono, fontSize: FS(14), fontWeight: 700, color: TOKENS.red }}>{mask(tot.exp)}</div>
+          <div style={{ flex: 1, textAlign: 'right', fontFamily: TOKENS.fontMono, fontSize: FS(14), fontWeight: 700, color: tot.inc - tot.exp >= 0 ? TOKENS.incBlue : TOKENS.red }}>{tot.inc - tot.exp >= 0 ? '+' : '-'}{mask(Math.abs(tot.inc - tot.exp))}</div>
+          <div style={{ width: 22 }} />
+        </div>
+      </>);
   };
 
-  const stepperBtn = (onClick, enabled, flip) =>
-  <button onClick={onClick} disabled={!enabled} style={{
-    width: 38, height: 38, borderRadius: RS(12), flexShrink: 0,
-    background: TOKENS.surface, border: '1px solid rgba(0,0,0,0.12)', color: TOKENS.ink,
-    opacity: enabled ? 1 : 0.35, cursor: enabled ? 'pointer' : 'default',
-    display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-    <ChevronRight size={18} style={flip ? { transform: 'rotate(180deg)' } : undefined} />
-  </button>;
+  const IncLegend = () =>
+  <div style={{ display: 'flex', flexWrap: 'wrap', gap: SP(10), marginBottom: SP(8), paddingLeft: SP(2) }}>
+    {INC_GROUPS.map((g) => <span key={g.k} style={{ display: 'flex', alignItems: 'center', gap: SP(4), fontSize: FS(13), color: 'rgba(44,44,50,0.6)' }}><span style={{ width: 12, height: 3, borderRadius: RS(2), background: g.c }} />{g.k}</span>)}
+  </div>;
+
+  const cardStyle = { background: TOKENS.surface, borderRadius: RS(20), border: '1px solid rgba(0,0,0,0.07)', padding: PAD('16px 12px') };
+  const secTitle = (t) => <span style={{ fontSize: FS(14), color: 'rgba(0,0,0,0.62)', fontWeight: 700, letterSpacing: 1 }}>{t}</span>;
+  const segBtn = (id, lbl) => { const on = view === id; return <button key={id} onClick={() => { setView(id); setExpanded(null); }} style={{ flex: 1, height: 44, borderRadius: RS(14), border: 'none', background: on ? TOKENS.surface : 'transparent', boxShadow: on ? SH('0 2px 8px rgba(0,0,0,0.12)') : 'none', color: on ? TOKENS.ink : 'rgba(44,44,50,0.55)', fontSize: FS(16), fontWeight: on ? 700 : 500, cursor: 'pointer' }}>{lbl}</button>; };
+  const stepper = (onClick, enabled, flip) => <button onClick={onClick} disabled={!enabled} style={{ width: 38, height: 38, borderRadius: RS(12), flexShrink: 0, background: TOKENS.surface, border: '1px solid rgba(0,0,0,0.12)', color: TOKENS.ink, opacity: enabled ? 1 : 0.35, cursor: enabled ? 'pointer' : 'default', display: 'flex', alignItems: 'center', justifyContent: 'center' }}><ChevronRight size={18} style={flip ? { transform: 'rotate(180deg)' } : undefined} /></button>;
+
+  const periodLabel = view === 'spend' ? `${spY} 年 ${spM + 1} 月` : view === 'month' ? `${viewYear} 年` : `${decadeYears[0]}–${decadeYears[9]}`;
+  const prevStep = () => { if (view === 'spend') setMonthOffset(monthOffset - 1);else if (view === 'month') setYearOffset(yearOffset - 1);else setDecadeOffset(decadeOffset - 1);setExpanded(null); };
+  const nextEnabled = view === 'spend' ? canNextMonth : view === 'month' ? canNextYear : canNextDecade;
+  const nextStep = () => { if (!nextEnabled) return; if (view === 'spend') setMonthOffset(monthOffset + 1);else if (view === 'month') setYearOffset(yearOffset + 1);else setDecadeOffset(decadeOffset + 1);setExpanded(null); };
+
+  const monthRows = months.map((a, mo) => ({ key: 'm' + mo, label: mo + 1 + '月', inc: a.inc, exp: a.exp, incCats: a.incCats }));
+  const yearRows = decadeYears.map((y) => ({ key: 'y' + y, label: String(y), inc: yearAgg[y].inc, exp: yearAgg[y].exp, incCats: yearAgg[y].incCats }));
+  const monthLabels = Array.from({ length: 12 }, (_, i) => String(i + 1));
+  const yearLabels = decadeYears.map((y) => "'" + String(y).slice(2));
 
   return (
-    <div style={{
-      position: 'absolute', inset: 0, zIndex: 80, background: TOKENS.bg,
-      display: 'flex', flexDirection: 'column'
-    }}>
+    <div style={{ position: 'absolute', inset: 0, zIndex: 80, background: TOKENS.bg, display: 'flex', flexDirection: 'column' }}>
       <div style={{ flex: 1, display: 'flex', flexDirection: 'column', minHeight: 0 }}>
         <div style={{ height: 'var(--ff-detail-top, 62px)', flexShrink: 0 }} />
         <div style={{ display: 'flex', alignItems: 'center', gap: SP(12), padding: "3px 10px 8px" }}>
-          <button onClick={onClose} style={{
-            width: 40, height: 40, borderRadius: RS(20), flexShrink: 0,
-            background: 'rgba(0,0,0,0.09)', border: '1px solid rgba(0,0,0,0.12)',
-            color: 'rgba(60,60,67,0.88)', display: 'flex', alignItems: 'center', justifyContent: 'center'
-          }}><ChevronRight size={20} style={{ transform: 'rotate(180deg)' }} /></button>
+          <button onClick={onClose} style={{ width: 40, height: 40, borderRadius: RS(20), flexShrink: 0, background: 'rgba(0,0,0,0.09)', border: '1px solid rgba(0,0,0,0.12)', color: 'rgba(60,60,67,0.88)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}><ChevronRight size={20} style={{ transform: 'rotate(180deg)' }} /></button>
           <div style={{ flex: 1, minWidth: 0 }}>
-            <div style={{ fontSize: FS(28), fontWeight: 700, color: TOKENS.ink, letterSpacing: -0.5, lineHeight: 1.3 }}>
-              收支統計
-            </div>
+            <div style={{ fontSize: FS(28), fontWeight: 700, color: TOKENS.ink, letterSpacing: -0.5, lineHeight: 1.3 }}>收支統計</div>
           </div>
         </div>
 
-        {/* 月支出 / 月收入 / 年收支 切換 */}
         <div style={{ padding: "0 10px 10px" }}>
-          <div style={{ display: 'flex', gap: SP(4), padding: SP(4), borderRadius: RS(18),
-            background: 'rgba(0,0,0,0.06)' }}>
-            {segBtn('exp', '月支出')}{segBtn('inc', '月收入')}{segBtn('year', '年收支')}
+          <div style={{ display: 'flex', gap: SP(4), padding: SP(4), borderRadius: RS(18), background: 'rgba(0,0,0,0.06)' }}>
+            {segBtn('spend', '消費分析')}{segBtn('month', '每月收支')}{segBtn('year', '年度收支')}
           </div>
         </div>
 
         <div style={{ flex: 1, overflowY: 'auto', padding: "0px 10px 32px", display: 'flex', flexDirection: 'column', gap: SP(16) }}>
-
-          {/* 期間切換（只切換上 / 下一個月或年） */}
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: SP(16), paddingTop: SP(4) }}>
-            {isYear ? stepperBtn(() => setYearOffset(yearOffset - 1), true, true) : stepperBtn(() => setMonthOffset(monthOffset - 1), true, true)}
-            <div style={{ fontSize: FS(21), fontWeight: 700, color: TOKENS.ink, letterSpacing: 0.3, minWidth: 132, textAlign: 'center' }}>
-              {isYear ? `${viewYear} 年` : `${thisY} 年 ${thisM + 1} 月`}
-            </div>
-            {isYear ? stepperBtn(() => canNextYear && setYearOffset(yearOffset + 1), canNextYear) : stepperBtn(() => canNext && setMonthOffset(monthOffset + 1), canNext)}
+            {stepper(prevStep, true, true)}
+            <div style={{ fontSize: FS(21), fontWeight: 700, color: TOKENS.ink, letterSpacing: 0.3, minWidth: 150, textAlign: 'center' }}>{periodLabel}</div>
+            {stepper(nextStep, nextEnabled)}
           </div>
 
-          {/* 月支出 / 月收入：甜甜圈 + 類別清單 */}
-          {!isYear &&
-          <div style={{ background: TOKENS.surface, borderRadius: RS(20), border: '1px solid rgba(0,0,0,0.07)', padding: PAD('20px 16px') }}>
-            {cats.length === 0 ?
-            <div style={{ fontSize: FS(17), color: 'rgba(44,44,50,0.4)', textAlign: 'center', padding: PAD('24px 0') }}>
-              {view === 'inc' ? '本月尚無收入紀錄' : '本月尚無支出紀錄'}
-            </div> :
+          {view === 'spend' &&
+          <div style={{ ...cardStyle, padding: PAD('20px 16px') }}>
+            {spendCats.length === 0 ?
+            <div style={{ fontSize: FS(17), color: 'rgba(44,44,50,0.4)', textAlign: 'center', padding: PAD('24px 0') }}>本月尚無消費紀錄</div> :
             <>
-              <StatDonut data={cats} total={total} label={centerLabel} color={accent} mask={mask} />
+              {StatDonut && <StatDonut data={spendCats} total={spendTotal} label="總支出" color={TOKENS.red} mask={mask} />}
               <div style={{ marginTop: SP(18), display: 'flex', flexDirection: 'column' }}>
-                {cats.map((c, i) =>
-                <div key={c.name} style={{ display: 'flex', alignItems: 'center', gap: SP(12), padding: PAD('12px 2px'),
-                  borderTop: i === 0 ? '1px solid rgba(0,0,0,0.07)' : 'none',
-                  borderBottom: '1px solid rgba(0,0,0,0.07)' }}>
-                  <div style={{ width: 40, height: 40, borderRadius: RS(12), flexShrink: 0,
-                    background: `${c.color}22`, border: `1px solid ${c.color}55`,
-                    display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                    {(() => { const Ico = window.Icons[flowIconName({ cat: c.name, kind: view === 'inc' ? 'inc' : 'exp' })] || window.Icons.Receipt; return <Ico size={20} style={{ color: c.color }} />; })()}
+                {spendCats.map((c, i) =>
+                <div key={c.name} style={{ display: 'flex', alignItems: 'center', gap: SP(12), padding: PAD('12px 2px'), borderTop: i === 0 ? '1px solid rgba(0,0,0,0.07)' : 'none', borderBottom: '1px solid rgba(0,0,0,0.07)' }}>
+                  <div style={{ width: 40, height: 40, borderRadius: RS(12), flexShrink: 0, background: `${c.color}22`, border: `1px solid ${c.color}55`, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                    {(() => {const Ico = window.Icons[flowIconName({ cat: c.name, kind: 'exp' })] || window.Icons.Receipt;return <Ico size={20} style={{ color: c.color }} />;})()}
                   </div>
                   <div style={{ flex: 1, minWidth: 0 }}>
-                    <div style={{ fontSize: FS(19), fontWeight: 500, color: TOKENS.ink,
-                      overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{c.name}</div>
+                    <div style={{ fontSize: FS(19), fontWeight: 500, color: TOKENS.ink, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{c.name}</div>
                     <div style={{ fontSize: FS(14), color: 'rgba(44,44,50,0.5)', marginTop: SP(1) }}>{c.pct.toFixed(1)}%</div>
                   </div>
-                  <div style={{ fontFamily: TOKENS.fontMono, fontSize: FS(19), fontWeight: 600, flexShrink: 0,
-                    color: accent }}>{view === 'inc' ? '+' : '-'}{mask(c.value)}</div>
+                  <div style={{ fontFamily: TOKENS.fontMono, fontSize: FS(19), fontWeight: 600, flexShrink: 0, color: TOKENS.red }}>-{mask(c.value)}</div>
                 </div>
                 )}
               </div>
@@ -1014,101 +984,24 @@ function MonthlyStatsSheet({ open, onClose, savedFlows, masterData, hideAmounts,
           </div>
           }
 
-          {/* 年收支：折線圖 + 結餘柱狀圖（置頂）+ 年收入 / 年支出 / 結餘 */}
-          {isYear &&
+          {(view === 'month' || view === 'year') &&
           <>
-            {/* 歷年總覽：逐年折線 + 逐年一覽表（不受上方單年切換影響） */}
-            {allYears.length >= 2 &&
-            <div style={{ background: TOKENS.surface, borderRadius: RS(20), border: '1px solid rgba(0,0,0,0.07)', padding: PAD('16px 12px') }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: SP(14), marginBottom: SP(8), paddingLeft: SP(2) }}>
-                <span style={{ fontSize: FS(15), color: TOKENS.ink, fontWeight: 700, letterSpacing: 1 }}>歷年收支</span>
-                <span style={{ display: 'flex', alignItems: 'center', gap: SP(4), fontSize: FS(13), color: 'rgba(44,44,50,0.6)' }}>
-                  <span style={{ width: 12, height: 3, borderRadius: RS(2), background: TOKENS.incBlue }} />收入</span>
-                <span style={{ display: 'flex', alignItems: 'center', gap: SP(4), fontSize: FS(13), color: 'rgba(44,44,50,0.6)' }}>
-                  <span style={{ width: 12, height: 3, borderRadius: RS(2), background: TOKENS.red }} />支出</span>
-              </div>
-              <MultiYearChart />
-              <div style={{ marginTop: SP(10), display: 'flex', alignItems: 'center', paddingBottom: SP(8), borderBottom: '1px solid rgba(0,0,0,0.10)' }}>
-                <div style={{ width: 54, fontSize: FS(13), color: 'rgba(44,44,50,0.5)', fontWeight: 700 }}>年</div>
-                <div style={{ flex: 1, textAlign: 'right', fontSize: FS(13), color: 'rgba(44,44,50,0.5)', fontWeight: 700 }}>收入</div>
-                <div style={{ flex: 1, textAlign: 'right', fontSize: FS(13), color: 'rgba(44,44,50,0.5)', fontWeight: 700 }}>支出</div>
-                <div style={{ flex: 1, textAlign: 'right', fontSize: FS(13), color: 'rgba(44,44,50,0.5)', fontWeight: 700 }}>餘額</div>
-              </div>
-              {allYears.slice().reverse().map((y) => {
-                const m = allYearMap[y];const net = m.inc - m.exp;
-                return (
-                <button key={y} onClick={() => setYearOffset(y - nowDate.getFullYear())} style={{
-                  width: '100%', display: 'flex', alignItems: 'center', padding: PAD('10px 0'),
-                  borderBottom: '1px solid rgba(0,0,0,0.06)', background: y === viewYear ? 'rgba(0,0,0,0.04)' : 'transparent',
-                  border: 'none', borderRadius: RS(6), cursor: 'pointer' }}>
-                  <div style={{ width: 54, textAlign: 'left', fontSize: FS(16), fontWeight: y === viewYear ? 700 : 500, color: TOKENS.ink, fontFamily: TOKENS.fontMono }}>{y}</div>
-                  <div style={{ flex: 1, textAlign: 'right', fontFamily: TOKENS.fontMono, fontSize: FS(15), color: m.inc > 0 ? TOKENS.incBlue : 'rgba(44,44,50,0.3)' }}>{m.inc > 0 ? mask(m.inc) : '—'}</div>
-                  <div style={{ flex: 1, textAlign: 'right', fontFamily: TOKENS.fontMono, fontSize: FS(15), color: m.exp > 0 ? TOKENS.red : 'rgba(44,44,50,0.3)' }}>{m.exp > 0 ? mask(m.exp) : '—'}</div>
-                  <div style={{ flex: 1, textAlign: 'right', fontFamily: TOKENS.fontMono, fontSize: FS(15), fontWeight: 700, color: net >= 0 ? TOKENS.incBlue : TOKENS.red }}>{net >= 0 ? '+' : '-'}{mask(Math.abs(net))}</div>
-                </button>);
-              })}
-              <div style={{ display: 'flex', alignItems: 'center', paddingTop: SP(11), marginTop: SP(2), borderTop: '1px solid rgba(0,0,0,0.12)' }}>
-                <div style={{ width: 54, fontSize: FS(16), fontWeight: 700, color: TOKENS.ink }}>總計</div>
-                <div style={{ flex: 1, textAlign: 'right', fontFamily: TOKENS.fontMono, fontSize: FS(15), fontWeight: 700, color: TOKENS.incBlue }}>{mask(grandInc)}</div>
-                <div style={{ flex: 1, textAlign: 'right', fontFamily: TOKENS.fontMono, fontSize: FS(15), fontWeight: 700, color: TOKENS.red }}>{mask(grandExp)}</div>
-                <div style={{ flex: 1, textAlign: 'right', fontFamily: TOKENS.fontMono, fontSize: FS(15), fontWeight: 700, color: grandInc - grandExp >= 0 ? TOKENS.incBlue : TOKENS.red }}>{grandInc - grandExp >= 0 ? '+' : '-'}{mask(Math.abs(grandInc - grandExp))}</div>
-              </div>
-              <div style={{ fontSize: FS(12), color: 'rgba(44,44,50,0.4)', marginTop: SP(8), paddingLeft: SP(2) }}>點任一年可跳到下方該年的每月明細</div>
+            <div style={cardStyle}>
+              <div style={{ marginBottom: SP(4) }}>{secTitle(view === 'month' ? '每月收入（依分類）' : '每年收入（依分類）')}</div>
+              <IncLegend />
+              <GroupLines data={view === 'month' ? months : yearRows.map((r) => yearAgg[+r.label])} labels={view === 'month' ? monthLabels : yearLabels} />
             </div>
-            }
-
-            <div style={{ background: TOKENS.surface, borderRadius: RS(20), border: '1px solid rgba(0,0,0,0.07)', padding: PAD('16px 12px') }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: SP(14), marginBottom: SP(8), paddingLeft: SP(2) }}>
-                <span style={{ fontSize: FS(14), color: 'rgba(0,0,0,0.62)', fontWeight: 700, letterSpacing: 1 }}>{viewYear} · 收入支出</span>
-                <span style={{ display: 'flex', alignItems: 'center', gap: SP(4), fontSize: FS(13), color: 'rgba(44,44,50,0.6)' }}>
-                  <span style={{ width: 12, height: 3, borderRadius: RS(2), background: TOKENS.incBlue }} />收入</span>
-                <span style={{ display: 'flex', alignItems: 'center', gap: SP(4), fontSize: FS(13), color: 'rgba(44,44,50,0.6)' }}>
-                  <span style={{ width: 12, height: 3, borderRadius: RS(2), background: TOKENS.red }} />支出</span>
+            <div style={cardStyle}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: SP(12), marginBottom: SP(8), paddingLeft: SP(2) }}>
+                {secTitle('收支餘額')}
+                <span style={{ display: 'flex', alignItems: 'center', gap: SP(4), fontSize: FS(13), color: 'rgba(44,44,50,0.6)' }}><span style={{ width: 9, height: 9, borderRadius: RS(2), background: TOKENS.incBlue }} />結餘</span>
+                <span style={{ display: 'flex', alignItems: 'center', gap: SP(4), fontSize: FS(13), color: 'rgba(44,44,50,0.6)' }}><span style={{ width: 9, height: 9, borderRadius: RS(2), background: TOKENS.red }} />透支</span>
               </div>
-              <LineChart />
+              <NetBars2 data={view === 'month' ? months : decadeYears.map((y) => yearAgg[y])} labels={view === 'month' ? monthLabels : yearLabels} />
             </div>
-
-            <div style={{ background: TOKENS.surface, borderRadius: RS(20), border: '1px solid rgba(0,0,0,0.07)', padding: PAD('16px 12px') }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: SP(14), marginBottom: SP(8), paddingLeft: SP(2) }}>
-                <span style={{ fontSize: FS(14), color: 'rgba(0,0,0,0.62)', fontWeight: 700, letterSpacing: 1 }}>收支餘額</span>
-                <span style={{ display: 'flex', alignItems: 'center', gap: SP(4), fontSize: FS(13), color: 'rgba(44,44,50,0.6)' }}>
-                  <span style={{ width: 9, height: 9, borderRadius: RS(2), background: TOKENS.incBlue }} />結餘</span>
-                <span style={{ display: 'flex', alignItems: 'center', gap: SP(4), fontSize: FS(13), color: 'rgba(44,44,50,0.6)' }}>
-                  <span style={{ width: 9, height: 9, borderRadius: RS(2), background: TOKENS.red }} />透支</span>
-              </div>
-              <NetBars />
-            </div>
-
-            {/* 每月 收入 / 支出 / 餘額 表單 */}
-            <div style={{ background: TOKENS.surface, borderRadius: RS(20), border: '1px solid rgba(0,0,0,0.07)', padding: PAD('14px') }}>
-              {!yMonths.some((m) => m.inc > 0 || m.exp > 0) ?
-              <div style={{ fontSize: FS(16), color: 'rgba(44,44,50,0.4)', textAlign: 'center', padding: PAD('16px 0') }}>本年度尚無紀錄</div> :
-              <>
-                <div style={{ display: 'flex', alignItems: 'center', paddingBottom: SP(8), borderBottom: '1px solid rgba(0,0,0,0.10)' }}>
-                  <div style={{ width: 42, fontSize: FS(13), color: 'rgba(44,44,50,0.5)', fontWeight: 700 }}>月</div>
-                  <div style={{ flex: 1, textAlign: 'right', fontSize: FS(13), color: 'rgba(44,44,50,0.5)', fontWeight: 700 }}>收入</div>
-                  <div style={{ flex: 1, textAlign: 'right', fontSize: FS(13), color: 'rgba(44,44,50,0.5)', fontWeight: 700 }}>支出</div>
-                  <div style={{ flex: 1, textAlign: 'right', fontSize: FS(13), color: 'rgba(44,44,50,0.5)', fontWeight: 700 }}>餘額</div>
-                </div>
-                {yMonths.map((m, mo) => {
-                  if (m.inc <= 0 && m.exp <= 0) return null;
-                  const net = m.inc - m.exp;
-                  return (
-                  <div key={mo} style={{ display: 'flex', alignItems: 'center', padding: PAD('9px 0'), borderBottom: '1px solid rgba(0,0,0,0.06)' }}>
-                    <div style={{ width: 42, fontSize: FS(16), color: TOKENS.ink }}>{mo + 1}月</div>
-                    <div style={{ flex: 1, textAlign: 'right', fontFamily: TOKENS.fontMono, fontSize: FS(14), color: m.inc > 0 ? TOKENS.incBlue : 'rgba(44,44,50,0.3)' }}>{m.inc > 0 ? mask(m.inc) : '—'}</div>
-                    <div style={{ flex: 1, textAlign: 'right', fontFamily: TOKENS.fontMono, fontSize: FS(14), color: m.exp > 0 ? TOKENS.red : 'rgba(44,44,50,0.3)' }}>{m.exp > 0 ? mask(m.exp) : '—'}</div>
-                    <div style={{ flex: 1, textAlign: 'right', fontFamily: TOKENS.fontMono, fontSize: FS(14), fontWeight: 600, color: net >= 0 ? TOKENS.incBlue : TOKENS.red }}>{net >= 0 ? '+' : '-'}{mask(Math.abs(net))}</div>
-                  </div>);
-                })}
-                <div style={{ display: 'flex', alignItems: 'center', paddingTop: SP(11), marginTop: SP(2), borderTop: '1px solid rgba(0,0,0,0.12)' }}>
-                  <div style={{ width: 42, fontSize: FS(16), fontWeight: 700, color: TOKENS.ink }}>合計</div>
-                  <div style={{ flex: 1, textAlign: 'right', fontFamily: TOKENS.fontMono, fontSize: FS(14), fontWeight: 700, color: TOKENS.incBlue }}>{mask(yearInc)}</div>
-                  <div style={{ flex: 1, textAlign: 'right', fontFamily: TOKENS.fontMono, fontSize: FS(14), fontWeight: 700, color: TOKENS.red }}>{mask(yearExp)}</div>
-                  <div style={{ flex: 1, textAlign: 'right', fontFamily: TOKENS.fontMono, fontSize: FS(14), fontWeight: 700, color: yearNet >= 0 ? TOKENS.incBlue : TOKENS.red }}>{yearNet >= 0 ? '+' : '-'}{mask(Math.abs(yearNet))}</div>
-                </div>
-              </>
-              }
+            <div style={{ ...cardStyle, padding: PAD('14px') }}>
+              <StatTable rows={view === 'month' ? monthRows : yearRows} unitLabel={view === 'month' ? '月' : '年'} />
+              <div style={{ fontSize: FS(12), color: 'rgba(44,44,50,0.4)', marginTop: SP(8), paddingLeft: SP(2) }}>點任一列可展開該期間的收入分類明細</div>
             </div>
           </>
           }
