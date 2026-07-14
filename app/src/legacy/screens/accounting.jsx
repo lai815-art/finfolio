@@ -969,6 +969,38 @@ function StockForm({ state, update, onSaved, onDelete, recordId, masterData, com
           color: 'rgba(44,44,50,0.6)', fontSize: FS(16) }}>清除</button>
       </div>
 
+      {/* 交割資訊 */}
+      <SectionLabel>交割資訊</SectionLabel>
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: SP(10) }}>
+        <DropField label="分類" value={state.assetClass}
+        options={classes} onChange={(v) => update({ assetClass: v, taxRateMode: null, taxOverride: '' })} />
+        <DropField label="證券戶" value={state.broker}
+        options={brokers} onChange={(v) => {
+          const autoSettle = brokerSettleMap[v];
+          update({ broker: v, feeOverride: '', taxOverride: '', ...(autoSettle ? { settleAccount: autoSettle } : {}) });
+        }} />
+      </div>
+      <div style={{ marginTop: SP(10) }}>
+        <DropField label="交割戶" value={state.settleAccount}
+        options={settleAccounts} onChange={(v) => update({ settleAccount: v })} />
+      </div>
+
+      {/* Date */}
+      <SectionLabel>日期</SectionLabel>
+      <DatePicker value={state.date} onChange={(v) => update({ date: v })} />
+
+      {/* Note */}
+      <SectionLabel>備註</SectionLabel>
+      <div style={{ ...{ padding: PAD('10px 16px'), borderRadius: RS(16), background: TOKENS.surface,
+          border: '1px solid rgba(0,0,0,0.20)', height: "44px" }, padding: "5px 14px 10px" }}>
+        <input value={state.note} onChange={(e) => update({ note: e.target.value })}
+        placeholder="例：除權息前布局"
+        style={{
+          width: '100%', background: 'transparent', border: 'none', outline: 'none',
+          fontSize: FS(18), color: TOKENS.ink
+        }} />
+      </div>
+
       {/* Calc */}
       <div style={{
         marginTop: SP(16), padding: PAD('10px 16px'), borderRadius: RS(18),
@@ -1025,38 +1057,6 @@ function StockForm({ state, update, onSaved, onDelete, recordId, masterData, com
             {net.toLocaleString(undefined, { maximumFractionDigits: 0 })}
           </span>
         </div>
-      </div>
-
-      {/* 交割資訊 */}
-      <SectionLabel>交割資訊</SectionLabel>
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: SP(10) }}>
-        <DropField label="分類" value={state.assetClass}
-        options={classes} onChange={(v) => update({ assetClass: v, taxRateMode: null, taxOverride: '' })} />
-        <DropField label="證券戶" value={state.broker}
-        options={brokers} onChange={(v) => {
-          const autoSettle = brokerSettleMap[v];
-          update({ broker: v, feeOverride: '', taxOverride: '', ...(autoSettle ? { settleAccount: autoSettle } : {}) });
-        }} />
-      </div>
-      <div style={{ marginTop: SP(10) }}>
-        <DropField label="交割戶" value={state.settleAccount}
-        options={settleAccounts} onChange={(v) => update({ settleAccount: v })} />
-      </div>
-
-      {/* Date */}
-      <SectionLabel>日期</SectionLabel>
-      <DatePicker value={state.date} onChange={(v) => update({ date: v })} />
-
-      {/* Note */}
-      <SectionLabel>備註</SectionLabel>
-      <div style={{ ...{ padding: PAD('10px 16px'), borderRadius: RS(16), background: TOKENS.surface,
-          border: '1px solid rgba(0,0,0,0.20)', height: "44px" }, padding: "5px 14px 10px" }}>
-        <input value={state.note} onChange={(e) => update({ note: e.target.value })}
-        placeholder="例：除權息前布局"
-        style={{
-          width: '100%', background: 'transparent', border: 'none', outline: 'none',
-          fontSize: FS(18), color: TOKENS.ink
-        }} />
       </div>
 
       {/* Submit */}
