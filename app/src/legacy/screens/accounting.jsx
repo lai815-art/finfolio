@@ -440,6 +440,10 @@ function SectionLabel({ children, action }) {
 /* ============= 收支轉帳 form ============= */
 function FlowForm({ state, update, onSaved, onDelete, recordId, masterData }) {
   const { Plus, Tag, CreditCard, Calendar, ArrowRight, Wallet, X, Trash } = window.Icons;
+  // 編輯狀態下按「再記一筆」會另存為新的一筆並停留在本頁；此後表單就轉為「新增」模式
+  // （後續儲存都是新紀錄），所以用本地旗標讓 recordId 之後視同不存在。
+  const [savedAsNew, setSavedAsNew] = useStateAcc(false);
+  const editId = savedAsNew ? undefined : recordId;
   const md = masterData || {};
   const allAccts = (md.accounts || []).map((a) => a.name);
   const allSettle = (md.settle || []).map((s) => s.name);
@@ -676,7 +680,7 @@ function FlowForm({ state, update, onSaved, onDelete, recordId, masterData }) {
       <div style={{ marginTop: SP(14), display: 'flex', gap: SP(10) }}>
         <button onClick={() => {
           if (!state.amount || parseFloat(state.amount) <= 0) return;
-          onSaved && onSaved('flow', { ...state, recordId });
+          onSaved && onSaved('flow', { ...state, recordId: editId });
         }} style={{ ...{
             flex: 1, height: 54, borderRadius: RS(16),
             background: `linear-gradient(135deg, ${active.color}, ${active.color}cc)`,
@@ -684,22 +688,23 @@ function FlowForm({ state, update, onSaved, onDelete, recordId, masterData }) {
             display: 'flex', alignItems: 'center', justifyContent: 'center', gap: SP(8),
             boxShadow: SH(`0 6px 18px ${active.color}40`)
           }, color: "rgb(255, 255, 255)" }}>
-          <Plus size={20} strokeWidth={2.5} /> {recordId ? '更新' : '儲存'}{active.label}
+          <Plus size={20} strokeWidth={2.5} /> {editId ? '更新' : '儲存'}{active.label}
         </button>
-        {recordId &&
+        {/* 再記一筆：新增或編輯皆可。送出後停留本頁、只清空金額、其餘欄位（含日期）保留，
+            方便連續輸入下一筆。編輯狀態按下後就轉為新增模式（不再動到原紀錄）。 */}
         <button onClick={() => {
           if (!state.amount || parseFloat(state.amount) <= 0) return;
-          // 以目前欄位另存為「新的一筆」，不動原紀錄
-          onSaved && onSaved('flow', { ...state, recordId: undefined });
+          onSaved && onSaved('flow', { ...state, recordId: undefined }, true);
+          update({ amount: '' });
+          if (editId) setSavedAsNew(true);
         }} style={{
           flex: '0 0 auto', padding: PAD('0 14px'), height: 54, borderRadius: RS(16),
           background: 'transparent', border: `1px solid ${active.color}`,
           color: active.color, fontSize: FS(17), fontWeight: 600, whiteSpace: 'nowrap',
           display: 'flex', alignItems: 'center', justifyContent: 'center'
-        }}>記一筆</button>
-        }
-        {recordId &&
-        <button onClick={() => onDelete && onDelete(recordId)} aria-label="刪除" style={{
+        }}>再記一筆</button>
+        {editId &&
+        <button onClick={() => onDelete && onDelete(editId)} aria-label="刪除" style={{
           flex: '0 0 auto', padding: PAD('0 15px'), height: 54, borderRadius: RS(16),
           background: 'transparent', border: '1px solid rgba(216,135,112,0.4)',
           color: TOKENS.red, fontSize: FS(20), fontWeight: 600,
@@ -707,18 +712,6 @@ function FlowForm({ state, update, onSaved, onDelete, recordId, masterData }) {
         }}>
             <Trash size={20} strokeWidth={2.2} />
           </button>
-        }
-        {!recordId &&
-        <button onClick={() => {
-          if (!state.amount || parseFloat(state.amount) <= 0) return;
-          onSaved && onSaved('flow', { ...state }, true);
-          update({ amount: '', note: '' });
-        }} style={{
-          flex: '0 0 auto', padding: PAD('0 16px'), height: 54, borderRadius: RS(16),
-          background: 'transparent', border: `1px solid ${active.color}`,
-          color: active.color, fontSize: FS(17), fontWeight: 600, whiteSpace: 'nowrap',
-          display: 'flex', alignItems: 'center', justifyContent: 'center'
-        }}>再記一筆</button>
         }
       </div>
     </div>);
@@ -728,6 +721,9 @@ function FlowForm({ state, update, onSaved, onDelete, recordId, masterData }) {
 /* ============= 股票買賣 form ============= */
 function StockForm({ state, update, onSaved, onDelete, recordId, masterData, computedHoldings = [] }) {
   const { Plus, TrendUp, TrendDown, Search, Calendar, X, Trash } = window.Icons;
+  // 見 FlowForm：編輯時按「再記一筆」另存新紀錄並停留本頁，之後轉為新增模式。
+  const [savedAsNew, setSavedAsNew] = useStateAcc(false);
+  const editId = savedAsNew ? undefined : recordId;
   const md = masterData || {};
 
   // Flatten all holdings for sell picker (guard against undefined)
@@ -1067,7 +1063,7 @@ function StockForm({ state, update, onSaved, onDelete, recordId, masterData, com
       <div style={{ marginTop: SP(14), display: 'flex', gap: SP(10) }}>
         <button onClick={() => {
           if (!state.code || !state.shares || !state.price) return;
-          onSaved && onSaved('stock', { ...state, fee, tax, net, recordId });
+          onSaved && onSaved('stock', { ...state, fee, tax, net, recordId: editId });
         }} style={{ ...{
             flex: 1, height: 54, borderRadius: RS(16),
             background: `linear-gradient(135deg, ${accent}, ${accent}cc)`,
@@ -1075,22 +1071,23 @@ function StockForm({ state, update, onSaved, onDelete, recordId, masterData, com
             display: 'flex', alignItems: 'center', justifyContent: 'center', gap: SP(8),
             boxShadow: SH(`0 6px 18px ${accent}40`)
           }, color: "rgb(255, 255, 255)" }}>
-          <Plus size={20} strokeWidth={2.5} /> {recordId ? '更新' : '儲存'}{state.side === 'buy' ? '買進' : '賣出'}紀錄
+          <Plus size={20} strokeWidth={2.5} /> {editId ? '更新' : '儲存'}{state.side === 'buy' ? '買進' : '賣出'}紀錄
         </button>
-        {recordId &&
+        {/* 再記一筆：送出後停留本頁，清空股票代號/股數/成交價，保留券商、交割戶、類別、
+            日期等欄位，方便連續輸入下一筆。編輯狀態按下後轉為新增模式。 */}
         <button onClick={() => {
           if (!state.code || !state.shares || !state.price) return;
-          // 以目前欄位另存為「新的一筆」交易，不動原紀錄
-          onSaved && onSaved('stock', { ...state, fee, tax, net, recordId: undefined });
+          onSaved && onSaved('stock', { ...state, fee, tax, net, recordId: undefined }, true);
+          update({ code: '', name: '', shares: '', price: '', feeOverride: '', taxOverride: '' });
+          if (editId) setSavedAsNew(true);
         }} style={{
           flex: '0 0 auto', padding: PAD('0 14px'), height: 54, borderRadius: RS(16),
           background: 'transparent', border: `1px solid ${accent}`,
           color: accent, fontSize: FS(17), fontWeight: 600, whiteSpace: 'nowrap',
           display: 'flex', alignItems: 'center', justifyContent: 'center'
-        }}>記一筆</button>
-        }
-        {recordId &&
-        <button onClick={() => onDelete && onDelete(recordId)} aria-label="刪除" style={{
+        }}>再記一筆</button>
+        {editId &&
+        <button onClick={() => onDelete && onDelete(editId)} aria-label="刪除" style={{
           flex: '0 0 auto', padding: PAD('0 15px'), height: 54, borderRadius: RS(16),
           background: 'transparent', border: '1px solid rgba(216,135,112,0.4)',
           color: TOKENS.red, fontSize: FS(20), fontWeight: 600,
@@ -1098,18 +1095,6 @@ function StockForm({ state, update, onSaved, onDelete, recordId, masterData, com
         }}>
             <Trash size={20} strokeWidth={2.2} />
           </button>
-        }
-        {!recordId &&
-        <button onClick={() => {
-          if (!state.code || !state.shares || !state.price) return;
-          onSaved && onSaved('stock', { ...state, fee, tax, net }, true);
-          update({ code: '', name: '', shares: '', price: '', note: '' });
-        }} style={{
-          flex: '0 0 auto', padding: PAD('0 16px'), height: 54, borderRadius: RS(16),
-          background: 'transparent', border: `1px solid ${accent}`,
-          color: accent, fontSize: FS(17), fontWeight: 600, whiteSpace: 'nowrap',
-          display: 'flex', alignItems: 'center', justifyContent: 'center'
-        }}>再記一筆</button>
         }
       </div>
     </div>);
