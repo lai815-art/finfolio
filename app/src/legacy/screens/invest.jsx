@@ -221,7 +221,7 @@ function InvestDetailSheet({ data, mask, onClose, savedTrades = [], onEditRecord
               color: adjPnl < 0 ? TOKENS.red : TOKENS.ink2 }}>
               {up ? <TrendUp size={14} strokeWidth={2.4} /> : <TrendDown size={14} strokeWidth={2.4} />}
               <span style={{ fontSize: FS(21) }}>{cur ? cur + ' ' : ''}{up ? '' : '-'}{mask(Math.abs(adjPnl))}</span>
-              <span style={{ fontSize: FS(16), fontWeight: 600, opacity: 0.78 }}>({up ? '+' : ''}{adjPct.toFixed(2)}%)</span>
+              <span style={{ fontSize: FS(16), fontWeight: 600, opacity: 0.78 }}>({up ? '+' : ''}{adjPct.toFixed(1)}%)</span>
             </div>
           </div>
         </div>
