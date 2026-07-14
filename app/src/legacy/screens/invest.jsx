@@ -138,6 +138,9 @@ function InvestDetailSheet({ data, mask, onClose, savedTrades = [], onEditRecord
   const adjPnl = adjMv - adjCost;
   const adjPct = adjCost > 0 ? adjPnl / adjCost * 100 : 0;
   const up = adjPnl >= 0;
+  // 非台幣個股（如美股）金額前面加上幣別代號；台幣不加。
+  const cur = data.currency && data.currency !== 'TWD' ? data.currency : '';
+  const cp = (s) => cur ? cur + ' ' + s : s;
 
   return (
     <div style={{
@@ -192,10 +195,10 @@ function InvestDetailSheet({ data, mask, onClose, savedTrades = [], onEditRecord
             letterSpacing: 1, textTransform: 'uppercase', marginBottom: SP(10) }}>部位摘要</div>
           <div style={{ position: 'relative', display: 'grid', gridTemplateColumns: '1fr 1fr', gap: SP(8) }}>
             {[
-            ['現價', '即時報價', `${data.price.toLocaleString()}`],
-            ['市值', '', `${mask(adjMv)}`],
-            ['均價', '', `${Math.round(adjAvg).toLocaleString()}`],
-            ['成本', '含手續費', `${mask(adjCost)}`]].
+            ['現價', '即時報價', cp(`${data.price.toLocaleString()}`)],
+            ['市值', '', cp(`${mask(adjMv)}`)],
+            ['均價', '', cp(`${Math.round(adjAvg).toLocaleString()}`)],
+            ['成本', '含手續費', cp(`${mask(adjCost)}`)]].
             map(([label, sub, value]) =>
             <div key={label} style={{ padding: PAD('9px 12px'), borderRadius: RS(12),
               background: 'rgba(255,255,255,0.15)', border: '1px solid rgba(255,255,255,0.20)' }}>
@@ -217,7 +220,7 @@ function InvestDetailSheet({ data, mask, onClose, savedTrades = [], onEditRecord
               fontFamily: TOKENS.fontMono, fontWeight: 700,
               color: adjPnl < 0 ? TOKENS.red : TOKENS.ink2 }}>
               {up ? <TrendUp size={14} strokeWidth={2.4} /> : <TrendDown size={14} strokeWidth={2.4} />}
-              <span style={{ fontSize: FS(21) }}>{up ? '' : '-'}{mask(Math.abs(adjPnl))}</span>
+              <span style={{ fontSize: FS(21) }}>{up ? '' : '-'}{cp(mask(Math.abs(adjPnl)))}</span>
               <span style={{ fontSize: FS(16), fontWeight: 600, opacity: 0.78 }}>({up ? '+' : ''}{adjPct.toFixed(2)}%)</span>
             </div>
           </div>
@@ -287,7 +290,7 @@ function InvestDetailSheet({ data, mask, onClose, savedTrades = [], onEditRecord
                 </div>
                 <div style={{ fontFamily: TOKENS.fontMono, fontSize: FS(18), fontWeight: 600,
                   color: isBuy ? TOKENS.red : TOKENS.ink2, flexShrink: 0 }}>
-                  {isBuy ? '-' : ''}{mask(netAmt)}
+                  {isBuy ? '-' : ''}{cp(mask(netAmt))}
                 </div>
                 {editable &&
                 <ChevronRight size={16} style={{ color: 'rgba(44,44,50,0.3)', flexShrink: 0, marginLeft: SP(-4) }} />
