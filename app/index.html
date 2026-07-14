@@ -171,6 +171,22 @@
       try { new ResizeObserver(fit).observe(document.getElementById('stage')); } catch (e) {}
     }
 
+    // iOS 鍵盤：彈出時常把整個 position:fixed 畫面往上推（頂部縮進瀏海／動態島）。
+    // 這是「視覺視窗被 pan」而非改變畫布大小——所以用 visualViewport 的位移量把 #stage
+    // 往下補償回原位（不重算 fit、不改縮放，避免內容跑掉）；鍵盤收起後位移歸零即恢復。
+    if (window.FF_STANDALONE && window.visualViewport) {
+      var vv = window.visualViewport;
+      var vvAdjust = function () {
+        var st = document.getElementById('stage');
+        if (!st) return;
+        if (window.scrollY) { try { window.scrollTo(0, 0); } catch (_) {} }
+        var off = Math.max(0, vv.offsetTop || 0);
+        st.style.transform = off > 1 ? 'translateY(' + off + 'px)' : '';
+      };
+      vv.addEventListener('resize', vvAdjust);
+      vv.addEventListener('scroll', vvAdjust);
+    }
+
     // Keep the focused field visible above the keyboard: scroll it toward the
     // centre of its scroll container once the keyboard has animated in.
     document.addEventListener('focusin', function (e) {
