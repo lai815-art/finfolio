@@ -342,7 +342,9 @@ function AccountDetailSheet({ data, mask, onClose, onSaveItem, savedFlows = [], 
               background: 'rgba(184,92,74,0.14)', border: '1px solid rgba(184,92,74,0.35)',
               borderRadius: RS(8), padding: PAD('2px 7px') }}>已隱藏</span>}
           </div>
-          {item.sub && <div style={{ fontSize: FS(16), color: 'rgba(0,0,0,0.80)', marginTop: SP(1) }}>{item.sub}</div>}
+          {/* 種類副標題不再顯示；只保留外幣帳戶的幣別 */}
+          {item.currency && item.currency !== 'TWD' &&
+          <div style={{ fontSize: FS(16), color: 'rgba(0,0,0,0.80)', marginTop: SP(1) }}>{item.currency}</div>}
         </div>
       </div>
 
@@ -704,12 +706,12 @@ function AccountsScreen({ hideAmounts, onOpenDetail, computedAcctGroups = [], co
   // 證券戶 group = 設定內的證券戶清單 + 證券持倉市值（依證券戶加總）
   const secByBroker = {};
   (masterData && masterData.brokers || []).forEach((b) => {
-    const sub = [b.sub || '證券戶', b.currency && b.currency !== 'TWD' ? b.currency : ''].filter(Boolean).join(' · ');
-    secByBroker[b.name] = { name: b.name, sub, amount: 0, badge: b.name.slice(0, 2) };
+    // 種類副標題不再顯示，只保留外幣資訊（透過 currency 欄位在金額前顯示幣別）
+    secByBroker[b.name] = { name: b.name, currency: b.currency, amount: 0, badge: b.name.slice(0, 2) };
   });
   computedHoldings.flatMap((g) => g.items).forEach((it) => {
     const b = it.broker || '其他';
-    if (!secByBroker[b]) secByBroker[b] = { name: b, sub: '證券持倉市值', amount: 0, badge: b.slice(0, 2) };
+    if (!secByBroker[b]) secByBroker[b] = { name: b, currency: it.currency, amount: 0, badge: b.slice(0, 2) };
     secByBroker[b].amount += mvTWD(it);
   });
   const secItems = Object.values(secByBroker).sort((a, b) => b.amount - a.amount);
