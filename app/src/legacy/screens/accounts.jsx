@@ -633,7 +633,7 @@ function AccountItemRow({ item, group, mask, last, onOpen }) {
         <div style={{ flex: 1, minWidth: 0 }}>
           <div style={{ fontSize: FS(18), fontWeight: 500, color: TOKENS.ink,
             overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{item.name}</div>
-          {item.sub && <div style={{ fontSize: FS(14), color: 'rgba(0,0,0,0.78)', marginTop: SP(1) }}>{item.sub}</div>}
+          {/* 帳戶已依種類分區顯示，列內不再重複種類副標題（例：銀行群組下的 xx 銀行不再顯示「銀行」）*/}
         </div>
         {(() => {
           const av = group.sign < 0 ? -item.amount : item.amount; // 帶號顯示：欠款為負、溢繳為正
