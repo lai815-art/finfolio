@@ -50,7 +50,10 @@
 
   var FONT = {
     fontSans: '"Noto Sans TC", -apple-system, system-ui, sans-serif',
-    fontMono: '"Roboto Mono", monospace',
+    // 數字字型：改用系統無襯線字（iOS 為 San Francisco），其「0」是乾淨橢圓、
+    // 沒有斜槓也沒有中間點；搭配 CSS 的 tabular-nums 讓數字等寬、表格仍對齊。
+    // （先前用 Roboto Mono，裝置若沒載到就退回系統等寬字，畫出帶斜槓的 0。）
+    fontMono: '-apple-system, system-ui, "Noto Sans TC", "Helvetica Neue", Arial, sans-serif',
   };
 
   var SCALE = {

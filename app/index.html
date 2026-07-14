@@ -15,7 +15,7 @@
 <link rel="icon" type="image/png" href="./icon-192.png"/>
 <link rel="preconnect" href="https://fonts.googleapis.com"/>
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin/>
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Roboto+Mono:wght@400;500;600;700&family=Noto+Sans+TC:wght@400;500;600;700&display=swap"/>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;600;700&display=swap"/>
 <!-- Design tokens (sets window.TOKENS / FS / SP / PAD / RS / SH / fxToTWD …) — must run before the app bundle -->
 <script src="./tokens.js"></script>
 <!-- Runtime config (price service URL) -->
@@ -25,6 +25,8 @@
   html, body { margin: 0; padding: 0; height: 100%;
     background: var(--ff-bg-warm-2, #F0EFEC);
     font-family: var(--ff-font-sans, "Noto Sans TC", -apple-system, system-ui, sans-serif);
+    /* 數字等寬，讓表格金額對齊（字型本身用系統字，0 為乾淨橢圓、無斜槓/中點）*/
+    font-variant-numeric: tabular-nums;
     -webkit-font-smoothing: antialiased; }
   *, *::before, *::after { box-sizing: border-box; }
   #stage {
