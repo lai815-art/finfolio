@@ -2626,7 +2626,13 @@ function LockSheet({ open, onClose }) {
 const NEW_SENTINEL = '__new__';
 
 function ffCatFor(kind, name, amount) {
-  if (kind === 'inc') return /債|定存|利息/.test(name || '') ? '利息' : '股息';
+  if (kind === 'inc') {
+    // 債券配息屬「債息」(投資收益)；銀行定存/存款利息才是一般被動收入「利息」。
+    // 先前一律歸「利息」會讓債息被投資收益表排除（顯示為 0），故分開判斷。
+    if (/債|bond|coupon/i.test(name || '')) return '債息';
+    if (/定存|存款|利息|interest/i.test(name || '')) return '利息';
+    return '股息';
+  }
   return amount >= 0 ? '投資收入' : '台股';
 }
 

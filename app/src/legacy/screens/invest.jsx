@@ -647,8 +647,10 @@ function InvestBreakdownSheet({ open, onClose, computedHoldings = [], masterData
             const years = needsPaging ? allYears.slice(start, end) : allYears;
 
             // ── aggregate per year ──
+            // 圖表只畫視窗內的十年（years），但下方表格要能看到「所有」年份的歷史，
+            // 所以彙總鍵用 allYears；圖表照樣讀 byYear[y] 即可。
             const byYear = {};
-            years.forEach((y) => {byYear[y] = { pnl: 0, div: 0, bond: 0 };});
+            allYears.forEach((y) => {byYear[y] = { pnl: 0, div: 0, bond: 0 };});
             savedFlows.forEach((f) => {
               if (!f.date) return;
               const y = new Date(f.date).getFullYear();
@@ -783,9 +785,10 @@ function InvestBreakdownSheet({ open, onClose, computedHoldings = [], masterData
               {/* per-year 表：一開始只顯示 年份 + 合計，點擊展開才顯示 股息 / 債息 / 操作 */}
               {(() => {
                 const { ChevronDown } = window.Icons;
-                const yrsRev = years.slice().reverse().filter((y) => { const d = byYear[y]; return !(d.pnl === 0 && d.div === 0 && d.bond === 0); });
+                // 表格顯示「所有」年份（不受圖表十年視窗限制），由新到舊、隱藏全為 0 的年份。
+                const yrsRev = allYears.slice().reverse().filter((y) => { const d = byYear[y]; return !(d.pnl === 0 && d.div === 0 && d.bond === 0); });
                 const sum = { div: 0, bond: 0, pnl: 0 };
-                years.forEach((y) => { sum.div += byYear[y].div; sum.bond += byYear[y].bond; sum.pnl += byYear[y].pnl; });
+                allYears.forEach((y) => { sum.div += byYear[y].div; sum.bond += byYear[y].bond; sum.pnl += byYear[y].pnl; });
                 const sumTot = sum.div + sum.bond + sum.pnl;
                 const detail = (label, v, color) =>
                 <div style={{ display: 'flex', alignItems: 'center', gap: SP(8), padding: PAD('5px 0') }}>
