@@ -834,76 +834,90 @@ function MonthlyStatsSheet({ open, onClose, savedFlows, masterData, hideAmounts,
 
   const canNextMonth = monthOffset < 0, canNextYear = yearOffset < 0, canNextDecade = decadeOffset < 0;
 
-  // 點選月/年 → 圖卡內顯示金額小視窗（兩張圖共用同一個選取狀態）
+  // 點選月/年 → 彈出視窗顯示該期間數字（圖表與表格共用同一個選取狀態）
   const toggleSel = (i) => setSelIdx(selIdx === i ? null : i);
-  const SelInfo = ({ data, labels, mode }) => {
-    if (selIdx == null || !data[selIdx]) return null;
-    const a = data[selIdx];const net = a.inc - a.exp;
-    const row = (label, v, color, sign) =>
-    <div style={{ display: 'flex', justifyContent: 'space-between', gap: SP(10), padding: PAD('2px 0') }}>
-      <span style={{ fontSize: FS(13), color: 'rgba(44,44,50,0.6)' }}>{label}</span>
-      <span style={{ fontFamily: TOKENS.fontMono, fontSize: FS(13), fontWeight: 600, color }}>{sign || ''}{mask(Math.abs(v))}</span>
-    </div>;
-    return (
-      <div style={{ marginTop: SP(8), padding: PAD('8px 12px'), borderRadius: RS(12),
-        background: 'rgba(0,0,0,0.045)', border: '1px solid rgba(0,0,0,0.08)' }}>
-        <div style={{ fontSize: FS(13), fontWeight: 700, color: TOKENS.ink, marginBottom: SP(3) }}>{labels[selIdx]}{view === 'month' ? '月' : ''}</div>
-        {mode === 'lines' ?
-        <>
-          {INC_GROUPS.map((g) => a.groups[g.k] > 0 ? <React.Fragment key={g.k}>{row(g.k, a.groups[g.k], g.c)}</React.Fragment> : null)}
-          {row('總支出', a.exp, TOKENS.red, a.exp > 0 ? '-' : '')}
-        </> :
-        <>
-          {row('總收入', a.inc, TOKENS.incBlue)}
-          {row('總支出', a.exp, TOKENS.red, a.exp > 0 ? '-' : '')}
-          {row('餘額', net, net < 0 ? TOKENS.red : TOKENS.ink, net < 0 ? '-' : '')}
-        </>
-        }
-      </div>);
-  };
-  // 收入四類 + 總支出 折線圖（可點選）
-  const GroupLines = ({ data, labels }) => {
-    const W = 340, H = 150, pL = 6, pR = 6, pT = 12, pB = 22, n = data.length;
-    let maxV = 1; data.forEach((a) => { INC_GROUPS.forEach((g) => { maxV = Math.max(maxV, a.groups[g.k] || 0); }); maxV = Math.max(maxV, a.exp || 0); });
+  const NET_POS = TOKENS.ink2, NET_NEG = TOKENS.red;
+  // 整合圖：收支餘額柱狀（背景）＋ 收入四類與總支出折線（前景），共用同一數值刻度。
+  const ComboChart = ({ data, labels }) => {
+    const W = 340, H = 172, pL = 16, pR = 12, pT = 14, pB = 22, n = data.length;
+    const chartH = H - pT - pB;
+    const nets = data.map((a) => a.inc - a.exp);
+    let maxPos = 0, maxNeg = 0;
+    data.forEach((a, i) => {
+      INC_GROUPS.forEach((g) => { maxPos = Math.max(maxPos, a.groups[g.k] || 0); });
+      maxPos = Math.max(maxPos, a.exp || 0, nets[i]);
+      maxNeg = Math.max(maxNeg, -nets[i]);
+    });
+    maxPos = maxPos || 1;
+    const range = maxPos + maxNeg || 1;
+    const zeroY = pT + chartH * (maxPos / range);
     const xAt = (i) => pL + (W - pL - pR) * (n === 1 ? 0.5 : i / (n - 1));
-    const yAt = (v) => pT + (H - pT - pB) * (1 - v / maxV);
-    const step = Math.ceil(n / 8);
+    const yAt = (v) => zeroY - v / range * chartH;
+    const bw = Math.max(5, (W - pL - pR) / n * 0.44);
     const cw = (W - pL - pR) / Math.max(1, n - 1);
+    const step = Math.ceil(n / (n > 12 ? 12 : 8));
     return (
       <svg width="100%" viewBox={`0 0 ${W} ${H}`} style={{ display: 'block' }}>
-        <line x1={pL} y1={H - pB} x2={W - pR} y2={H - pB} stroke="rgba(0,0,0,0.10)" />
+        {/* 餘額柱（背景、半透明），折線在上方 */}
+        {nets.map((v, i) => { const h = Math.abs(v) / range * chartH, pos = v >= 0; const on = selIdx == null || selIdx === i;
+          return <rect key={'b' + i} x={xAt(i) - bw / 2} y={pos ? zeroY - h : zeroY} width={bw} height={h} rx="2"
+            fill={pos ? NET_POS : NET_NEG} opacity={on ? 0.30 : 0.12} />; })}
+        {/* 零基準線 */}
+        <line x1={pL} y1={zeroY} x2={W - pR} y2={zeroY} stroke="rgba(0,0,0,0.16)" />
+        {/* 選取虛線 */}
         {selIdx != null && selIdx < n &&
-        <line x1={xAt(selIdx)} y1={pT} x2={xAt(selIdx)} y2={H - pB} stroke="rgba(0,0,0,0.22)" strokeWidth="1.5" strokeDasharray="3 3" />}
+        <line x1={xAt(selIdx)} y1={pT} x2={xAt(selIdx)} y2={H - pB} stroke="rgba(0,0,0,0.28)" strokeWidth="1.5" strokeDasharray="3 3" />}
+        {/* 收入四類折線 */}
         {INC_GROUPS.map((g) =>
         <polyline key={g.k} points={data.map((a, i) => `${xAt(i).toFixed(1)},${yAt(a.groups[g.k] || 0).toFixed(1)}`).join(' ')}
           fill="none" stroke={g.c} strokeWidth="2" strokeLinejoin="round" strokeLinecap="round" />
         )}
+        {/* 總支出折線（紅虛線） */}
         <polyline points={data.map((a, i) => `${xAt(i).toFixed(1)},${yAt(a.exp || 0).toFixed(1)}`).join(' ')}
           fill="none" stroke={TOKENS.red} strokeWidth="2" strokeDasharray="5 3" strokeLinejoin="round" strokeLinecap="round" />
-        {data.map((_, i) => i % step === 0 ? <text key={i} x={xAt(i)} y={H - 6} textAnchor="middle" fill="rgba(44,44,50,0.5)" style={{ fontSize: '10px' }}>{labels[i]}</text> : null)}
-        {/* 點擊熱區：每欄一條 */}
+        {data.map((_, i) => i % step === 0 ? <text key={'t' + i} x={xAt(i)} y={H - 6} textAnchor="middle" fill="rgba(44,44,50,0.5)" style={{ fontSize: '10px' }}>{labels[i]}</text> : null)}
+        {/* 點擊熱區：每欄一條 → 開啟彈出視窗 */}
         {data.map((_, i) => <rect key={'h' + i} x={xAt(i) - cw / 2} y={0} width={cw} height={H} fill="transparent" onClick={() => toggleSel(i)} style={{ cursor: 'pointer' }} />)}
       </svg>);
   };
-  // 收支餘額柱狀圖（可點選）：全正時零基準線落在底部、高度全給正值；有透支才上移。
-  const NetBars2 = ({ data, labels }) => {
-    const nets = data.map((a) => a.inc - a.exp);
-    const maxPos = Math.max(0, ...nets), maxNeg = Math.max(0, ...nets.map((v) => -v));
-    const range = maxPos + maxNeg || 1;
-    const W = 340, H = 150, pT = 10, pB = 22, n = data.length;
-    const chartH = H - pT - pB;
-    const zeroY = pT + chartH * (maxPos / range);
-    const bw = Math.max(6, W / n * 0.5), step = Math.ceil(n / 12);
+  // 點選後的彈出視窗（取代原本的列展開／圖下小視窗）
+  const curData = view === 'month' ? months : decadeYears.map((y) => yearAgg[y]);
+  const SelPopup = () => {
+    if (selIdx == null || !curData[selIdx]) return null;
+    const a = curData[selIdx];const net = a.inc - a.exp;
+    const label = view === 'month' ? `${viewYear} 年 ${selIdx + 1} 月` : `${decadeYears[selIdx]} 年`;
+    const row = (lbl, v, color, sign, dot) =>
+    <div style={{ display: 'flex', alignItems: 'center', gap: SP(8), padding: PAD('6px 0') }}>
+      {dot ? <span style={{ width: 8, height: 8, borderRadius: 4, flexShrink: 0, background: color }} /> : <span style={{ width: 8, flexShrink: 0 }} />}
+      <span style={{ flex: 1, fontSize: FS(15), color: 'rgba(44,44,50,0.82)' }}>{lbl}</span>
+      <span style={{ fontFamily: TOKENS.fontMono, fontSize: FS(15), fontWeight: 600, color: v === 0 ? 'rgba(60,60,67,0.35)' : color }}>{v === 0 ? '—' : (sign || '') + mask(Math.abs(v))}</span>
+    </div>;
+    const hasInc = INC_GROUPS.some((g) => (a.groups[g.k] || 0) > 0);
     return (
-      <svg width="100%" viewBox={`0 0 ${W} ${H}`} style={{ display: 'block' }}>
-        <line x1={0} y1={zeroY} x2={W} y2={zeroY} stroke="rgba(0,0,0,0.14)" />
-        {nets.map((v, i) => { const c = W / n * (i + 0.5), h = Math.abs(v) / range * chartH, pos = v >= 0; return <rect key={i} x={c - bw / 2} y={pos ? zeroY - h : zeroY} width={bw} height={h} rx="2" fill={pos ? TOKENS.incBlue : TOKENS.red} opacity={selIdx == null || selIdx === i ? 1 : 0.4} />; })}
-        {data.map((_, i) => i % step === 0 ? <text key={'t' + i} x={W / n * (i + 0.5)} y={H - 6} textAnchor="middle" fill="rgba(44,44,50,0.5)" style={{ fontSize: '10px' }}>{labels[i]}</text> : null)}
-        {data.map((_, i) => <rect key={'h' + i} x={W / n * i} y={0} width={W / n} height={H} fill="transparent" onClick={() => toggleSel(i)} style={{ cursor: 'pointer' }} />)}
-      </svg>);
+      <div onClick={() => setSelIdx(null)} style={{ position: 'absolute', inset: 0, zIndex: 90,
+        background: 'rgba(0,0,0,0.35)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: SP(24) }}>
+        <div onClick={(e) => e.stopPropagation()} style={{ width: '100%', maxWidth: 320, background: TOKENS.surface,
+          borderRadius: RS(20), boxShadow: SH('0 16px 40px rgba(0,0,0,0.28)'), padding: PAD('16px 18px 18px') }}>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: SP(6) }}>
+            <div style={{ fontSize: FS(19), fontWeight: 700, color: TOKENS.ink }}>{label}</div>
+            <button onClick={() => setSelIdx(null)} style={{ width: 32, height: 32, borderRadius: RS(16), flexShrink: 0,
+              background: 'rgba(0,0,0,0.07)', border: 'none', color: 'rgba(44,44,50,0.7)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}><X size={16} /></button>
+          </div>
+          <div style={{ borderTop: '1px solid rgba(0,0,0,0.08)', paddingTop: SP(4) }}>
+            {hasInc ? INC_GROUPS.map((g) => (a.groups[g.k] || 0) > 0 ?
+            <React.Fragment key={g.k}>{row(g.k === '其他' ? '其他收入' : g.k, a.groups[g.k], g.c, '', true)}</React.Fragment> : null) :
+            <div style={{ fontSize: FS(14), color: 'rgba(44,44,50,0.4)', padding: PAD('6px 0') }}>此期間無收入</div>}
+          </div>
+          <div style={{ borderTop: '1px solid rgba(0,0,0,0.12)', marginTop: SP(6), paddingTop: SP(4) }}>
+            {row('總收入', a.inc, TOKENS.incBlue)}
+            {row('總支出', a.exp, TOKENS.red, a.exp > 0 ? '-' : '')}
+            {row('餘額', net, net < 0 ? TOKENS.red : TOKENS.ink, net < 0 ? '-' : '')}
+          </div>
+        </div>
+      </div>);
   };
   // 可展開表格：每月/每年 總收入/總支出/餘額，點擊展開收入分類
-  const StatTable = ({ rows, unitLabel }) => {
+  const StatTable = ({ rows, unitLabel, onRowTap }) => {
     const tot = rows.reduce((a, r) => ({ inc: a.inc + r.inc, exp: a.exp + r.exp }), { inc: 0, exp: 0 });
     const shown = rows.filter((r) => r.inc > 0 || r.exp > 0);
     if (!shown.length) return <div style={{ fontSize: FS(16), color: 'rgba(44,44,50,0.4)', textAlign: 'center', padding: PAD('16px 0') }}>尚無紀錄</div>;
@@ -918,32 +932,16 @@ function MonthlyStatsSheet({ open, onClose, savedFlows, masterData, hideAmounts,
           <div style={{ width: 22 }} />
         </div>
         {shown.map((r) => {
-          const net = r.inc - r.exp, isOpen = expanded === r.key;
-          // 展開只整合顯示收入大類（主動/被動/投資/其他），不列個別項目
-          const cats = INC_GROUPS.filter((g) => (r.groups && r.groups[g.k] || 0) > 0).map((g) => [g.k, r.groups[g.k], g.c]);
+          const net = r.inc - r.exp, on = selIdx === r.idx;
+          // 點選 → 開啟彈出視窗（不再就地展開）
           return (
-            <div key={r.key}>
-              <button onClick={() => setExpanded(isOpen ? null : r.key)} style={{ width: '100%', display: 'flex', alignItems: 'center', padding: PAD('10px 0'), borderBottom: '1px solid rgba(0,0,0,0.06)', background: isOpen ? 'rgba(0,0,0,0.03)' : 'transparent', border: 'none', borderRadius: RS(6), cursor: 'pointer' }}>
-                <div style={{ width: 54, textAlign: 'left', fontSize: FS(16), color: TOKENS.ink, fontWeight: isOpen ? 700 : 500 }}>{r.label}</div>
-                {cell(r.inc, TOKENS.incBlue)}
-                {cell(r.exp, TOKENS.red)}
-                <div style={{ flex: 1, textAlign: 'right', fontFamily: TOKENS.fontMono, fontSize: FS(14), fontWeight: 600, color: net >= 0 ? TOKENS.ink : TOKENS.red }}>{net < 0 ? '-' : ''}{mask(Math.abs(net))}</div>
-                <ChevronDown size={14} style={{ width: 22, color: 'rgba(44,44,50,0.35)', flexShrink: 0, transform: isOpen ? 'rotate(180deg)' : 'none', transition: 'transform 200ms' }} />
-              </button>
-              {isOpen &&
-              <div style={{ padding: PAD('4px 22px 12px 6px') }}>
-                {cats.length === 0 ?
-                <div style={{ fontSize: FS(14), color: 'rgba(44,44,50,0.4)', padding: PAD('4px 0') }}>此期間無收入</div> :
-                cats.map(([name, v, color]) =>
-                <div key={name} style={{ display: 'flex', alignItems: 'center', gap: SP(8), padding: PAD('5px 0') }}>
-                  <span style={{ width: 7, height: 7, borderRadius: 4, flexShrink: 0, background: color }} />
-                  <span style={{ flex: 1, fontSize: FS(15), color: 'rgba(44,44,50,0.82)' }}>{name === '其他' ? '其他收入' : name}</span>
-                  <span style={{ fontFamily: TOKENS.fontMono, fontSize: FS(14), color: color }}>{mask(v)}</span>
-                </div>)
-                }
-              </div>
-              }
-            </div>);
+            <button key={r.key} onClick={() => onRowTap && onRowTap(r.idx)} style={{ width: '100%', display: 'flex', alignItems: 'center', padding: PAD('10px 0'), borderBottom: '1px solid rgba(0,0,0,0.06)', background: on ? 'rgba(0,0,0,0.03)' : 'transparent', border: 'none', borderRadius: RS(6), cursor: 'pointer' }}>
+              <div style={{ width: 54, textAlign: 'left', fontSize: FS(16), color: TOKENS.ink, fontWeight: on ? 700 : 500 }}>{r.label}</div>
+              {cell(r.inc, TOKENS.incBlue)}
+              {cell(r.exp, TOKENS.red)}
+              <div style={{ flex: 1, textAlign: 'right', fontFamily: TOKENS.fontMono, fontSize: FS(14), fontWeight: 600, color: net >= 0 ? TOKENS.ink : TOKENS.red }}>{net < 0 ? '-' : ''}{mask(Math.abs(net))}</div>
+              <ChevronRight size={14} style={{ width: 22, color: 'rgba(44,44,50,0.35)', flexShrink: 0 }} />
+            </button>);
         })}
         <div style={{ display: 'flex', alignItems: 'center', paddingTop: SP(11), marginTop: SP(2), borderTop: '1px solid rgba(0,0,0,0.12)' }}>
           <div style={{ width: 54, fontSize: FS(16), fontWeight: 700, color: TOKENS.ink }}>合計</div>
@@ -971,9 +969,10 @@ function MonthlyStatsSheet({ open, onClose, savedFlows, masterData, hideAmounts,
   const nextEnabled = view === 'spend' ? canNextMonth : view === 'month' ? canNextYear : canNextDecade;
   const nextStep = () => { if (!nextEnabled) return; if (view === 'spend') setMonthOffset(monthOffset + 1);else if (view === 'month') setYearOffset(yearOffset + 1);else setDecadeOffset(decadeOffset + 1);setExpanded(null);setSelIdx(null); };
 
-  const monthRows = months.map((a, mo) => ({ key: 'm' + mo, label: mo + 1 + '月', inc: a.inc, exp: a.exp, groups: a.groups }));
+  // idx = 對應圖表資料陣列（months / decadeYears）的索引，讓表格點選能連動圖表與彈出視窗。
+  const monthRows = months.map((a, mo) => ({ key: 'm' + mo, idx: mo, label: mo + 1 + '月', inc: a.inc, exp: a.exp, groups: a.groups }));
   // 歷年表格由新到舊（近→遠，由上往下）；圖表仍維持左舊右新，故單獨反轉表格用的列。
-  const yearRows = decadeYears.slice().reverse().map((y) => ({ key: 'y' + y, label: String(y), inc: yearAgg[y].inc, exp: yearAgg[y].exp, groups: yearAgg[y].groups }));
+  const yearRows = decadeYears.map((y, i) => ({ key: 'y' + y, idx: i, label: String(y), inc: yearAgg[y].inc, exp: yearAgg[y].exp, groups: yearAgg[y].groups })).reverse();
   const monthLabels = Array.from({ length: 12 }, (_, i) => String(i + 1));
   const yearLabels = decadeYears.map((y) => "'" + String(y).slice(2));
 
@@ -1029,28 +1028,24 @@ function MonthlyStatsSheet({ open, onClose, savedFlows, masterData, hideAmounts,
           {(view === 'month' || view === 'year') &&
           <>
             <div style={cardStyle}>
-              <div style={{ marginBottom: SP(4) }}>{secTitle(view === 'month' ? '每月收入（依分類）' : '每年收入（依分類）')}</div>
-              <IncLegend />
-              <GroupLines data={view === 'month' ? months : decadeYears.map((y) => yearAgg[y])} labels={view === 'month' ? monthLabels : yearLabels} />
-              <SelInfo data={view === 'month' ? months : decadeYears.map((y) => yearAgg[y])} labels={view === 'month' ? monthLabels : yearLabels} mode="lines" />
-            </div>
-            <div style={cardStyle}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: SP(12), marginBottom: SP(8), paddingLeft: SP(2) }}>
-                {secTitle('收支餘額')}
-                <span style={{ display: 'flex', alignItems: 'center', gap: SP(4), fontSize: FS(13), color: 'rgba(44,44,50,0.6)' }}><span style={{ width: 9, height: 9, borderRadius: RS(2), background: TOKENS.incBlue }} />結餘</span>
-                <span style={{ display: 'flex', alignItems: 'center', gap: SP(4), fontSize: FS(13), color: 'rgba(44,44,50,0.6)' }}><span style={{ width: 9, height: 9, borderRadius: RS(2), background: TOKENS.red }} />透支</span>
+              <div style={{ marginBottom: SP(6) }}>{secTitle(view === 'month' ? '每月收支' : '年度收支')}</div>
+              {/* 整合圖：收入四類＋總支出折線、收支餘額柱狀 */}
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: SP(10), marginBottom: SP(8), paddingLeft: SP(2) }}>
+                {INC_GROUPS.map((g) => <span key={g.k} style={{ display: 'flex', alignItems: 'center', gap: SP(4), fontSize: FS(13), color: 'rgba(44,44,50,0.6)' }}><span style={{ width: 12, height: 3, borderRadius: RS(2), background: g.c }} />{g.k}</span>)}
+                <span style={{ display: 'flex', alignItems: 'center', gap: SP(4), fontSize: FS(13), color: 'rgba(44,44,50,0.6)' }}><span style={{ width: 12, height: 3, borderRadius: RS(2), background: TOKENS.red, opacity: 0.85 }} />總支出</span>
+                <span style={{ display: 'flex', alignItems: 'center', gap: SP(4), fontSize: FS(13), color: 'rgba(44,44,50,0.6)' }}><span style={{ width: 10, height: 10, borderRadius: RS(2), background: NET_POS, opacity: 0.45 }} />餘額</span>
               </div>
-              <NetBars2 data={view === 'month' ? months : decadeYears.map((y) => yearAgg[y])} labels={view === 'month' ? monthLabels : yearLabels} />
-              <SelInfo data={view === 'month' ? months : decadeYears.map((y) => yearAgg[y])} labels={view === 'month' ? monthLabels : yearLabels} mode="bars" />
+              <ComboChart data={curData} labels={view === 'month' ? monthLabels : yearLabels} />
+              <div style={{ fontSize: FS(12), color: 'rgba(44,44,50,0.4)', marginTop: SP(4), paddingLeft: SP(2) }}>點圖或下方列表可查看該{view === 'month' ? '月' : '年'}明細</div>
             </div>
             <div style={{ ...cardStyle, padding: PAD('14px') }}>
-              <StatTable rows={view === 'month' ? monthRows : yearRows} unitLabel={view === 'month' ? '月' : '年'} />
-              <div style={{ fontSize: FS(12), color: 'rgba(44,44,50,0.4)', marginTop: SP(8), paddingLeft: SP(2) }}>點任一列可展開該期間的收入分類明細</div>
+              <StatTable rows={view === 'month' ? monthRows : yearRows} unitLabel={view === 'month' ? '月' : '年'} onRowTap={(idx) => setSelIdx(idx)} />
             </div>
           </>
           }
         </div>
       </div>
+      {(view === 'month' || view === 'year') && <SelPopup />}
     </div>);
 }
 
