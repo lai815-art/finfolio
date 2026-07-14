@@ -972,7 +972,8 @@ function MonthlyStatsSheet({ open, onClose, savedFlows, masterData, hideAmounts,
   const nextStep = () => { if (!nextEnabled) return; if (view === 'spend') setMonthOffset(monthOffset + 1);else if (view === 'month') setYearOffset(yearOffset + 1);else setDecadeOffset(decadeOffset + 1);setExpanded(null);setSelIdx(null); };
 
   const monthRows = months.map((a, mo) => ({ key: 'm' + mo, label: mo + 1 + '月', inc: a.inc, exp: a.exp, groups: a.groups }));
-  const yearRows = decadeYears.map((y) => ({ key: 'y' + y, label: String(y), inc: yearAgg[y].inc, exp: yearAgg[y].exp, groups: yearAgg[y].groups }));
+  // 歷年表格由新到舊（近→遠，由上往下）；圖表仍維持左舊右新，故單獨反轉表格用的列。
+  const yearRows = decadeYears.slice().reverse().map((y) => ({ key: 'y' + y, label: String(y), inc: yearAgg[y].inc, exp: yearAgg[y].exp, groups: yearAgg[y].groups }));
   const monthLabels = Array.from({ length: 12 }, (_, i) => String(i + 1));
   const yearLabels = decadeYears.map((y) => "'" + String(y).slice(2));
 
