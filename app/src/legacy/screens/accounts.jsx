@@ -465,6 +465,8 @@ function AccountDetailSheet({ data, mask, onClose, onSaveItem, savedFlows = [], 
                             shares: String(origData.shares), price: String(origData.price),
                             assetClass: origData.assetClass || '股票',
                             broker: origData.broker || '', settleAccount: origData.settleAccount || '',
+                            feeOverride: origData.fee != null ? String(origData.fee) : '',
+                            taxOverride: origData.tax != null ? String(origData.tax) : '',
                             date: origData.date instanceof Date ? origData.date : new Date(origData.date),
                             note: origData.note || '' },
                           text: '', summary: [] });
