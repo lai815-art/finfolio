@@ -412,7 +412,7 @@ function AccountDetailSheet({ data, mask, onClose, onSaveItem, savedFlows = [], 
             <div style={{ fontSize: FS(14), color: 'rgba(0,0,0,0.5)', marginTop: SP(1) }}>
               本月變動 <span style={{ fontFamily: TOKENS.fontMono,
                 color: monthNet > 0 ? TOKENS.incBlue : monthNet < 0 ? TOKENS.red : 'rgba(0,0,0,0.5)' }}>
-                {monthNet > 0 ? '+' : monthNet < 0 ? '-' : ''}{mask(Math.abs(monthNet))}</span>
+                {monthNet > 0 ? '+' : monthNet < 0 ? '-' : ''}{item.currency && item.currency !== 'TWD' ? item.currency + ' ' : ''}{mask(Math.abs(monthNet))}</span>
             </div>
           </div>
           <button onClick={() => setMonthOff((m) => Math.min(0, m + 1))} disabled={monthOff >= 0} style={{
@@ -496,7 +496,7 @@ function AccountDetailSheet({ data, mask, onClose, onSaveItem, savedFlows = [], 
                         <div style={{ fontFamily: TOKENS.fontMono, fontSize: FS(18),
                           fontWeight: 600, flexShrink: 0, whiteSpace: 'nowrap',
                           color: isInc ? TOKENS.incBlue : TOKENS.red }}>
-                            {isInc ? '' : '-'}{mask(Math.abs(displayAmt))}
+                            {isInc ? '' : '-'}{item.currency && item.currency !== 'TWD' ? item.currency + ' ' : ''}{mask(Math.abs(displayAmt))}
                           </div>
                         }
                         <Pencil size={13} style={{ color: 'rgba(44,44,50,0.22)', flexShrink: 0 }} />
