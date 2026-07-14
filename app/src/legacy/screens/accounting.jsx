@@ -131,7 +131,8 @@ function AccountingScreen({ onSaved, onDelete, initialDraft, masterData, compute
       broker: firstBroker,
       settleAccount: firstSettle,
       feeOverride: '', // 空 = 依費率自動計算；有值 = 使用者手動改過的手續費金額
-      taxOverride: '', // 空 = 賣出依 0.3% 自動計算；有值 = 手動改過的證交稅金額
+      taxOverride: '', // 空 = 依稅率自動計算；有值 = 手動改過的證交稅金額
+      taxRateMode: null, // null = 依股票類別自動選稅率；數字 = 使用者手動選的稅率
       date: new Date(window.TODAY_DATE || TODAY_ACC), note: '',
       ...(draftStock || {})
     };
@@ -790,7 +791,12 @@ function StockForm({ state, update, onSaved, onDelete, recordId, masterData, com
   // 手續費／證交稅：預設自動試算（0.1425% / 賣出 0.3%），但可直接修改金額；清空即恢復自動
   const feeOverridden = state.feeOverride !== '' && state.feeOverride != null && !isNaN(parseFloat(state.feeOverride));
   const fee = feeOverridden ? Math.round(parseFloat(state.feeOverride)) : autoFee;
-  const autoTax = state.side === 'sell' ? Math.round(gross * 0.003) : 0;
+  // 證交稅率依股票類型：一般股票 0.3% / 當沖 0.15% / 一般 ETF・權證 0.1% / 原型債券 ETF・公司債 0%。
+  // 依「股票類別」給預設值：債券型→0%、其它 ETF 型→0.1%、美股(無台灣證交稅)→0%、個股→0.3%。
+  const TAX_RATES = [{ r: 0.003, label: '一般 0.3%' }, { r: 0.0015, label: '當沖 0.15%' }, { r: 0.001, label: 'ETF 0.1%' }, { r: 0, label: '免稅 0%' }];
+  const defaultTaxRate = (ac) => { const s = String(ac || ''); if (/債/.test(s)) return 0; if (s === '美股') return 0; if (/型$/.test(s) || /ETF/i.test(s) || /權證/.test(s)) return 0.001; return 0.003; };
+  const taxRate = state.side === 'sell' ? (state.taxRateMode != null ? state.taxRateMode : defaultTaxRate(state.assetClass)) : 0;
+  const autoTax = state.side === 'sell' ? Math.round(gross * taxRate) : 0;
   const taxOverridden = state.side === 'sell' && state.taxOverride !== '' && state.taxOverride != null && !isNaN(parseFloat(state.taxOverride));
   const tax = taxOverridden ? Math.round(parseFloat(state.taxOverride)) : autoTax;
   const net = state.side === 'buy' ? gross + fee : gross - fee - tax;
@@ -827,7 +833,7 @@ function StockForm({ state, update, onSaved, onDelete, recordId, masterData, com
         {SIDES.map((s) => {
           const on = s.id === state.side;
           return (
-            <button key={s.id} onClick={() => update({ side: s.id, feeOverride: '', taxOverride: '' })} style={{
+            <button key={s.id} onClick={() => update({ side: s.id, feeOverride: '', taxOverride: '', taxRateMode: null })} style={{
               flex: 1, borderRadius: RS(16),
               background: on ?
               s.color :
@@ -991,9 +997,17 @@ function StockForm({ state, update, onSaved, onDelete, recordId, masterData, com
             fontFamily: TOKENS.fontMono, fontSize: FS(16), color: TOKENS.ink, outline: 'none' }} />
         </div>
         {state.side === 'sell' &&
-        <div style={{ marginTop: SP(4), display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: FS(16),
+        <>
+          <div style={{ marginTop: SP(7), display: 'flex', gap: SP(5) }}>
+            {TAX_RATES.map((o) => { const on = !taxOverridden && Math.abs(taxRate - o.r) < 1e-9; return (
+              <button key={o.r} onClick={() => update({ taxRateMode: o.r, taxOverride: '' })} style={{
+                flex: 1, minWidth: 0, height: 30, borderRadius: RS(8), fontSize: FS(13), fontWeight: on ? 700 : 500,
+                background: on ? `${accent}1f` : 'rgba(0,0,0,0.05)', border: on ? `1px solid ${accent}` : '1px solid rgba(0,0,0,0.10)',
+                color: on ? accent : 'rgba(44,44,50,0.7)', whiteSpace: 'nowrap' }}>{o.label}</button>); })}
+          </div>
+          <div style={{ marginTop: SP(6), display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: FS(16),
           color: 'rgba(44,44,50,0.6)' }}>
-            <span>證交稅 0.3%{taxOverridden ? ' · 手動' : ''}</span>
+            <span>證交稅 {Math.round(taxRate * 1000) / 10}%{taxOverridden ? ' · 手動' : ''}</span>
             <input value={taxOverridden ? state.taxOverride : sh > 0 && pr > 0 ? String(autoTax) : ''}
           onChange={(e) => update({ taxOverride: ffNormNum(e.target.value).replace(/[^0-9.]/g, '') })}
           inputMode="decimal" placeholder="0" aria-label="證交稅金額（可修改）"
@@ -1002,6 +1016,7 @@ function StockForm({ state, update, onSaved, onDelete, recordId, masterData, com
             border: taxOverridden ? `1px solid ${accent}88` : '1px solid rgba(0,0,0,0.14)',
             fontFamily: TOKENS.fontMono, fontSize: FS(16), color: TOKENS.ink, outline: 'none' }} />
           </div>
+        </>
         }
         <div style={{ marginTop: SP(10), paddingTop: SP(10),
           borderTop: '1px solid rgba(0,0,0,0.14)',
@@ -1020,7 +1035,7 @@ function StockForm({ state, update, onSaved, onDelete, recordId, masterData, com
       <SectionLabel>交割資訊</SectionLabel>
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: SP(10) }}>
         <DropField label="分類" value={state.assetClass}
-        options={classes} onChange={(v) => update({ assetClass: v })} />
+        options={classes} onChange={(v) => update({ assetClass: v, taxRateMode: null, taxOverride: '' })} />
         <DropField label="證券戶" value={state.broker}
         options={brokers} onChange={(v) => {
           const autoSettle = brokerSettleMap[v];
