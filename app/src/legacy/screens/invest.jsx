@@ -220,7 +220,7 @@ function InvestDetailSheet({ data, mask, onClose, savedTrades = [], onEditRecord
               fontFamily: TOKENS.fontMono, fontWeight: 700,
               color: adjPnl < 0 ? TOKENS.red : TOKENS.ink2 }}>
               {up ? <TrendUp size={14} strokeWidth={2.4} /> : <TrendDown size={14} strokeWidth={2.4} />}
-              <span style={{ fontSize: FS(21) }}>{up ? '' : '-'}{cp(mask(Math.abs(adjPnl)))}</span>
+              <span style={{ fontSize: FS(21) }}>{cur ? cur + ' ' : ''}{up ? '' : '-'}{mask(Math.abs(adjPnl))}</span>
               <span style={{ fontSize: FS(16), fontWeight: 600, opacity: 0.78 }}>({up ? '+' : ''}{adjPct.toFixed(2)}%)</span>
             </div>
           </div>
@@ -290,7 +290,7 @@ function InvestDetailSheet({ data, mask, onClose, savedTrades = [], onEditRecord
                 </div>
                 <div style={{ fontFamily: TOKENS.fontMono, fontSize: FS(18), fontWeight: 600,
                   color: isBuy ? TOKENS.red : TOKENS.ink2, flexShrink: 0 }}>
-                  {isBuy ? '-' : ''}{cp(mask(netAmt))}
+                  {cur ? cur + ' ' : ''}{isBuy ? '-' : ''}{mask(netAmt)}
                 </div>
                 {editable &&
                 <ChevronRight size={16} style={{ color: 'rgba(44,44,50,0.3)', flexShrink: 0, marginLeft: SP(-4) }} />
