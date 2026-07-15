@@ -865,7 +865,7 @@ function MonthlyStatsSheet({ open, onClose, savedFlows, masterData, hideAmounts,
         {/* 餘額柱（背景、半透明），折線在上方 */}
         {nets.map((v, i) => { const h = Math.abs(v) / range * chartH, pos = v >= 0; const on = selIdx == null || selIdx === i;
           return <rect key={'b' + i} x={xAt(i) - bw / 2} y={pos ? zeroY - h : zeroY} width={bw} height={h} rx="2"
-            fill={pos ? NET_POS : NET_NEG} opacity={on ? 0.30 : 0.12} />; })}
+            fill={pos ? NET_POS : NET_NEG} opacity={on ? 0.15 : 0.06} />; })}
         {/* 零基準線 */}
         <line x1={pL} y1={zeroY} x2={W - pR} y2={zeroY} stroke="rgba(0,0,0,0.16)" />
         {/* 選取虛線 */}
