@@ -726,8 +726,11 @@ function StockForm({ state, update, onSaved, onDelete, recordId, masterData, com
   const editId = savedAsNew ? undefined : recordId;
   const md = masterData || {};
 
-  // Flatten all holdings for sell picker (guard against undefined)
-  const allHoldings = (computedHoldings || []).flatMap((g) => g && g.items ? g.items.filter(Boolean) : []);
+  // Flatten all holdings for sell picker (guard against undefined)。
+  // 持倉的股票類別掛在「群組」(g.id = assetClass) 上，個別 item 沒有，
+  // 攤平時補回 assetClass，讓賣出挑選與「自動帶入類別」都能取到。
+  const allHoldings = (computedHoldings || []).flatMap((g) =>
+  g && g.items ? g.items.filter(Boolean).map((it) => ({ ...it, assetClass: it.assetClass || g.id || g.name })) : []);
   const [showHoldings, setShowHoldings] = useStateAcc(false);
 
   // When switching to sell, show holdings picker if available
@@ -769,10 +772,24 @@ function StockForm({ state, update, onSaved, onDelete, recordId, masterData, com
       '台股': '股票', '美股': '股票',
       '債券': '債券', 'ETF': '市值 ETF'
     };
+    // 若這檔已在持倉中，優先沿用使用者當初設定的股票類別。
+    const held = allHoldings.find((h) => h.code && h.code.toLowerCase() === String(s.code).toLowerCase());
     update({ code: s.code, name: s.name,
       price: s.last ? String(s.last) : '',
-      assetClass: classMap[s.class] || s.class || '股票' });
+      assetClass: held && held.assetClass || classMap[s.class] || s.class || '股票' });
   };
+
+  // 輸入代號或名稱時，若已是手上持有的股票，自動帶入該股票的類別。
+  // deps 只放 code/name：使用者之後手動改類別不會被覆蓋（除非再改代號/名稱）。
+  useEffectAcc(() => {
+    const code = (state.code || '').trim().toLowerCase();
+    const nm = (state.name || '').trim();
+    if (!code && !nm) return;
+    const h = allHoldings.find((x) =>
+    code && x.code && x.code.toLowerCase() === code ||
+    nm && x.name && x.name === nm);
+    if (h && h.assetClass && h.assetClass !== state.assetClass) update({ assetClass: h.assetClass });
+  }, [state.code, state.name]);
 
   const sh = parseFloat(state.shares) || 0;
   const pr = parseFloat(state.price) || 0;
