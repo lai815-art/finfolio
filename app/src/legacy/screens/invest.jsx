@@ -754,7 +754,7 @@ function InvestBreakdownSheet({ open, onClose, computedHoldings = [], masterData
                   <g key={i}>
                   <line x1={padL} y1={toY(v)} x2={W - padR} y2={toY(v)}
                     stroke="rgba(0,0,0,0.05)" strokeWidth={1} strokeDasharray="3 3" />
-                  <text x={padL - 4} y={toY(v) + 4} textAnchor="end" fill="rgba(60,60,67,0.45)" fontSize={12}>
+                  <text x={padL - 4} y={toY(v) + 4} textAnchor="end" fill="rgba(60,60,67,0.45)" fontSize={14}>
                     {fmtK(v)}
                   </text>
                 </g>
@@ -784,7 +784,7 @@ function InvestBreakdownSheet({ open, onClose, computedHoldings = [], masterData
                     return (
                       <g key={y}>
                     {bars}
-                    <text x={cx} y={labelY} textAnchor="middle" fill="rgba(60,60,67,0.6)" fontSize={12}>{years.length > 6 ? "'" + String(y).slice(2) : y}</text>
+                    <text x={cx} y={labelY} textAnchor="middle" fill="rgba(60,60,67,0.6)" fontSize={14}>{years.length > 6 ? "'" + String(y).slice(2) : y}</text>
                   </g>);
                   })}
               </svg>

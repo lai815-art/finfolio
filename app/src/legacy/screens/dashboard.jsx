@@ -881,7 +881,7 @@ function MonthlyStatsSheet({ open, onClose, savedFlows, masterData, hideAmounts,
         {/* 總支出折線（紅虛線） */}
         <polyline points={data.map((a, i) => `${xAt(i).toFixed(1)},${yAt(a.exp || 0).toFixed(1)}`).join(' ')}
           fill="none" stroke={TOKENS.red} strokeWidth="2" strokeDasharray="5 3" strokeLinejoin="round" strokeLinecap="round" />
-        {data.map((_, i) => i % step === 0 ? <text key={'t' + i} x={xAt(i)} y={H - 6} textAnchor="middle" fill="rgba(44,44,50,0.5)" style={{ fontSize: '10px' }}>{labels[i]}</text> : null)}
+        {data.map((_, i) => i % step === 0 ? <text key={'t' + i} x={xAt(i)} y={H - 6} textAnchor="middle" fill="rgba(44,44,50,0.5)" style={{ fontSize: '14px' }}>{labels[i]}</text> : null)}
         {/* 點擊熱區：每欄一條 → 開啟彈出視窗 */}
         {data.map((_, i) => <rect key={'h' + i} x={xAt(i) - cw / 2} y={0} width={cw} height={H} fill="transparent" onClick={() => toggleSel(i)} style={{ cursor: 'pointer' }} />)}
       </svg>);
