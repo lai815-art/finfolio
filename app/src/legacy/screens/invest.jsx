@@ -50,7 +50,7 @@ function HoldingCard({ item, color, mask, onOpen }) {
           {mask(item.mv)}
         </div>
         <div style={{ ...{ marginTop: SP(3), fontFamily: TOKENS.fontMono, fontSize: FS(16), fontWeight: 600,
-            color: item.pnl < 0 ? TOKENS.red : TOKENS.ink2, height: "20px", whiteSpace: 'nowrap' }, fontSize: "15px", height: "22px" }}>
+            color: item.pnl < 0 ? TOKENS.red : TOKENS.incBlue, height: "20px", whiteSpace: 'nowrap' }, fontSize: "15px", height: "22px" }}>
           {up ? '' : '-'}{mask(Math.abs(item.pnl))}
           <span style={{ fontSize: FS(14), fontWeight: 400, opacity: 0.8, marginLeft: SP(2) }}>
             ({up ? '+' : ''}{item.pct.toFixed(1)}%)
@@ -218,7 +218,7 @@ function InvestDetailSheet({ data, mask, onClose, savedTrades = [], onEditRecord
             </div>
             <div style={{ display: 'flex', alignItems: 'center', gap: SP(6),
               fontFamily: TOKENS.fontMono, fontWeight: 700,
-              color: adjPnl < 0 ? TOKENS.red : TOKENS.ink2 }}>
+              color: adjPnl < 0 ? TOKENS.red : TOKENS.incBlue }}>
               {up ? <TrendUp size={14} strokeWidth={2.4} /> : <TrendDown size={14} strokeWidth={2.4} />}
               <span style={{ fontSize: FS(21) }}>{cur ? cur + ' ' : ''}{up ? '' : '-'}{mask(Math.abs(adjPnl))}</span>
               <span style={{ fontSize: FS(16), fontWeight: 600, opacity: 0.78 }}>({up ? '+' : ''}{adjPct.toFixed(1)}%)</span>
@@ -460,7 +460,7 @@ function InvestScreen({ hideAmounts, onOpenDetail, savedTrades = [], computedHol
               <span style={{ fontSize: FS(16), color: 'rgba(255,255,255,0.75)' }}>未實現損益</span>
               <span style={{ ...{ display: 'inline-flex', alignItems: 'center', gap: SP(5),
                 padding: PAD('4px 12px'), borderRadius: RS(999), background: 'rgba(255,255,255,0.92)',
-                color: portPnl < 0 ? TOKENS.red : TOKENS.ink2, fontSize: FS(17), fontWeight: 600, fontFamily: TOKENS.fontMono, whiteSpace: 'nowrap', height: "32px" }, padding: "4px 12px" }}>
+                color: portPnl < 0 ? TOKENS.red : TOKENS.incBlue, fontSize: FS(17), fontWeight: 600, fontFamily: TOKENS.fontMono, whiteSpace: 'nowrap', height: "32px" }, padding: "4px 12px" }}>
                 {portPnl < 0 ? '-' : ''}{mask(Math.abs(portPnl))}
                 <span style={{ opacity: 0.7, fontWeight: 400 }}>({portPnl < 0 ? '' : '+'}{portPct.toFixed(1)}%)</span>
               </span>
