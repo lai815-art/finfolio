@@ -554,7 +554,7 @@ function InvestBreakdownSheet({ open, onClose, computedHoldings = [], masterData
   // 所有個股持倉（依市值排序）+ 每檔配色
   const holdings = allItems.filter((it) => it.mvT > 0).sort((a, b) => b.mvT - a.mvT)
   .map((h, i) => ({ ...h, color: TAB_COLORS_INV[i % TAB_COLORS_INV.length], pct: portfolioMv > 0 ? h.mvT / portfolioMv * 100 : 0 }));
-  const holdingData = holdings.map((h) => ({ name: h.code, color: h.color, pct: h.pct }));
+  const holdingData = holdings.map((h) => ({ name: h.name || h.code, color: h.color, pct: h.pct }));
   const StatDonut = window.StatDonut;
   const assetIconName = window.assetIconName || (() => 'TrendUp');
 
@@ -604,15 +604,16 @@ function InvestBreakdownSheet({ open, onClose, computedHoldings = [], masterData
               {StatDonut && <StatDonut data={holdingData} total={portfolioMv} label="市值" color={TOKENS.ink} mask={mask} />}
               <div style={{ marginTop: SP(14), display: 'flex', flexDirection: 'column' }}>
                 {holdings.map((h, i) => {
-                  const Ico = window.Icons[assetIconName(h.assetClass)] || window.Icons.TrendUp;
                   return (
                   <div key={h.code + i} style={{ display: 'flex', alignItems: 'center', gap: SP(12), padding: PAD('12px 2px'),
                     borderTop: i === 0 ? '1px solid rgba(0,0,0,0.07)' : 'none',
                     borderBottom: '1px solid rgba(0,0,0,0.07)' }}>
+                    {/* icon 改成顯示個股類別（如 股票 / 市值 / 債券） */}
                     <div style={{ width: 40, height: 40, borderRadius: RS(12), flexShrink: 0,
-                      background: `${h.color}22`, border: `1px solid ${h.color}55`,
+                      background: `${h.color}22`, border: `1px solid ${h.color}55`, color: h.color,
+                      fontSize: FS(13), fontWeight: 700, lineHeight: 1.15, textAlign: 'center', padding: SP(2),
                       display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                      <Ico size={20} style={{ color: h.color }} />
+                      {(h.assetClass || '—').slice(0, 2)}
                     </div>
                     <div style={{ flex: 1, minWidth: 0 }}>
                       <div style={{ fontSize: FS(19), fontWeight: 500, color: TOKENS.ink,
