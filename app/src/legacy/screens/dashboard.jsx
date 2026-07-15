@@ -410,6 +410,8 @@ function DailyView({ date, hideAmounts, extraFlows = [], extraTrades = [], onEdi
               </div>
               <div style={{ ...{ fontFamily: TOKENS.fontMono, fontSize: FS(20),
                   fontWeight: 600, color: amtColor, whiteSpace: 'nowrap', flexShrink: 0 }, fontSize: "17px" }}>
+                {(() => { const c = curMap[t.kind === 'xfer' ? t.fromAccount : t.account]; return c && c !== 'TWD' ?
+                  <span style={{ fontSize: FS(12), fontWeight: 400, opacity: 0.72, marginRight: 2 }}>{c}</span> : null; })()}
                 {sign}{mask(t.amount)}
               </div>
             </div>);

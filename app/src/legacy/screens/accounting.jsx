@@ -460,6 +460,14 @@ function FlowForm({ state, update, onSaved, onDelete, recordId, masterData }) {
   (md.accounts || []).forEach((a) => {nameKind[a.name] = a.kind || '其他';});
   (md.settle || []).forEach((s) => {if (nameKind[s.name] == null) nameKind[s.name] = '交割戶';});
   const acctColor = (name) => ACCT_KIND_COLOR[nameKind[name]] || TOKENS.gray3;
+  // 帳戶幣別：記帳金額以「所選帳戶」的幣別計價；外幣帳戶要在金額前顯示幣別。
+  const acctCur = {};
+  (md.accounts || []).forEach((a) => {acctCur[a.name] = a.currency || 'TWD';});
+  (md.settle || []).forEach((s) => {if (acctCur[s.name] == null) acctCur[s.name] = s.currency || 'TWD';});
+  const curOf = (name) => acctCur[name] || 'TWD';
+  // 收支看所選帳戶；轉帳金額以「轉出帳戶」的幣別計價。
+  const amtCur = state.kind === 'xfer' ? curOf(state.fromAccount) : curOf(state.account);
+  const isForeign = amtCur && amtCur !== 'TWD';
   const buildAcctGroups = (names) => {
     const byKind = {};
     names.forEach((n) => {const k = nameKind[n] || '其他';(byKind[k] = byKind[k] || []).push(n);});
@@ -543,8 +551,9 @@ function FlowForm({ state, update, onSaved, onDelete, recordId, masterData }) {
           padding: PAD('16px 20px'), borderRadius: RS(16), background: TOKENS.surface,
           border: '1px solid rgba(0,0,0,0.20)', height: "54px", lineHeight: "1.6"
         }, padding: "9px 20px 12px" }}>
-        <div style={{ display: 'flex', alignItems: 'baseline', gap: SP(8), lineHeight: "1.8" }}>
-
+        <div style={{ display: 'flex', alignItems: 'baseline', gap: SP(6), lineHeight: "1.8" }}>
+          {isForeign &&
+          <span style={{ flexShrink: 0, fontSize: FS(12), fontWeight: 600, color: active.color, opacity: 0.75 }}>{amtCur}</span>}
           <input value={state.amount} onChange={(e) => update({ amount: ffNormNum(e.target.value) })}
           placeholder="0" inputMode="decimal"
           style={{
