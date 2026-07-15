@@ -440,7 +440,7 @@ function SectionLabel({ children, action }) {
 /* ============= 收支轉帳 form ============= */
 function FlowForm({ state, update, onSaved, onDelete, recordId, masterData }) {
   const { Plus, Tag, CreditCard, Calendar, ArrowRight, Wallet, X, Trash } = window.Icons;
-  // 編輯狀態下按「再記一筆」會另存為新的一筆並停留在本頁；此後表單就轉為「新增」模式
+  // 編輯狀態下按「再記一筆」＝先更新原紀錄、停留本頁，之後表單轉為「新增」模式
   // （後續儲存都是新紀錄），所以用本地旗標讓 recordId 之後視同不存在。
   const [savedAsNew, setSavedAsNew] = useStateAcc(false);
   const editId = savedAsNew ? undefined : recordId;
@@ -690,11 +690,11 @@ function FlowForm({ state, update, onSaved, onDelete, recordId, masterData }) {
           }, color: "rgb(255, 255, 255)" }}>
           <Plus size={20} strokeWidth={2.5} /> {editId ? '更新' : '儲存'}{active.label}
         </button>
-        {/* 再記一筆：新增或編輯皆可。送出後停留本頁、只清空金額、其餘欄位（含日期）保留，
-            方便連續輸入下一筆。編輯狀態按下後就轉為新增模式（不再動到原紀錄）。 */}
+        {/* 再記一筆：送出後停留本頁、只清空金額、其餘欄位（含日期）保留，方便連續輸入。
+            編輯狀態按下＝先「更新原紀錄」再轉為新增模式；新增狀態則直接存為新的一筆。 */}
         <button onClick={() => {
           if (!state.amount || parseFloat(state.amount) <= 0) return;
-          onSaved && onSaved('flow', { ...state, recordId: undefined }, true);
+          onSaved && onSaved('flow', { ...state, recordId: editId }, true);
           update({ amount: '' });
           if (editId) setSavedAsNew(true);
         }} style={{
@@ -721,7 +721,7 @@ function FlowForm({ state, update, onSaved, onDelete, recordId, masterData }) {
 /* ============= 股票買賣 form ============= */
 function StockForm({ state, update, onSaved, onDelete, recordId, masterData, computedHoldings = [] }) {
   const { Plus, TrendUp, TrendDown, Search, Calendar, X, Trash } = window.Icons;
-  // 見 FlowForm：編輯時按「再記一筆」另存新紀錄並停留本頁，之後轉為新增模式。
+  // 見 FlowForm：編輯時按「再記一筆」＝先更新原紀錄、停留本頁，之後轉為新增模式。
   const [savedAsNew, setSavedAsNew] = useStateAcc(false);
   const editId = savedAsNew ? undefined : recordId;
   const md = masterData || {};
@@ -1074,10 +1074,10 @@ function StockForm({ state, update, onSaved, onDelete, recordId, masterData, com
           <Plus size={20} strokeWidth={2.5} /> {editId ? '更新' : '儲存'}{state.side === 'buy' ? '買進' : '賣出'}紀錄
         </button>
         {/* 再記一筆：送出後停留本頁，清空股票代號/股數/成交價，保留券商、交割戶、類別、
-            日期等欄位，方便連續輸入下一筆。編輯狀態按下後轉為新增模式。 */}
+            日期等欄位。編輯狀態按下＝先「更新原紀錄」再轉為新增模式；新增則存為新的一筆。 */}
         <button onClick={() => {
           if (!state.code || !state.shares || !state.price) return;
-          onSaved && onSaved('stock', { ...state, fee, tax, net, recordId: undefined }, true);
+          onSaved && onSaved('stock', { ...state, fee, tax, net, recordId: editId }, true);
           update({ code: '', name: '', shares: '', price: '', feeOverride: '', taxOverride: '' });
           if (editId) setSavedAsNew(true);
         }} style={{
