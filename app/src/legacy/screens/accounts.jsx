@@ -366,7 +366,7 @@ function AccountDetailSheet({ data, mask, onClose, onSaveItem, savedFlows = [], 
 
             <div style={{ marginTop: SP(4), fontFamily: TOKENS.fontMono, fontSize: FS(28), fontWeight: 700, color: TOKENS.surface, letterSpacing: -0.5 }}>
               {item.currency && item.currency !== 'TWD' &&
-              <span style={{ fontSize: FS(18), color: 'rgba(255,255,255,0.80)', marginRight: SP(4) }}>{item.currency}</span>
+              <span style={{ fontSize: FS(12), color: 'rgba(255,255,255,0.80)', marginRight: SP(4) }}>{item.currency}</span>
               }
               {mask(isCredit ? Math.abs(item.amount) : item.amount)}
             </div>
@@ -412,7 +412,7 @@ function AccountDetailSheet({ data, mask, onClose, onSaveItem, savedFlows = [], 
             <div style={{ fontSize: FS(14), color: 'rgba(0,0,0,0.5)', marginTop: SP(1) }}>
               本月變動 <span style={{ fontFamily: TOKENS.fontMono,
                 color: monthNet > 0 ? TOKENS.incBlue : monthNet < 0 ? TOKENS.red : 'rgba(0,0,0,0.5)' }}>
-                {item.currency && item.currency !== 'TWD' ? item.currency + ' ' : ''}{monthNet > 0 ? '+' : monthNet < 0 ? '-' : ''}{mask(Math.abs(monthNet))}</span>
+                {item.currency && item.currency !== 'TWD' && <span style={{ fontSize: FS(12), fontWeight: 400, opacity: 0.72, marginRight: 2 }}>{item.currency}</span>}{monthNet > 0 ? '+' : monthNet < 0 ? '-' : ''}{mask(Math.abs(monthNet))}</span>
             </div>
           </div>
           <button onClick={() => setMonthOff((m) => Math.min(0, m + 1))} disabled={monthOff >= 0} style={{
@@ -498,7 +498,7 @@ function AccountDetailSheet({ data, mask, onClose, onSaveItem, savedFlows = [], 
                         <div style={{ fontFamily: TOKENS.fontMono, fontSize: FS(18),
                           fontWeight: 600, flexShrink: 0, whiteSpace: 'nowrap',
                           color: isInc ? TOKENS.incBlue : TOKENS.red }}>
-                            {item.currency && item.currency !== 'TWD' ? item.currency + ' ' : ''}{isInc ? '' : '-'}{mask(Math.abs(displayAmt))}
+                            {item.currency && item.currency !== 'TWD' && <span style={{ fontSize: FS(12), fontWeight: 400, opacity: 0.72, marginRight: 2 }}>{item.currency}</span>}{isInc ? '' : '-'}{mask(Math.abs(displayAmt))}
                           </div>
                         }
                         <Pencil size={13} style={{ color: 'rgba(44,44,50,0.22)', flexShrink: 0 }} />
@@ -646,7 +646,7 @@ function AccountItemRow({ item, group, mask, last, onOpen }) {
         <div style={{ fontFamily: TOKENS.fontMono, fontSize: FS(18), fontWeight: 600, flexShrink: 0, whiteSpace: 'nowrap',
           color: neg ? TOKENS.red : TOKENS.ink }}>
           {item.currency && item.currency !== 'TWD' &&
-          <span style={{ fontSize: FS(13), color: 'rgba(0,0,0,0.62)', marginRight: SP(3) }}>{item.currency}</span>
+          <span style={{ fontSize: FS(12), color: 'rgba(0,0,0,0.62)', marginRight: SP(3) }}>{item.currency}</span>
           }
           {neg ? '-' : ''}{mask(Math.abs(av))}
         </div>);

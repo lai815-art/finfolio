@@ -140,7 +140,8 @@ function InvestDetailSheet({ data, mask, onClose, savedTrades = [], onEditRecord
   const up = adjPnl >= 0;
   // 非台幣個股（如美股）金額前面加上幣別代號；台幣不加。
   const cur = data.currency && data.currency !== 'TWD' ? data.currency : '';
-  const cp = (s) => cur ? cur + ' ' + s : s;
+  // 幣別代號放金額前面，但字級不超過 12（比數字小）。
+  const cp = (s) => cur ? <><span style={{ fontSize: FS(12), fontWeight: 400, opacity: 0.72, marginRight: 2 }}>{cur}</span>{s}</> : s;
 
   return (
     <div style={{
@@ -220,7 +221,7 @@ function InvestDetailSheet({ data, mask, onClose, savedTrades = [], onEditRecord
               fontFamily: TOKENS.fontMono, fontWeight: 700,
               color: adjPnl < 0 ? TOKENS.red : TOKENS.incBlue }}>
               {up ? <TrendUp size={14} strokeWidth={2.4} /> : <TrendDown size={14} strokeWidth={2.4} />}
-              <span style={{ fontSize: FS(21) }}>{cur ? cur + ' ' : ''}{up ? '' : '-'}{mask(Math.abs(adjPnl))}</span>
+              <span style={{ fontSize: FS(21) }}>{cp((up ? '' : '-') + mask(Math.abs(adjPnl)))}</span>
               <span style={{ fontSize: FS(16), fontWeight: 600, opacity: 0.78 }}>({up ? '+' : ''}{adjPct.toFixed(1)}%)</span>
             </div>
           </div>
@@ -292,7 +293,7 @@ function InvestDetailSheet({ data, mask, onClose, savedTrades = [], onEditRecord
                 </div>
                 <div style={{ fontFamily: TOKENS.fontMono, fontSize: FS(18), fontWeight: 600,
                   color: isBuy ? TOKENS.red : TOKENS.ink2, flexShrink: 0 }}>
-                  {cur ? cur + ' ' : ''}{isBuy ? '-' : ''}{mask(netAmt)}
+                  {cp((isBuy ? '-' : '') + mask(netAmt))}
                 </div>
                 {editable &&
                 <ChevronRight size={16} style={{ color: 'rgba(44,44,50,0.3)', flexShrink: 0, marginLeft: SP(-4) }} />
