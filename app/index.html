@@ -189,15 +189,63 @@
       vv.addEventListener('scroll', vvAdjust);
     }
 
-    // Keep the focused field visible above the keyboard: scroll it toward the
-    // centre of its scroll container once the keyboard has animated in.
-    document.addEventListener('focusin', function (e) {
-      var el = e.target;
-      if (!el || !/^(INPUT|TEXTAREA|SELECT)$/.test(el.tagName)) return;
-      setTimeout(function () {
+    // 鍵盤避讓：鍵盤蓋住下半部欄位時，光靠 scrollIntoView 不夠——欄位若在容器內容
+    // 末端，容器已無捲動空間可把它捲到鍵盤上方。解法：鍵盤打開期間，給「聚焦欄位
+    // 所在的可捲動容器」臨時加上等於鍵盤高度的底部內距（螢幕px ÷ 縮放k 轉成畫布座標），
+    // 產生捲動空間後再把欄位捲到中央；鍵盤收起即還原內距。只動 padding 與捲動位置，
+    // 不動畫布縮放與 transform，所以不會跑版。
+    (function () {
+      var padded = null, padOld = '';
+      function scaleK() {
+        try {
+          var el = document.getElementById('scale');
+          var m = new DOMMatrixReadOnly(getComputedStyle(el).transform);
+          return m.a || 1;
+        } catch (_) { return 1; }
+      }
+      function kbHeight() {
+        if (!window.visualViewport) return 0;
+        return Math.max(0, (window.innerHeight || 0) - window.visualViewport.height);
+      }
+      function scrollParent(el) {
+        for (var n = el && el.parentElement; n; n = n.parentElement) {
+          var s = getComputedStyle(n);
+          if (/(auto|scroll)/.test(s.overflowY)) return n;
+        }
+        return null;
+      }
+      function restore() {
+        if (padded) { padded.style.paddingBottom = padOld; padded = null; padOld = ''; }
+      }
+      function reveal() {
+        var el = document.activeElement;
+        if (!el || !/^(INPUT|TEXTAREA|SELECT)$/.test(el.tagName)) { restore(); return; }
+        var kb = kbHeight();
+        if (kb < 60) { // 鍵盤沒開（或已收起）：不加內距，仍置中一次
+          restore();
+          try { el.scrollIntoView({ block: 'center', behavior: 'smooth' }); } catch (_) {}
+          return;
+        }
+        var sc = scrollParent(el);
+        if (sc) {
+          if (padded && padded !== sc) restore();
+          if (padded !== sc) { padded = sc; padOld = sc.style.paddingBottom; }
+          sc.style.paddingBottom = Math.round(kb / scaleK() + 24) + 'px';
+        }
         try { el.scrollIntoView({ block: 'center', behavior: 'smooth' }); } catch (_) {}
-      }, 300);
-    });
+      }
+      // 聚焦後等鍵盤動畫、鍵盤高度改變時（打開/換輸入法/收起）都重新對位
+      document.addEventListener('focusin', function () { setTimeout(reveal, 350); });
+      if (window.visualViewport) {
+        window.visualViewport.addEventListener('resize', function () { setTimeout(reveal, 60); });
+      }
+      document.addEventListener('focusout', function () {
+        setTimeout(function () {
+          var el = document.activeElement;
+          if (!el || !/^(INPUT|TEXTAREA|SELECT)$/.test(el.tagName)) restore();
+        }, 250);
+      });
+    })();
     // A few early ticks so the first paint settles, then keep correcting on the events above.
     [0, 100, 400, 800, 1500].forEach(function (t) { setTimeout(fit, t); });
   </script>
