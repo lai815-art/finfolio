@@ -650,8 +650,8 @@ function DashboardScreen({ hideAmounts, setHideAmounts, savedFlows = [], savedTr
     const dy = p.clientY - touchRef.current.y;
     touchRef.current.active = false;
     if (Math.abs(dx) > 60 && Math.abs(dx) > Math.abs(dy) * 1.2) {
-      if (dx > 0) stepDay(-1); // swipe right → previous day
-      else setCalOpen(true); // swipe left → calendar
+      if (dx > 0) stepDay(-1); // 右滑 → 前一天
+      else stepDay(1); // 左滑 → 後一天
     }
   };
 
