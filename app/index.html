@@ -143,11 +143,15 @@
         probe.style.cssText = 'position:fixed;top:0;left:0;width:0;height:env(safe-area-inset-top,0px);visibility:hidden;pointer-events:none';
         document.body.appendChild(probe);
       }
-      var satScreen = probe.getBoundingClientRect().height;
+      var satRaw = probe.getBoundingClientRect().height;
+      var satScreen = satRaw;
       if (window.FF_STANDALONE && window.innerHeight > window.innerWidth) {
-        if (satScreen > (window.__ffMaxSat || 0)) window.__ffMaxSat = satScreen;
-        if (satScreen < (window.__ffMaxSat || 0)) {
-          satScreen = window.__ffMaxSat;
+        // 直向的獨立 App 一定有安全區（瀏海最少 ~44px、動態島 ~59px）。鍵盤/檔案選擇器
+        // 過場時 iOS 會短暫回報 0 或偏小值，若直接採用就會讓頂部留白瞬間縮掉、返回鍵被切。
+        // 對策：(1)記錄歷來最大值 (2)設 44px 下限 —— 兩者取大，過場的小瞬時值永遠不會勝出。
+        if (satRaw > (window.__ffMaxSat || 0)) window.__ffMaxSat = satRaw;
+        satScreen = Math.max(satRaw, window.__ffMaxSat || 0, 44);
+        if (satRaw < satScreen) { // 目前讀到偏小（過場中）→ 稍後再校正一次
           clearTimeout(window.__ffSatRetry);
           window.__ffSatRetry = setTimeout(fit, 350);
         }
@@ -175,15 +179,26 @@
     // 往下補償回原位（不重算 fit、不改縮放，避免內容跑掉）；鍵盤收起後位移歸零即恢復。
     if (window.FF_STANDALONE && window.visualViewport) {
       var vv = window.visualViewport;
+      var resetScroll = function () {
+        // 鍵盤過場時 iOS 有時會把整個版面(含 position:fixed 的 body)往上捲，
+        // 而且不一定反映在 window.scrollY——connect 各種捲動容器一起歸零才保險。
+        try { if (window.scrollY || window.pageYOffset) window.scrollTo(0, 0); } catch (_) {}
+        try { document.documentElement.scrollTop = 0; } catch (_) {}
+        try { document.body.scrollTop = 0; } catch (_) {}
+        var se = document.scrollingElement; if (se) try { se.scrollTop = 0; } catch (_) {}
+      };
       var vvAdjust = function () {
         var st = document.getElementById('stage');
         if (!st) return;
-        if (window.scrollY) { try { window.scrollTo(0, 0); } catch (_) {} }
+        resetScroll();
         var off = Math.max(0, vv.offsetTop || 0);
         st.style.transform = off > 1 ? 'translateY(' + off + 'px)' : '';
       };
       vv.addEventListener('resize', vvAdjust);
       vv.addEventListener('scroll', vvAdjust);
+      window.__ffResetScroll = resetScroll;
+      // body 已鎖 position:fixed，任何 window 捲動都是 iOS 鍵盤過場造成的假捲動 → 立即歸零。
+      window.addEventListener('scroll', resetScroll, { passive: true });
     }
 
     // 鍵盤避讓：鍵盤蓋住下半部欄位時，光靠 scrollIntoView 不夠——欄位若在容器內容
@@ -242,10 +257,16 @@
           if (el && /^(INPUT|TEXTAREA|SELECT)$/.test(el.tagName)) return; // 只是換到另一個輸入框
           restore();
           // 鍵盤收回後把殘餘的視窗捲動/位移歸零，並重排一次頂部安全區，
-          // 避免 fixed 畫面被往上推、頂端按鈕被瀏海切到。
-          try { window.scrollTo(0, 0); } catch (_) {}
-          var st = document.getElementById('stage'); if (st) st.style.transform = '';
-          [0, 120, 350].forEach(function (t) { setTimeout(fit, t); });
+          // 避免 fixed 畫面被往上推、頂端按鈕被瀏海/動態島切到。多補幾拍：
+          // iOS 收鍵盤的動畫尾段仍可能殘留位移，單次歸零常常太早、押不住。
+          [0, 120, 300, 550, 850].forEach(function (t) {
+            setTimeout(function () {
+              if (window.__ffResetScroll) window.__ffResetScroll();
+              var st = document.getElementById('stage');
+              if (st && (!window.visualViewport || (window.visualViewport.offsetTop || 0) <= 1)) st.style.transform = '';
+              fit();
+            }, t);
+          });
         }, 250);
       });
     })();
