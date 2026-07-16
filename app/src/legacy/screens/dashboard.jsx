@@ -1014,7 +1014,9 @@ function MonthlyStatsSheet({ open, onClose, savedFlows, masterData, hideAmounts,
           </div>
 
           {view === 'spend' &&
-          <div style={{ ...cardStyle, padding: PAD('20px 16px') }}>
+          <div style={{ ...cardStyle, padding: PAD('20px 16px') }}
+            onTouchStart={onSwipeStart} onTouchEnd={onSwipeEnd}
+            onMouseDown={onSwipeStart} onMouseUp={onSwipeEnd}>
             {spendCats.length === 0 ?
             <div style={{ fontSize: FS(17), color: 'rgba(44,44,50,0.4)', textAlign: 'center', padding: PAD('24px 0') }}>本月尚無消費紀錄</div> :
             <>
