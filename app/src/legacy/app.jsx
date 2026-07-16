@@ -614,6 +614,9 @@ function RecordSheet({ open, draft, onClose, onSaved, onDelete, masterData, comp
     }
   }, [open]);
 
+  // 關閉：先向下滑出（shown→false），動畫結束後才真正關閉，做出滑出效果。
+  const animateClose = () => { setShown(false); setTimeout(() => onClose && onClose(), 280); };
+
   if (!open) return null;
   return (
     <div style={{
@@ -621,7 +624,7 @@ function RecordSheet({ open, draft, onClose, onSaved, onDelete, masterData, comp
       background: shown ? 'rgba(0,0,0,0.55)' : 'rgba(0,0,0,0)',
       transition: 'background 220ms ease-out',
       display: 'flex', alignItems: 'flex-end'
-    }} onClick={onClose}>
+    }} onClick={animateClose}>
       <div onClick={(e) => e.stopPropagation()} style={{
         width: '100%', maxHeight: '92%',
         background: TOKENS.bg,
@@ -649,7 +652,7 @@ function RecordSheet({ open, draft, onClose, onSaved, onDelete, masterData, comp
               {draft ? draft.edit ? '修改欄位後儲存' : 'AI 已解析並帶入，確認後送出' : '手動填寫收支、轉帳或股票'}
             </div>
           </div>
-          <button onClick={onClose} style={{ ...{
+          <button onClick={animateClose} style={{ ...{
               width: 36, height: 46, borderRadius: RS(18), flexShrink: 0,
               background: 'rgba(0,0,0,0.14)', border: 'none',
               color: 'rgba(44,44,50,0.7)', display: 'flex', alignItems: 'center', justifyContent: 'center'
