@@ -620,7 +620,9 @@ function RecordSheet({ open, draft, onClose, onSaved, onDelete, masterData, comp
   if (!open) return null;
   return (
     <div style={{
-      position: 'absolute', inset: 0, zIndex: 60,
+      // zIndex 高於帳戶/個股詳情頁(65)，這樣編輯時詳情頁可以留在底下不卸載，
+      // 記一筆滑出時直接露出底下的詳情頁，不會先閃一下資產清單再跳回詳情頁。
+      position: 'absolute', inset: 0, zIndex: 100,
       background: shown ? 'rgba(0,0,0,0.55)' : 'rgba(0,0,0,0)',
       transition: 'background 220ms ease-out',
       display: 'flex', alignItems: 'flex-end'
@@ -1673,11 +1675,11 @@ function App() {
               setAcctDetail(null);
             }}
             onEditRecord={(d) => {
-              const snapshot = acctDetail;
-              setAcctDetail(null);
+              // 不卸載詳情頁：記一筆疊在上面(zIndex 100)，關閉滑出後直接露出底下的詳情頁，
+              // 避免「先跳回資產清單再跳進詳情頁」的閃跳。存完整 {group, item} 快照以便存檔後更新。
               setRecordDraft(d);
               setRecordReturnTab('accounts');
-              setRecordReturnAcctDetail(snapshot); // 存完整 {group, item} 快照，證券戶也能還原
+              setRecordReturnAcctDetail(acctDetail);
               setRecordOpen(true);
             }} />}
             {InvSheet && investDetail &&
@@ -1694,8 +1696,8 @@ function App() {
               setInvestDetail(null);
             }}
             onEditRecord={(d) => {
+              // 同帳戶詳情：不卸載個股詳情頁，記一筆疊在上面，關閉後直接露出，避免閃跳。
               const code = investDetail.item.code;
-              setInvestDetail(null);
               setRecordDraft(d);
               setRecordReturnTab('invest');
               setRecordReturnInvestDetail({ code });
