@@ -27,7 +27,12 @@
     font-family: var(--ff-font-sans, "Noto Sans TC", -apple-system, system-ui, sans-serif);
     /* 數字等寬，讓表格金額對齊（字型本身用系統字，0 為乾淨橢圓、無斜槓/中點）*/
     font-variant-numeric: tabular-nums;
-    -webkit-font-smoothing: antialiased; }
+    -webkit-font-smoothing: antialiased;
+    /* 鎖住整頁捲動：App 內容都用內部捲動容器，視窗本身不應該捲動。
+       iOS 鍵盤彈出時會把整頁捲上去，收回後常留下殘餘捲動量，讓 fixed 的
+       #stage 看起來被往上推、頂端按鈕被切到。整頁固定即可根治，且不動縮放。*/
+    overflow: hidden; overscroll-behavior: none;
+    position: fixed; inset: 0; width: 100%; }
   *, *::before, *::after { box-sizing: border-box; }
   #stage {
     position: fixed; inset: 0;
@@ -242,7 +247,13 @@
       document.addEventListener('focusout', function () {
         setTimeout(function () {
           var el = document.activeElement;
-          if (!el || !/^(INPUT|TEXTAREA|SELECT)$/.test(el.tagName)) restore();
+          if (el && /^(INPUT|TEXTAREA|SELECT)$/.test(el.tagName)) return; // 只是換到另一個輸入框
+          restore();
+          // 鍵盤收回後把殘餘的視窗捲動/位移歸零，並重排一次頂部安全區，
+          // 避免 fixed 畫面被往上推、頂端按鈕被瀏海切到。
+          try { window.scrollTo(0, 0); } catch (_) {}
+          var st = document.getElementById('stage'); if (st) st.style.transform = '';
+          [0, 120, 350].forEach(function (t) { setTimeout(fit, t); });
         }, 250);
       });
     })();
