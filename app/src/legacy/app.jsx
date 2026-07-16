@@ -1063,13 +1063,13 @@ function SettingsOverlay({ open, onClose, masterData, setMasterData, dashWidget,
       display: 'flex', flexDirection: 'column'
     }}>
       <div style={{ height: SBAR_H, flexShrink: 0 }} />
-      <div style={{ ...{ display: 'flex', alignItems: 'center', gap: SP(12), padding: PAD('4px 16px 10px'), height: "60px" }, padding: "3px 13px 4px" }}>
+      <div style={{ ...{ display: 'flex', alignItems: 'center', gap: SP(12) }, padding: "2px 13px 6px" }}>
         <button onClick={onClose} style={{ ...{
             width: 40, borderRadius: RS(14), flexShrink: 0,
             background: 'rgba(0,0,0,0.09)', border: '1px solid rgba(0,0,0,0.12)',
             color: 'rgba(60,60,67,0.88)', display: 'flex', alignItems: 'center', justifyContent: 'center', height: "40px"
           }, height: "40px", width: "40px", borderRadius: "20px" }}><ChevronRight size={20} style={{ transform: 'rotate(180deg)' }} /></button>
-        <div style={{ fontSize: FS(30), fontWeight: 700, color: TOKENS.ink, letterSpacing: -0.5, lineHeight: "1.4" }}>設定</div>
+        <div style={{ fontSize: FS(30), fontWeight: 700, color: TOKENS.ink, letterSpacing: -0.5, lineHeight: "1.1" }}>設定</div>
       </div>
       <div style={{ flex: 1, overflowY: 'auto', overflowX: 'hidden' }}>
         <SettingsScreen masterData={masterData} setMasterData={setMasterData}
