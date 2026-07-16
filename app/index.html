@@ -165,7 +165,7 @@
       // 明細頁(資產配置明細…)標題較長、會延伸到中央島的下方，需要完整安全區才不會被切，
       // 所以 --ff-detail-top 仍用完整安全區 +2px。
       var satC = Math.round(satScreen / k);
-      var mainTop = window.FF_STANDALONE ? Math.min(satC, 44) : 62;
+      var mainTop = window.FF_STANDALONE ? Math.min(satC, 40) : 62;
       var detailTop = window.FF_STANDALONE ? satC + 2 : 62;
       document.documentElement.style.setProperty('--ff-detail-top', detailTop + 'px');
       document.documentElement.style.setProperty('--ff-main-top', mainTop + 'px');
