@@ -472,8 +472,8 @@ function NavHeader({ tab, onSettings, hideAmounts, setHideAmounts }) {
     border: "1px solid rgba(0, 0, 0, 0.12)", lineHeight: "1.5"
   };
   return (
-    <div style={{ ...{ padding: PAD('6px 18px 12px'), display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between' }, padding: "1px 14px 5px", height: "54px" }}>
-      <div style={{ fontWeight: 700, color: TOKENS.ink, letterSpacing: -0.5, fontSize: FS(30), lineHeight: "1.55" }}>
+    <div style={{ ...{ padding: PAD('6px 18px 12px'), display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between' }, padding: "2px 14px 8px" }}>
+      <div style={{ fontWeight: 700, color: TOKENS.ink, letterSpacing: -0.5, fontSize: FS(30), lineHeight: "1.1" }}>
         {titles[tab] || 'FinFolio'}
       </div>
       <div style={{ display: 'flex', alignItems: 'flex-end', gap: SP(8) }}>

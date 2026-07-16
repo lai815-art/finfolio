@@ -149,8 +149,11 @@
         // 直向的獨立 App 一定有安全區（瀏海最少 ~44px、動態島 ~59px）。鍵盤/檔案選擇器
         // 過場時 iOS 會短暫回報 0 或偏小值，若直接採用就會讓頂部留白瞬間縮掉、返回鍵被切。
         // 對策：(1)記錄歷來最大值 (2)設 44px 下限 —— 兩者取大，過場的小瞬時值永遠不會勝出。
-        if (satRaw > (window.__ffMaxSat || 0)) window.__ffMaxSat = satRaw;
-        satScreen = Math.max(satRaw, window.__ffMaxSat || 0, 44);
+        if (satRaw > (window.__ffMaxSat || 0)) window.__ffMaxSat = Math.min(satRaw, 63);
+        // 夾在 [44,63]：44 下限避免過場瞬時 0 把留白縮掉、頂端按鈕被切；
+        // 63 上限避免某次過場回報的異常大值被記住後永久卡住、造成頂部留白過多。
+        // （直向真實安全區：瀏海機 ~47、動態島 ~59，63 已含餘裕。）
+        satScreen = Math.min(Math.max(satRaw, window.__ffMaxSat || 0, 44), 63);
         if (satRaw < satScreen) { // 目前讀到偏小（過場中）→ 稍後再校正一次
           clearTimeout(window.__ffSatRetry);
           window.__ffSatRetry = setTimeout(fit, 350);
