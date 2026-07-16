@@ -511,10 +511,10 @@ function InvestScreen({ hideAmounts, onOpenDetail, savedTrades = [], computedHol
 
 /* ─── 投資組合明細（整頁，點上方圓餅開啟）──────────────────────── */
 function InvestBreakdownSheet({ open, onClose, computedHoldings = [], masterData = {}, mask, savedTrades = [], savedFlows = [] }) {
-  const { ChevronRight } = window.Icons;
+  const { ChevronRight, X } = window.Icons;
   const [yearPage, setYearPage] = useStateInv(null);
   const [invTab, setInvTab] = useStateInv('alloc'); // alloc | pnl
-  const [pnlExpand, setPnlExpand] = useStateInv(null); // 投資收益表展開的年份
+  const [pnlSel, setPnlSel] = useStateInv(null); // 點選柱狀圖/年份列 → 彈出視窗的年度資料 {y,div,bond,pnl}
   const swipeRef = React.useRef({ x: 0, y: 0, active: false }); // 圖表左右滑動翻頁
   if (!open) return null;
 
@@ -790,49 +790,36 @@ function InvestBreakdownSheet({ open, onClose, computedHoldings = [], masterData
                     return (
                       <g key={y}>
                     {bars}
+                    {/* 點擊熱區：整欄 → 開啟該年彈出視窗 */}
+                    <rect x={cx - gap / 2} y={padT} width={gap} height={chartH} fill="transparent"
+                      onClick={() => setPnlSel({ y, div: d.div, bond: d.bond, pnl: d.pnl })} style={{ cursor: 'pointer' }} />
                     <text x={cx} y={labelY} textAnchor="middle" fill="rgba(60,60,67,0.6)" fontSize={14}>{years.length > 6 ? "'" + String(y).slice(2) : y}</text>
                   </g>);
                   })}
               </svg>
 
-              {/* per-year 表：一開始只顯示 年份 + 合計，點擊展開才顯示 股息 / 債息 / 操作 */}
+              {/* per-year 表：只列 年份 + 合計；點任一列（或上方柱狀圖）開啟彈出視窗看明細 */}
               {(() => {
-                const { ChevronDown } = window.Icons;
                 // 表格顯示「所有」年份（不受圖表十年視窗限制），由新到舊、隱藏全為 0 的年份。
                 const yrsRev = allYears.slice().reverse().filter((y) => { const d = byYear[y]; return !(d.pnl === 0 && d.div === 0 && d.bond === 0); });
                 const sum = { div: 0, bond: 0, pnl: 0 };
                 allYears.forEach((y) => { sum.div += byYear[y].div; sum.bond += byYear[y].bond; sum.pnl += byYear[y].pnl; });
                 const sumTot = sum.div + sum.bond + sum.pnl;
-                const detail = (label, v, color) =>
-                <div style={{ display: 'flex', alignItems: 'center', gap: SP(8), padding: PAD('5px 0') }}>
-                  <span style={{ width: 7, height: 7, borderRadius: 4, flexShrink: 0, background: color }} />
-                  <span style={{ flex: 1, fontSize: FS(15), color: 'rgba(44,44,50,0.82)' }}>{label}</span>
-                  <span style={{ fontFamily: TOKENS.fontMono, fontSize: FS(14), color: v < 0 ? C_PNL_NEG : v === 0 ? 'rgba(60,60,67,0.35)' : color }}>{v === 0 ? '—' : (v < 0 ? '-' : '') + mask(Math.abs(v))}</span>
-                </div>;
                 return (
                 <div style={{ borderTop: '1px solid rgba(0,0,0,0.10)', marginTop: SP(10), paddingTop: SP(8) }}>
                   <div style={{ display: 'flex', alignItems: 'center', paddingBottom: SP(8), borderBottom: '1px solid rgba(0,0,0,0.10)' }}>
-                    <div style={{ flex: 1, fontSize: FS(12), fontWeight: 700, color: 'rgba(44,44,50,0.5)' }}>年</div>
-                    <div style={{ flex: 1, textAlign: 'right', fontSize: FS(12), fontWeight: 700, color: 'rgba(44,44,50,0.5)' }}>合計</div>
+                    <div style={{ flex: 1, fontSize: FS(14), fontWeight: 700, color: 'rgba(44,44,50,0.5)' }}>年</div>
+                    <div style={{ flex: 1, textAlign: 'right', fontSize: FS(14), fontWeight: 700, color: 'rgba(44,44,50,0.5)' }}>合計</div>
                     <div style={{ width: 22 }} />
                   </div>
                   {yrsRev.map((y) => {
-                    const d = byYear[y];const tot = d.pnl + d.div + d.bond;const isOpen = pnlExpand === y;
+                    const d = byYear[y];const tot = d.pnl + d.div + d.bond;
                     return (
-                    <div key={y}>
-                      <button onClick={() => setPnlExpand(isOpen ? null : y)} style={{ width: '100%', display: 'flex', alignItems: 'center', padding: PAD('11px 0'), borderBottom: '1px solid rgba(0,0,0,0.06)', background: isOpen ? 'rgba(0,0,0,0.03)' : 'transparent', border: 'none', borderRadius: RS(6), cursor: 'pointer' }}>
-                        <div style={{ flex: 1, textAlign: 'left', fontSize: FS(17), fontWeight: isOpen ? 700 : 600, color: TOKENS.ink, fontFamily: TOKENS.fontMono }}>{y}</div>
+                      <button key={y} onClick={() => setPnlSel({ y, div: d.div, bond: d.bond, pnl: d.pnl })} style={{ width: '100%', display: 'flex', alignItems: 'center', padding: PAD('11px 0'), borderBottom: '1px solid rgba(0,0,0,0.06)', background: 'transparent', border: 'none', borderRadius: RS(6), cursor: 'pointer' }}>
+                        <div style={{ flex: 1, textAlign: 'left', fontSize: FS(17), fontWeight: 600, color: TOKENS.ink, fontFamily: TOKENS.fontMono }}>{y}</div>
                         <div style={{ flex: 1, textAlign: 'right', fontFamily: TOKENS.fontMono, fontSize: FS(17), fontWeight: 700, color: tot < 0 ? C_PNL_NEG : TOKENS.ink }}>{tot < 0 ? '-' : ''}{mask(Math.abs(tot))}</div>
-                        <ChevronDown size={15} style={{ width: 22, flexShrink: 0, color: 'rgba(44,44,50,0.35)', transform: isOpen ? 'rotate(180deg)' : 'none', transition: 'transform 200ms' }} />
-                      </button>
-                      {isOpen &&
-                      <div style={{ padding: PAD('4px 22px 12px 6px') }}>
-                        {detail('股息', d.div, C_DIV)}
-                        {detail('債息', d.bond, C_BOND)}
-                        {detail('操作（股票買賣損益）', d.pnl, d.pnl < 0 ? C_PNL_NEG : C_PNL_POS)}
-                      </div>
-                      }
-                    </div>);
+                        <ChevronRight size={15} style={{ width: 22, flexShrink: 0, color: 'rgba(44,44,50,0.35)' }} />
+                      </button>);
                   })}
                   <div style={{ display: 'flex', alignItems: 'center', paddingTop: SP(11), marginTop: SP(2), borderTop: '1px solid rgba(0,0,0,0.12)' }}>
                     <div style={{ flex: 1, fontSize: FS(16), fontWeight: 700, color: TOKENS.ink }}>總計</div>
@@ -845,6 +832,36 @@ function InvestBreakdownSheet({ open, onClose, computedHoldings = [], masterData
           })()}
         </div>
       </div>
+      {/* 點選柱狀圖/年份列 → 彈出視窗顯示該年 股息/債息/操作（字級同年度收支） */}
+      {pnlSel && (() => {
+        const { y, div, bond, pnl } = pnlSel; const tot = div + bond + pnl;
+        const row = (lbl, v, color) =>
+        <div style={{ display: 'flex', alignItems: 'center', gap: SP(8), padding: PAD('6px 0') }}>
+          <span style={{ width: 8, height: 8, borderRadius: 4, flexShrink: 0, background: color }} />
+          <span style={{ flex: 1, fontSize: FS(17), color: 'rgba(44,44,50,0.82)' }}>{lbl}</span>
+          <span style={{ fontFamily: TOKENS.fontMono, fontSize: FS(17), fontWeight: 600, color: v < 0 ? TOKENS.red : v === 0 ? 'rgba(60,60,67,0.35)' : color }}>{v === 0 ? '—' : (v < 0 ? '-' : '') + mask(Math.abs(v))}</span>
+        </div>;
+        return (
+          <div onClick={() => setPnlSel(null)} style={{ position: 'absolute', inset: 0, zIndex: 90,
+            background: 'rgba(0,0,0,0.35)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: SP(24) }}>
+            <div onClick={(e) => e.stopPropagation()} style={{ width: '100%', maxWidth: 320, background: TOKENS.surface,
+              borderRadius: RS(20), boxShadow: SH('0 16px 40px rgba(0,0,0,0.28)'), padding: PAD('16px 18px 18px') }}>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: SP(6) }}>
+                <div style={{ fontSize: FS(21), fontWeight: 700, color: TOKENS.ink }}>{y} 年投資收益</div>
+                <button onClick={() => setPnlSel(null)} style={{ width: 32, height: 32, borderRadius: RS(16), flexShrink: 0,
+                  background: 'rgba(0,0,0,0.07)', border: 'none', color: 'rgba(44,44,50,0.7)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}><X size={16} /></button>
+              </div>
+              <div style={{ borderTop: '1px solid rgba(0,0,0,0.08)', paddingTop: SP(4) }}>
+                {row('股息', div, TOKENS.sageDarker)}
+                {row('債息', bond, TOKENS.gold)}
+                {row('操作（股票買賣損益）', pnl, pnl < 0 ? TOKENS.red : TOKENS.incBlue)}
+              </div>
+              <div style={{ borderTop: '1px solid rgba(0,0,0,0.12)', marginTop: SP(6), paddingTop: SP(4) }}>
+                {row('合計', tot, tot < 0 ? TOKENS.red : TOKENS.ink)}
+              </div>
+            </div>
+          </div>);
+      })()}
     </div>);
 }
 
