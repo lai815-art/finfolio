@@ -198,7 +198,7 @@ function InvestDetailSheet({ data, mask, onClose, savedTrades = [], onEditRecord
                   <span style={{ fontSize: 14, color: 'rgba(255,255,255,0.70)' }}>{label}</span>
                   {sub && <span style={{ fontSize: FS(12), color: 'rgba(255,255,255,0.42)' }}>{sub}</span>}
                 </div>
-                <div style={{ fontSize: 16, fontWeight: 600, color: TOKENS.surface, marginTop: SP(3),
+                <div style={{ fontSize: 18, fontWeight: 600, color: TOKENS.surface, marginTop: SP(3),
                 fontFamily: TOKENS.fontMono, letterSpacing: -0.2 }}>{value}</div>
               </div>
             )}
