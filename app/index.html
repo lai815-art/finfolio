@@ -132,36 +132,12 @@
       scale.style.transform = 'scale(' + k + ')';
       document.documentElement.style.setProperty('--app-h', appH + 'px');
 
-      // 頂部安全區（瀏海 / 動態島）換算成畫布座標。整個畫布被 scale(k) 縮放，
-      // 而 env(safe-area-inset-top) 是「螢幕像素」；若直接放進畫布，縮放後只剩 inset×k，
-      // 比真正的安全區短，較寬的標題(如「資產淨額明細」)就會被瀏海切到。
-      // 用畫布外的探針量出真實安全區(螢幕px)，再除以 k，讓縮放後剛好等於安全區高度。
-      var probe = document.getElementById('ff-sat-probe');
-      if (!probe) {
-        probe = document.createElement('div');
-        probe.id = 'ff-sat-probe';
-        probe.style.cssText = 'position:fixed;top:0;left:0;width:0;height:env(safe-area-inset-top,0px);visibility:hidden;pointer-events:none';
-        document.body.appendChild(probe);
-      }
-      var satScreen = probe.getBoundingClientRect().height;
-      // 開鍵盤/檔案選擇器的過場瞬間，iOS 有時會短暫回報 safe-area-inset-top = 0
-      // 或偏小的值；若照用，頂部留白會縮掉、標題列上移、右上角眼睛按鈕被狀態列切到。
-      // 直向時瀏海／動態島的安全區是「固定不會變小」的，所以改成取歷來最大值：任何
-      // 過小的瞬時值都不採用、也不會污染快取；量到更小值時排一次延後重量以便還原。
-      if (window.FF_STANDALONE && window.innerHeight > window.innerWidth) {
-        if (satScreen > (window.__ffMaxSat || 0)) window.__ffMaxSat = satScreen;
-        if (satScreen < (window.__ffMaxSat || 0)) {
-          satScreen = window.__ffMaxSat;
-          clearTimeout(window.__ffSatRetry);
-          window.__ffSatRetry = setTimeout(fit, 350);
-        }
-      }
-      var detailTop = window.FF_STANDALONE ? Math.round(satScreen / k) + 4 : 62;
-      document.documentElement.style.setProperty('--ff-detail-top', detailTop + 'px');
-      // 主畫面頂部留白：同樣做縮放校正。比明細頁緊一點(-8)，但不能像舊的 -18 那麼兇，
-      // 否則右上角的眼睛按鈕上緣會頂進系統狀態列被切到。
-      var mainTop = window.FF_STANDALONE ? Math.max(0, Math.round(satScreen / k) - 8) : 62;
-      document.documentElement.style.setProperty('--ff-main-top', mainTop + 'px');
+      // 頂部 header 留白：先前用 safe-area 探針換算，但鍵盤/檔案選擇器過場時 iOS 會
+      // 回報不穩定的值，導致眼睛/返回按鈕上緣被狀態列切到。改用固定 60px（獨立 App）
+      // 作為 header 高度，穩定、不再被切；瀏覽器預覽用 62px。
+      var headerTop = window.FF_STANDALONE ? 60 : 62;
+      document.documentElement.style.setProperty('--ff-detail-top', headerTop + 'px');
+      document.documentElement.style.setProperty('--ff-main-top', headerTop + 'px');
     }
 
     // Re-fit on every event that can change the viewport — including warm relaunches
