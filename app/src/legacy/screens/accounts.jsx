@@ -757,9 +757,6 @@ function AccountsScreen({ hideAmounts, onOpenDetail, computedAcctGroups = [], co
               {mask(netWorth)}
             </div>
           </div>
-          <div style={{ fontSize: FS(14), color: 'rgba(255,255,255,0.60)', display: 'flex', alignItems: 'center', gap: SP(4) }}>
-            查看明細 ›
-          </div>
         </div>
       </div>
 

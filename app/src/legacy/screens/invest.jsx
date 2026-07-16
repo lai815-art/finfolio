@@ -442,7 +442,6 @@ function InvestScreen({ hideAmounts, onOpenDetail, savedTrades = [], computedHol
                 color: TOKENS.surface, letterSpacing: -0.5 }}>
               {mask(portfolioMv)}
             </div>
-            <div style={{ fontSize: FS(14), color: 'rgba(255,255,255,0.60)', flexShrink: 0, paddingBottom: SP(4) }}>查看明細 ›</div>
           </div>
           </>
           }

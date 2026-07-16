@@ -687,9 +687,6 @@ function DashboardScreen({ hideAmounts, setHideAmounts, savedFlows = [], savedTr
               </div>
             </div>
           </div>
-          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', justifyContent: 'center', gap: SP(4) }}>
-            <div style={{ fontSize: FS(13), color: 'rgba(255,255,255,0.55)' }}>查看明細 ›</div>
-          </div>
         </div>
       </div>
 
