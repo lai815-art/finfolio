@@ -432,8 +432,8 @@ function DailyView({ date, hideAmounts, extraFlows = [], extraTrades = [], onEdi
                 assetClass: t.assetClass || '股票',
                 // 帶入原本記錄的手續費/證交稅（匯入資料為 0，成本已內含），
                 // 避免編輯時被重新自動試算而還原成非 0。
-                feeOverride: t.fee != null ? String(t.fee) : '',
-                taxOverride: t.tax != null ? String(t.tax) : '',
+                feeOverride: t.fee != null ? String(t.fee) : null,
+                taxOverride: t.tax != null ? String(t.tax) : null,
                 date: t.date ? new Date(t.date) : new Date(),
                 note: t.note || ''
               }

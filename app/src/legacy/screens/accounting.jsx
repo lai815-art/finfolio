@@ -130,8 +130,8 @@ function AccountingScreen({ onSaved, onDelete, initialDraft, masterData, compute
       assetClass: firstClass,
       broker: firstBroker,
       settleAccount: firstSettle,
-      feeOverride: '', // 空 = 依費率自動計算；有值 = 使用者手動改過的手續費金額
-      taxOverride: '', // 空 = 依稅率自動計算；有值 = 手動改過的證交稅金額
+      feeOverride: null, // null = 依費率自動計算；字串(含空字串)= 使用者自己填的手續費（空 = 清成 0）
+      taxOverride: null, // null = 依稅率自動計算；字串(含空字串)= 使用者自己填的證交稅（空 = 清成 0）
       taxRateMode: null, // null = 依股票類別自動選稅率；數字 = 使用者手動選的稅率
       date: new Date(window.TODAY_DATE || TODAY_ACC), note: '',
       ...(draftStock || {})
@@ -811,16 +811,17 @@ function StockForm({ state, update, onSaved, onDelete, recordId, masterData, com
   const feeMult = _feeDisc > 0 && _feeDisc <= 10 ? _feeDisc / 10 : 1;
   const autoFee = sh > 0 && pr > 0 && _feeRate > 0 ? Math.max(1, Math.round(gross * (_feeRate / 100) * feeMult)) : 0;
   // 手續費／證交稅：預設自動試算（0.1425% / 賣出 0.3%），但可直接修改金額；清空即恢復自動
-  const feeOverridden = state.feeOverride !== '' && state.feeOverride != null && !isNaN(parseFloat(state.feeOverride));
-  const fee = feeOverridden ? Math.round(parseFloat(state.feeOverride)) : autoFee;
+  // 使用者一旦動過手續費欄（含清空）就以其輸入為準；null 才代表沿用自動試算。
+  const feeOverridden = state.feeOverride != null;
+  const fee = feeOverridden ? (Math.round(parseFloat(state.feeOverride)) || 0) : autoFee;
   // 證交稅率依股票類型：一般股票 0.3% / 當沖 0.15% / 一般 ETF・權證 0.1% / 原型債券 ETF・公司債 0%。
   // 依「股票類別」給預設值：債券型→0%、其它 ETF 型→0.1%、美股(無台灣證交稅)→0%、個股→0.3%。
   const TAX_RATES = [{ r: 0.003, label: '一般 0.3%' }, { r: 0.0015, label: '當沖 0.15%' }, { r: 0.001, label: 'ETF 0.1%' }, { r: 0, label: '免稅 0%' }];
   const defaultTaxRate = (ac) => { const s = String(ac || ''); if (/債/.test(s)) return 0; if (s === '美股') return 0; if (/型$/.test(s) || /ETF/i.test(s) || /權證/.test(s)) return 0.001; return 0.003; };
   const taxRate = state.side === 'sell' ? (state.taxRateMode != null ? state.taxRateMode : defaultTaxRate(state.assetClass)) : 0;
   const autoTax = state.side === 'sell' ? Math.round(gross * taxRate) : 0;
-  const taxOverridden = state.side === 'sell' && state.taxOverride !== '' && state.taxOverride != null && !isNaN(parseFloat(state.taxOverride));
-  const tax = taxOverridden ? Math.round(parseFloat(state.taxOverride)) : autoTax;
+  const taxOverridden = state.side === 'sell' && state.taxOverride != null;
+  const tax = taxOverridden ? (Math.round(parseFloat(state.taxOverride)) || 0) : autoTax;
   const net = state.side === 'buy' ? gross + fee : gross - fee - tax;
 
   const accent = state.side === 'buy' ? TOKENS.typeBuy : TOKENS.typeSell;
@@ -855,7 +856,7 @@ function StockForm({ state, update, onSaved, onDelete, recordId, masterData, com
         {SIDES.map((s) => {
           const on = s.id === state.side;
           return (
-            <button key={s.id} onClick={() => update({ side: s.id, feeOverride: '', taxOverride: '', taxRateMode: null })} style={{
+            <button key={s.id} onClick={() => update({ side: s.id, feeOverride: null, taxOverride: null, taxRateMode: null })} style={{
               flex: 1, borderRadius: RS(16),
               background: on ?
               s.color :
@@ -970,7 +971,7 @@ function StockForm({ state, update, onSaved, onDelete, recordId, masterData, com
           }, padding: "6px 14px 10px", height: "70px" }}>
             <div style={{ fontSize: FS(16), color: 'rgba(44,44,50,0.5)', letterSpacing: 0.5,
             textTransform: 'uppercase' }}>{f.label}</div>
-            <input value={state[f.k]} onChange={(e) => update({ [f.k]: ffNormNum(e.target.value), feeOverride: '', taxOverride: '' })}
+            <input value={state[f.k]} onChange={(e) => update({ [f.k]: ffNormNum(e.target.value), feeOverride: null, taxOverride: null })}
           placeholder={f.placeholder} inputMode={f.inputMode}
           style={{
             marginTop: SP(4), width: '100%', background: 'transparent', border: 'none', outline: 'none',
@@ -982,14 +983,14 @@ function StockForm({ state, update, onSaved, onDelete, recordId, masterData, com
       </div>
       <div style={{ marginTop: SP(10), display: 'flex', gap: SP(6), alignItems: 'center' }}>
         {[10, 100, 1000].map((n) =>
-        <button key={n} onClick={() => update({ shares: String((parseFloat(state.shares) || 0) + n), feeOverride: '', taxOverride: '' })} style={{ ...{
+        <button key={n} onClick={() => update({ shares: String((parseFloat(state.shares) || 0) + n), feeOverride: null, taxOverride: null })} style={{ ...{
             flex: 1, height: 40, borderRadius: RS(8),
             background: 'rgba(0,0,0,0.12)', border: '1px solid rgba(0,0,0,0.14)',
             color: 'rgba(44,44,50,0.7)', fontFamily: TOKENS.fontMono,
             fontSize: FS(18), fontWeight: 500
           }, fontSize: "15px" }}>+{n.toLocaleString()}</button>
         )}
-        <button onClick={() => update({ shares: '', feeOverride: '', taxOverride: '' })} style={{
+        <button onClick={() => update({ shares: '', feeOverride: null, taxOverride: null })} style={{
           flex: '0 0 auto', padding: PAD('0 12px'), height: 40, borderRadius: RS(8),
           background: 'transparent', border: '1px solid rgba(0,0,0,0.14)',
           color: 'rgba(44,44,50,0.6)', fontSize: FS(16) }}>清除</button>
@@ -999,11 +1000,11 @@ function StockForm({ state, update, onSaved, onDelete, recordId, masterData, com
       <SectionLabel>交割資訊</SectionLabel>
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: SP(10) }}>
         <DropField label="分類" value={state.assetClass}
-        options={classes} onChange={(v) => update({ assetClass: v, taxRateMode: null, taxOverride: '' })} />
+        options={classes} onChange={(v) => update({ assetClass: v, taxRateMode: null, taxOverride: null })} />
         <DropField label="證券戶" value={state.broker}
         options={brokers} onChange={(v) => {
           const autoSettle = brokerSettleMap[v];
-          update({ broker: v, feeOverride: '', taxOverride: '', ...(autoSettle ? { settleAccount: autoSettle } : {}) });
+          update({ broker: v, feeOverride: null, taxOverride: null, ...(autoSettle ? { settleAccount: autoSettle } : {}) });
         }} />
       </div>
       <div style={{ marginTop: SP(10) }}>
@@ -1054,7 +1055,7 @@ function StockForm({ state, update, onSaved, onDelete, recordId, masterData, com
         <>
           <div style={{ marginTop: SP(7), display: 'flex', gap: SP(5) }}>
             {TAX_RATES.map((o) => { const on = !taxOverridden && Math.abs(taxRate - o.r) < 1e-9; return (
-              <button key={o.r} onClick={() => update({ taxRateMode: o.r, taxOverride: '' })} style={{
+              <button key={o.r} onClick={() => update({ taxRateMode: o.r, taxOverride: null })} style={{
                 flex: 1, minWidth: 0, height: 30, borderRadius: RS(8), fontSize: FS(13), fontWeight: on ? 700 : 500,
                 background: on ? `${accent}1f` : 'rgba(0,0,0,0.05)', border: on ? `1px solid ${accent}` : '1px solid rgba(0,0,0,0.10)',
                 color: on ? accent : 'rgba(44,44,50,0.7)', whiteSpace: 'nowrap' }}>{o.label}</button>); })}
@@ -1104,7 +1105,7 @@ function StockForm({ state, update, onSaved, onDelete, recordId, masterData, com
         <button onClick={() => {
           if (!state.code || !state.shares || !state.price) return;
           onSaved && onSaved('stock', { ...state, fee, tax, net, recordId: editId }, true);
-          update({ code: '', name: '', shares: '', price: '', feeOverride: '', taxOverride: '' });
+          update({ code: '', name: '', shares: '', price: '', feeOverride: null, taxOverride: null });
           if (editId) setSavedAsNew(true);
         }} style={{
           flex: '0 0 auto', padding: PAD('0 14px'), height: 54, borderRadius: RS(16),

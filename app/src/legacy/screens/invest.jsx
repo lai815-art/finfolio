@@ -255,8 +255,8 @@ function InvestDetailSheet({ data, mask, onClose, savedTrades = [], onEditRecord
                   shares: String(t.shares), price: String(t.price),
                   assetClass: t.assetClass || '股票',
                   broker: t.broker || '', settleAccount: t.settleAccount || '',
-                  feeOverride: t.fee != null ? String(t.fee) : '',
-                  taxOverride: t.tax != null ? String(t.tax) : '',
+                  feeOverride: t.fee != null ? String(t.fee) : null,
+                  taxOverride: t.tax != null ? String(t.tax) : null,
                   date: t.date instanceof Date ? t.date : new Date(t.date),
                   note: t.note || '' },
                 text: '', summary: [] });
