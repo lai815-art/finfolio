@@ -793,6 +793,7 @@ function MonthlyStatsSheet({ open, onClose, savedFlows, masterData, hideAmounts,
   const [decadeOffset, setDecadeOffset] = useStateDash(0);
   const [expanded, setExpanded] = useStateDash(null);
   const [selIdx, setSelIdx] = useStateDash(null); // 圖表點選的月/年（顯示金額小視窗）
+  const swipeRef = useRefDash({ x: 0, y: 0, active: false }); // 圖表左右滑動切換期間
   useEffectDash(() => {
     if (open) { setMonthOffset(0); setYearOffset(0); setDecadeOffset(0); setExpanded(null); setSelIdx(null); setView('spend'); const t = setTimeout(() => setShown(true), 20); return () => clearTimeout(t); }
     setShown(false);
@@ -974,6 +975,15 @@ function MonthlyStatsSheet({ open, onClose, savedFlows, masterData, hideAmounts,
   const prevStep = () => { if (view === 'spend') setMonthOffset(monthOffset - 1);else if (view === 'month') setYearOffset(yearOffset - 1);else setDecadeOffset(decadeOffset - 1);setExpanded(null);setSelIdx(null); };
   const nextEnabled = view === 'spend' ? canNextMonth : view === 'month' ? canNextYear : canNextDecade;
   const nextStep = () => { if (!nextEnabled) return; if (view === 'spend') setMonthOffset(monthOffset + 1);else if (view === 'month') setYearOffset(yearOffset + 1);else setDecadeOffset(decadeOffset + 1);setExpanded(null);setSelIdx(null); };
+  // 圖表左右滑動切換期間：右滑 → 上一期（較早）；左滑 → 下一期（較新）。
+  const onSwipeStart = (e) => { const p = e.touches ? e.touches[0] : e; swipeRef.current = { x: p.clientX, y: p.clientY, active: true }; };
+  const onSwipeEnd = (e) => {
+    if (!swipeRef.current.active) return;
+    const p = e.changedTouches ? e.changedTouches[0] : e;
+    const dx = p.clientX - swipeRef.current.x, dy = p.clientY - swipeRef.current.y;
+    swipeRef.current.active = false;
+    if (Math.abs(dx) > 45 && Math.abs(dx) > Math.abs(dy) * 1.2) { if (dx < 0) nextStep(); else prevStep(); }
+  };
 
   // idx = 對應圖表資料陣列（months / decadeYears）的索引，讓表格點選能連動圖表與彈出視窗。
   const monthRows = months.map((a, mo) => ({ key: 'm' + mo, idx: mo, label: mo + 1 + '月', inc: a.inc, exp: a.exp, groups: a.groups }));
@@ -1033,7 +1043,9 @@ function MonthlyStatsSheet({ open, onClose, savedFlows, masterData, hideAmounts,
 
           {(view === 'month' || view === 'year') &&
           <>
-            <div style={cardStyle}>
+            <div style={cardStyle}
+              onTouchStart={onSwipeStart} onTouchEnd={onSwipeEnd}
+              onMouseDown={onSwipeStart} onMouseUp={onSwipeEnd}>
               <div style={{ marginBottom: SP(6) }}>{secTitle(view === 'month' ? '每月收支' : '年度收支')}</div>
               {/* 整合圖：收入四類＋總支出折線、收支餘額柱狀 */}
               <div style={{ display: 'flex', flexWrap: 'wrap', gap: SP(10), marginBottom: SP(8), paddingLeft: SP(2) }}>

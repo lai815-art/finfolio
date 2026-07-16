@@ -525,6 +525,7 @@ function InvestBreakdownSheet({ open, onClose, computedHoldings = [], masterData
   const [yearPage, setYearPage] = useStateInv(null);
   const [invTab, setInvTab] = useStateInv('alloc'); // alloc | pnl
   const [pnlExpand, setPnlExpand] = useStateInv(null); // 投資收益表展開的年份
+  const swipeRef = React.useRef({ x: 0, y: 0, active: false }); // 圖表左右滑動翻頁
   if (!open) return null;
 
   const TAB_COLORS_INV = [TOKENS.incBlue, TOKENS.orange, TOKENS.green, TOKENS.indigo, TOKENS.red, TOKENS.teal, TOKENS.gold2, TOKENS.gray3];
@@ -653,6 +654,19 @@ function InvestBreakdownSheet({ open, onClose, computedHoldings = [], masterData
             const start = Math.max(0, end - PAGE);
             const years = needsPaging ? allYears.slice(start, end) : allYears;
 
+            // 左右滑動翻頁：右滑 → 較早（effPage+1）；左滑 → 較新（effPage-1）。
+            const onSwipeStart = (e) => { const p = e.touches ? e.touches[0] : e; swipeRef.current = { x: p.clientX, y: p.clientY, active: true }; };
+            const onSwipeEnd = (e) => {
+              if (!swipeRef.current.active || !needsPaging) { swipeRef.current.active = false; return; }
+              const p = e.changedTouches ? e.changedTouches[0] : e;
+              const dx = p.clientX - swipeRef.current.x, dy = p.clientY - swipeRef.current.y;
+              swipeRef.current.active = false;
+              if (Math.abs(dx) > 45 && Math.abs(dx) > Math.abs(dy) * 1.2) {
+                if (dx < 0 && effPage > 0) setYearPage(effPage - 1);
+                else if (dx > 0 && effPage < totalPages - 1) setYearPage(effPage + 1);
+              }
+            };
+
             // ── aggregate per year ──
             // 圖表只畫視窗內的十年（years），但下方表格要能看到「所有」年份的歷史，
             // 所以彙總鍵用 allYears；圖表照樣讀 byYear[y] 即可。
@@ -707,7 +721,9 @@ function InvestBreakdownSheet({ open, onClose, computedHoldings = [], masterData
             const C_BOND = TOKENS.gold;
 
             return (
-              <div style={cardStyle}>
+              <div style={cardStyle}
+                onTouchStart={onSwipeStart} onTouchEnd={onSwipeEnd}
+                onMouseDown={onSwipeStart} onMouseUp={onSwipeEnd}>
               {/* 年份切換 */}
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between',
                   paddingBottom: SP(12), marginBottom: SP(4), borderBottom: '1px solid rgba(0,0,0,0.07)' }}>
