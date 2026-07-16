@@ -1302,6 +1302,24 @@ function App() {
   computeHoldings(effTrades, masterData, livePrices),
   [effTrades, masterData, livePrices]
   );
+  // 由 {group, item} 快照解析出最新的帳戶詳情資料。
+  // 一般帳戶直接從 computedAcctGroups 取最新餘額；證券戶（brokerage）的 items
+  // 是由 computedHoldings 依券商加總而來、不在 computedAcctGroups 內，需另外重算，
+  // 否則會找不到而無法還原（使用者回報「證券戶都沒有回到證券戶內頁」）。
+  const resolveAcctDetail = (snap) => {
+    if (!snap) return null;
+    if (snap.group.id === 'brokerage') {
+      const mv = (x) => (x.mvTWD != null ? x.mvTWD : x.mv || 0);
+      const holdings = computedHoldings.flatMap((g) => g.items);
+      const amount = holdings
+      .filter((it) => (it.broker || '其他') === snap.item.name)
+      .reduce((a, it) => a + mv(it), 0);
+      return { group: snap.group, item: { ...snap.item, amount } };
+    }
+    const g = computedAcctGroups.find((x) => x.id === snap.group.id);
+    const it = g && g.items.find((x) => x.name === snap.item.name);
+    return g && it ? { group: g, item: it } : null;
+  };
   // 帳戶詳情回復：儲存/刪除後回到該帳戶詳情頁（取最新餘額）。
   // 故意依賴 [savedFlows, savedTrades]（實際記帳資料），不依賴 computedAcctGroups——
   // 後者還會因即時報價（livePrices）背景刷新而重新計算，若依賴它，使用者編輯中途
@@ -1309,13 +1327,10 @@ function App() {
   // 導致存檔後畫面沒有跳回、看起來像「沒有更新成功」。
   useEffectApp(() => {
     if (!recordReturnAcctDetail) return;
-    const { groupId, itemName } = recordReturnAcctDetail;
-    const freshGroup = computedAcctGroups.find((g) => g.id === groupId);
-    const freshItem = freshGroup?.items.find((it) => it.name === itemName);
-    if (freshGroup && freshItem) {
-      setAcctDetail({ group: freshGroup, item: freshItem });
-      setRecordReturnAcctDetail(null);
-    }
+    const snap = recordReturnAcctDetail; // 完整 {group, item} 快照
+    const fresh = resolveAcctDetail(snap);
+    setAcctDetail(fresh || snap); // 找不到最新資料就退回快照，至少能跳回原本內頁
+    setRecordReturnAcctDetail(null);
   }, [savedFlows, savedTrades]);
   // 個股詳情回復：編輯/新增後回到該個股詳情頁（取最新持倉）。同上，依賴 savedTrades
   // 而非 computedHoldings，避免被背景報價刷新提前觸發。
@@ -1589,11 +1604,8 @@ function App() {
         setRecordDraft(null);
         if (recordReturnAcctDetail) {
           setTab(recordReturnTab);
-          // 回到帳戶詳情：直接用現有 computedAcctGroups（關閉時沒有資料變動，不需 useEffect）
-          const { groupId, itemName } = recordReturnAcctDetail;
-          const g = computedAcctGroups.find((x) => x.id === groupId);
-          const it = g?.items.find((x) => x.name === itemName);
-          if (g && it) setAcctDetail({ group: g, item: it });
+          // 回到帳戶詳情：關閉時沒有資料變動，直接用現有資料還原（含證券戶）
+          setAcctDetail(resolveAcctDetail(recordReturnAcctDetail) || recordReturnAcctDetail);
           setRecordReturnAcctDetail(null);
           setRecordReturnTab('dashboard');
         }
@@ -1665,7 +1677,7 @@ function App() {
               setAcctDetail(null);
               setRecordDraft(d);
               setRecordReturnTab('accounts');
-              setRecordReturnAcctDetail({ groupId: snapshot.group.id, itemName: snapshot.item.name });
+              setRecordReturnAcctDetail(snapshot); // 存完整 {group, item} 快照，證券戶也能還原
               setRecordOpen(true);
             }} />}
             {InvSheet && investDetail &&

@@ -182,7 +182,6 @@ function genTxns(group, item) {
 /* ─── Account Detail Sheet (per-transaction editing) ────────────────── */
 function AccountDetailSheet({ data, mask, onClose, onSaveItem, savedFlows = [], savedTrades = [], computedHoldings = [], onEditRecord, hideAmounts, revealHidden, isHidden, onToggleHidden }) {
   const { ChevronRight, Check, X, TrendUp, Pencil } = window.Icons;
-  const [shown, setShown] = useStateAcct(false);
   const [txnEdits, setTxnEdits] = useStateAcct({});
   const [activeTxn, setActiveTxn] = useStateAcct(null);
   const [editDesc, setEditDesc] = useStateAcct('');
@@ -190,12 +189,7 @@ function AccountDetailSheet({ data, mask, onClose, onSaveItem, savedFlows = [], 
   const [monthOff, setMonthOff] = useStateAcct(0); // 0 = 當月，負值往前
 
   React.useEffect(() => {
-    if (data) {
-      const t = setTimeout(() => setShown(true), 20);
-      setTxnEdits({});setActiveTxn(null);
-      return () => clearTimeout(t);
-    }
-    setShown(false);
+    if (data) { setTxnEdits({}); setActiveTxn(null); }
   }, [data]);
 
   if (!data) return null;
@@ -311,8 +305,6 @@ function AccountDetailSheet({ data, mask, onClose, onSaveItem, savedFlows = [], 
   return (
     <div style={{
       position: 'absolute', inset: 0, zIndex: 65, background: TOKENS.bg,
-      transform: shown ? 'translateX(0)' : 'translateX(100%)',
-      transition: 'transform 300ms cubic-bezier(0.32,0.72,0.18,1)',
       display: 'flex', flexDirection: 'column'
     }}>
       <div style={{ height: 'var(--ff-detail-top, 62px)', flexShrink: 0 }} />
