@@ -895,8 +895,8 @@ function MonthlyStatsSheet({ open, onClose, savedFlows, masterData, hideAmounts,
     const row = (lbl, v, color, sign, dot) =>
     <div style={{ display: 'flex', alignItems: 'center', gap: SP(8), padding: PAD('6px 0') }}>
       {dot ? <span style={{ width: 8, height: 8, borderRadius: 4, flexShrink: 0, background: color }} /> : <span style={{ width: 8, flexShrink: 0 }} />}
-      <span style={{ flex: 1, fontSize: FS(15), color: 'rgba(44,44,50,0.82)' }}>{lbl}</span>
-      <span style={{ fontFamily: TOKENS.fontMono, fontSize: FS(15), fontWeight: 600, color: v === 0 ? 'rgba(60,60,67,0.35)' : color }}>{v === 0 ? '—' : (sign || '') + mask(Math.abs(v))}</span>
+      <span style={{ flex: 1, fontSize: FS(17), color: 'rgba(44,44,50,0.82)' }}>{lbl}</span>
+      <span style={{ fontFamily: TOKENS.fontMono, fontSize: FS(17), fontWeight: 600, color: v === 0 ? 'rgba(60,60,67,0.35)' : color }}>{v === 0 ? '—' : (sign || '') + mask(Math.abs(v))}</span>
     </div>;
     const hasInc = INC_GROUPS.some((g) => (a.groups[g.k] || 0) > 0);
     return (
@@ -905,14 +905,14 @@ function MonthlyStatsSheet({ open, onClose, savedFlows, masterData, hideAmounts,
         <div onClick={(e) => e.stopPropagation()} style={{ width: '100%', maxWidth: 320, background: TOKENS.surface,
           borderRadius: RS(20), boxShadow: SH('0 16px 40px rgba(0,0,0,0.28)'), padding: PAD('16px 18px 18px') }}>
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: SP(6) }}>
-            <div style={{ fontSize: FS(19), fontWeight: 700, color: TOKENS.ink }}>{label}</div>
+            <div style={{ fontSize: FS(21), fontWeight: 700, color: TOKENS.ink }}>{label}</div>
             <button onClick={() => setSelIdx(null)} style={{ width: 32, height: 32, borderRadius: RS(16), flexShrink: 0,
               background: 'rgba(0,0,0,0.07)', border: 'none', color: 'rgba(44,44,50,0.7)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}><X size={16} /></button>
           </div>
           <div style={{ borderTop: '1px solid rgba(0,0,0,0.08)', paddingTop: SP(4) }}>
             {hasInc ? INC_GROUPS.map((g) => (a.groups[g.k] || 0) > 0 ?
             <React.Fragment key={g.k}>{row(g.k === '其他' ? '其他收入' : g.k, a.groups[g.k], g.c, '', true)}</React.Fragment> : null) :
-            <div style={{ fontSize: FS(14), color: 'rgba(44,44,50,0.4)', padding: PAD('6px 0') }}>此期間無收入</div>}
+            <div style={{ fontSize: FS(16), color: 'rgba(44,44,50,0.4)', padding: PAD('6px 0') }}>此期間無收入</div>}
           </div>
           <div style={{ borderTop: '1px solid rgba(0,0,0,0.12)', marginTop: SP(6), paddingTop: SP(4) }}>
             {row('總收入', a.inc, TOKENS.incBlue)}
