@@ -239,7 +239,12 @@ function AccountDetailSheet({ data, mask, onClose, onSaveItem, savedFlows = [], 
   const matchAcct = (a) => acctKeys.some((k) => a && (a === k || a.includes(k)));
 
   const realFlows = savedFlows.
-  filter((f) => matchAcct(f.account) || matchAcct(f.fromAccount) || matchAcct(f.toAccount)).
+  filter((f) => {
+    // 證券戶看的是「持倉市值」，只列買賣交易；自動產生的「投資轉帳」現金流留在交割戶顯示，
+    // 不在證券戶重複列出（否則買進會出現交易與轉帳兩筆、相抵混淆）。
+    if (isBrokerage && f._autoGen && f.cat === '投資轉帳') return false;
+    return matchAcct(f.account) || matchAcct(f.fromAccount) || matchAcct(f.toAccount);
+  }).
   map((f) => ({
     date: fmtDate(f.date), _ts: new Date(f.date).getTime(), desc: f.merchant || f.cat,
     amount: f.kind === 'inc' ? f.amount :
