@@ -726,7 +726,7 @@ function FlowForm({ state, update, onSaved, onDelete, recordId, masterData }) {
 
 /* ============= 股票買賣 form ============= */
 function StockForm({ state, update, onSaved, onDelete, recordId, masterData, computedHoldings = [] }) {
-  const { Plus, TrendUp, TrendDown, Search, Calendar, X, Trash } = window.Icons;
+  const { Plus, TrendUp, TrendDown, Calendar, X, Trash } = window.Icons;
   // 見 FlowForm：編輯時按「再記一筆」＝先更新原紀錄、停留本頁，之後轉為新增模式。
   const [savedAsNew, setSavedAsNew] = useStateAcc(false);
   const editId = savedAsNew ? undefined : recordId;
@@ -877,7 +877,6 @@ function StockForm({ state, update, onSaved, onDelete, recordId, masterData, com
           background: TOKENS.surface, border: '1px solid rgba(0,0,0,0.20)' }}>
           <div style={{ fontSize: FS(14), color: 'rgba(44,44,50,0.55)', letterSpacing: 0.5 }}>代號</div>
           <div style={{ display: 'flex', alignItems: 'center', gap: SP(6), marginTop: SP(2), minWidth: 0 }}>
-            <Search size={15} style={{ color: 'rgba(44,44,50,0.5)', flexShrink: 0 }} />
             <input value={state.code} onChange={(e) => update({ code: e.target.value.toUpperCase(), name: '' })}
             onFocus={() => state.side === 'sell' && allHoldings.length > 0 && setShowHoldings(true)}
             onBlur={() => setTimeout(() => setShowHoldings(false), 200)}
