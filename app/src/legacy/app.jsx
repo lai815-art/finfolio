@@ -304,9 +304,13 @@ function computeAccounts(accounts, settleList, flows, trades, initialBalances) {
       if (bal[f.toAccount] !== undefined) bal[f.toAccount] += f.amount;
     }
   });
+  // 新版買進會自動產生 T+2「投資轉帳」流水從交割戶扣款（與賣出對稱），扣款改由該流水處理；
+  // 這些買進在此不可再直接扣款，否則雙重扣。舊資料的買進沒有流水，仍走下面的即時扣款。
+  const buyXferJAs = new Set(flows.filter((f) => f._buyXfer).map((f) => f._linkedTradeJA));
   trades.forEach((t) => {
     // Only buys deduct from settlement; sells are handled via auto-generated flow entries
     if (t.side !== 'buy') return;
+    if (buyXferJAs.has(t._justAdded)) return; // 已有自動投資轉帳流水 → 扣款由流水負責（T+2）
     const sh = parseFloat(t.shares) || 0,pr = parseFloat(t.price) || 0;
     const gross = sh * pr;
     const fee = t.fee != null && t.fee > 0 ? t.fee : sh > 0 && pr > 0 ? Math.max(1, Math.round(gross * 0.001425)) : 0;
@@ -1410,11 +1414,38 @@ function App() {
           date: data.date
         };
 
-        // Build auto-gen flows for a sell trade (xfer + pnl).
+        // Build auto-gen flows for a trade.
+        // buy  → 一筆 T+2「投資轉帳」把買進金額(含手續費)從交割戶轉到券商部位（與賣出對稱）。
+        // sell → xfer(成本轉回交割戶) + pnl(損益計收支)。
         // tradeJA = the trade's _justAdded stamp used to link flows.
         // excludeRecordId = 's-XXX' of the trade being edited (to remove it from FIFO history).
-        const buildSellFlows = (tradeJA, excludeRecordId) => {
-          if (data.side !== 'sell' || !data.settleAccount) return [];
+        const buildTradeFlows = (tradeJA, excludeRecordId) => {
+          if (!data.settleAccount) return [];
+          const isTW = /^\d/.test(String(data.code || ''));
+          const settleDate = isTW ? addBizDays(data.date, 2) : data.date;
+          // ── 買進：T+2 從交割戶扣款的投資轉帳 ──
+          if (data.side === 'buy') {
+            const sh = parseFloat(data.shares) || 0;
+            const pr = parseFloat(data.price) || 0;
+            const gross = Math.round(sh * pr);
+            const buyFee = data.fee != null && data.fee > 0 ? data.fee : (sh > 0 && pr > 0 ? Math.max(1, Math.round(gross * 0.001425)) : 0);
+            const debit = data.net != null && data.net > 0 ? data.net : gross + buyFee;
+            return [{
+              kind: 'xfer', amount: debit,
+              fromAccount: data.settleAccount, // 交割戶扣款
+              toAccount: data.broker || '__stock_position__', // 券商部位（非現金帳戶，不影響其他餘額）
+              account: `${data.settleAccount} → ${data.broker || ''}`,
+              cat: '投資轉帳',
+              merchant: data.broker || data.name || '證券戶',
+              note: data.name || '',
+              date: settleDate || new Date(),
+              time: nowStr(), _autoGen: true, _buyXfer: true,
+              _linkedTradeJA: tradeJA,
+              _justAdded: tradeJA + 1
+            }];
+          }
+          // ── 賣出：成本轉回交割戶 + 損益 ──
+          if (data.side !== 'sell') return [];
           const sh = parseFloat(data.shares) || 0;
           const pr = parseFloat(data.price) || 0;
           const gross = Math.round(sh * pr);
@@ -1439,8 +1470,6 @@ function App() {
           const fifo = fifoConsume(lots, sh);
           const costBasis = Math.round(fifo.cost + fifo.uncovered * pr);
           const pnl = proceeds - costBasis;
-          const isTW = /^\d/.test(String(data.code || ''));
-          const settleDate = isTW ? addBizDays(data.date, 2) : data.date;
 
           const flows = [{
             kind: 'xfer', amount: costBasis,
@@ -1480,7 +1509,7 @@ function App() {
             // Update the trade record
             setSavedTrades((t) => t.map((e) => 's-' + e._justAdded === data.recordId ? { ...e, ...entry } : e));
             // Regenerate linked auto-gen flows (remove old, add new)
-            const newFlows = buildSellFlows(tradeJA, data.recordId);
+            const newFlows = buildTradeFlows(tradeJA, data.recordId);
             setSavedFlows((s) => {
               const kept = s.filter((f) => f._linkedTradeJA !== tradeJA);
               return [...newFlows, ...kept];
@@ -1491,7 +1520,7 @@ function App() {
         } else {
           const tradeJA = Date.now();
           setSavedTrades((t) => [{ ...entry, time: nowStr(), _justAdded: tradeJA }, ...t]);
-          const newFlows = buildSellFlows(tradeJA, null);
+          const newFlows = buildTradeFlows(tradeJA, null);
           if (newFlows.length) {
             setSavedFlows((s) => [...newFlows.slice().reverse(), ...s]);
           }
