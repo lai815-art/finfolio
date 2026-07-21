@@ -165,8 +165,8 @@
       // 但依需求把頂部留白減半（下限 30px，避免標題被切太多）。若長標題(如「0050 元大台灣50」)
       // 中段被實體動態島蓋到，再往上調 detailTop 即可。
       var satC = Math.round(satScreen / k);
-      var mainTop = window.FF_STANDALONE ? Math.min(satC, 28) : 62;
-      var detailTop = window.FF_STANDALONE ? Math.max(Math.round((satC + 2) / 2), 30) : 62;
+      var mainTop = window.FF_STANDALONE ? Math.min(satC, 14) : 62;
+      var detailTop = window.FF_STANDALONE ? Math.max(Math.round((satC + 2) / 4), 14) : 62;
       document.documentElement.style.setProperty('--ff-detail-top', detailTop + 'px');
       document.documentElement.style.setProperty('--ff-main-top', mainTop + 'px');
     }
