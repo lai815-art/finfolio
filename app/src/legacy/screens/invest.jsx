@@ -662,6 +662,8 @@ function InvestBreakdownSheet({ open, onClose, computedHoldings = [], masterData
             // 所以彙總鍵用 allYears；圖表照樣讀 byYear[y] 即可。
             const byYear = {};
             allYears.forEach((y) => {byYear[y] = { pnl: 0, div: 0, bond: 0 };});
+            // 統計一律換算台幣：美股股息/已實現損益等外幣紀錄依 curMap[帳戶] 換算，不以面額加總
+            const curMap = window.buildCurMap(masterData);
             savedFlows.forEach((f) => {
               if (!f.date) return;
               const y = new Date(f.date).getFullYear();
@@ -671,15 +673,16 @@ function InvestBreakdownSheet({ open, onClose, computedHoldings = [], masterData
               const note = (f.note || '').toLowerCase();
               const sign = f.kind === 'inc' ? 1 : -1;
               const rawCat = f.cat || '';
-              if (mer === '投資獲利') byYear[y].pnl += f.amount;else
-              if (mer === '投資損失') byYear[y].pnl -= f.amount;else
+              const amt = window.fxToTWD(f.amount, curMap[f.account]);
+              if (mer === '投資獲利') byYear[y].pnl += amt;else
+              if (mer === '投資損失') byYear[y].pnl -= amt;else
               // 相容早期匯入格式：merchant/備註標「已實現損益」的紀錄也算買賣損益（收入為正、支出為負），
               // 且要排在股息判斷之前，避免正的已實現被誤當股息灌進股息欄。
-              if (/已實現損益/.test(mer + note)) byYear[y].pnl += sign * f.amount;else
+              if (/已實現損益/.test(mer + note)) byYear[y].pnl += sign * amt;else
               // 利息/基金/借券是一般被動收入，不屬投資收益——不能用模糊比對把「利息」吞進債息
               if (rawCat === '利息' || rawCat === '基金' || rawCat === '借券') {} else
-              if (rawCat === '股息' || rawCat === '股利' || /股息|股利|配息/.test(mer + note)) byYear[y].div += sign * f.amount;else
-              if (rawCat === '債息' || /債息|coupon/.test(cat + mer + note)) byYear[y].bond += sign * f.amount;
+              if (rawCat === '股息' || rawCat === '股利' || /股息|股利|配息/.test(mer + note)) byYear[y].div += sign * amt;else
+              if (rawCat === '債息' || /債息|coupon/.test(cat + mer + note)) byYear[y].bond += sign * amt;
             });
 
             // ── chart geometry ──

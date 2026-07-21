@@ -616,8 +616,10 @@ function DashboardScreen({ hideAmounts, setHideAmounts, savedFlows = [], savedTr
     const d = f.date instanceof Date ? f.date : new Date(f.date);
     return d.getFullYear() === thisY && d.getMonth() === thisM;
   });
-  const monthlyExp = curMonthFlows.filter((f) => f.kind === 'exp').reduce((a, f) => a + f.amount, 0);
-  const monthlyInc = curMonthFlows.filter((f) => f.kind === 'inc').reduce((a, f) => a + f.amount, 0);
+  // 統計一律換算台幣：外幣帳戶的金額依 curMap[帳戶] 幣別換算，避免外幣以面額直接加總
+  const flowTWD = (f) => window.fxToTWD(f.amount, curMap[f.account]);
+  const monthlyExp = curMonthFlows.filter((f) => f.kind === 'exp').reduce((a, f) => a + flowTWD(f), 0);
+  const monthlyInc = curMonthFlows.filter((f) => f.kind === 'inc').reduce((a, f) => a + flowTWD(f), 0);
 
   const mask = (v) => hideAmounts ? '••••••' : fmtMoney(Math.round(v));
 
@@ -810,10 +812,14 @@ function MonthlyStatsSheet({ open, onClose, savedFlows, masterData, hideAmounts,
   const isInvestExp = (cat) => catExpGroup[cat] === '投資損失';
 
   const dOf = (f) => f.date instanceof Date ? f.date : new Date(f.date);
+  // 統計一律換算台幣：外幣帳戶依 curMap[帳戶] 幣別換算，不以面額直接加總
+  const curMap = window.buildCurMap(masterData);
+  const amtOf = (f) => window.fxToTWD(f.amount, curMap[f.account]);
   const emptyAgg = () => ({ inc: 0, exp: 0, groups: { '主動收入': 0, '被動收入': 0, '投資收入': 0, '其他': 0 }, incCats: {} });
   const addFlow = (a, f) => {
-    if (f.kind === 'inc') { a.inc += f.amount; const g = incGroupOf(f.cat); a.groups[g] = (a.groups[g] || 0) + f.amount; a.incCats[f.cat] = (a.incCats[f.cat] || 0) + f.amount; } else
-    if (f.kind === 'exp') { a.exp += f.amount; }
+    const v = amtOf(f);
+    if (f.kind === 'inc') { a.inc += v; const g = incGroupOf(f.cat); a.groups[g] = (a.groups[g] || 0) + v; a.incCats[f.cat] = (a.incCats[f.cat] || 0) + v; } else
+    if (f.kind === 'exp') { a.exp += v; }
   };
 
   // ── 消費分析（月）──
@@ -821,7 +827,7 @@ function MonthlyStatsSheet({ open, onClose, savedFlows, masterData, hideAmounts,
   const spY = viewDate.getFullYear(), spM = viewDate.getMonth();
   const EXP_COLORS = [TOKENS.red, TOKENS.orange, TOKENS.gold, TOKENS.red2, TOKENS.gold2, '#A85638', '#D9A05B', TOKENS.indigo, TOKENS.teal, TOKENS.gray4];
   const spendMap = {};
-  savedFlows.forEach((f) => { if (f.kind !== 'exp') return; const d = dOf(f); if (d.getFullYear() !== spY || d.getMonth() !== spM) return; if (isInvestExp(f.cat)) return; const k = f.cat || '其他'; spendMap[k] = (spendMap[k] || 0) + f.amount; });
+  savedFlows.forEach((f) => { if (f.kind !== 'exp') return; const d = dOf(f); if (d.getFullYear() !== spY || d.getMonth() !== spM) return; if (isInvestExp(f.cat)) return; const k = f.cat || '其他'; spendMap[k] = (spendMap[k] || 0) + amtOf(f); });
   const spendTotal = Object.values(spendMap).reduce((a, v) => a + v, 0);
   const spendCats = Object.entries(spendMap).sort((a, b) => b[1] - a[1]).map(([k, v], i) => ({ name: k, value: v, color: EXP_COLORS[i % EXP_COLORS.length], pct: spendTotal > 0 ? v / spendTotal * 100 : 0 }));
 
