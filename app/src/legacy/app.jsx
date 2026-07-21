@@ -1102,7 +1102,8 @@ function App() {
   const [investDetail, setInvestDetail] = useStateApp(null);
   const [acctOverrides, setAcctOverrides] = useStateApp({});
 
-  const appMask = (n) => hideAmounts ? '••••••' : Math.round(n).toLocaleString();
+  // 眼睛只遮最上層總額（總資產淨額/本月收支/投資總市值）；明細頁等一般數字一律正常顯示
+  const appMask = (n) => Math.round(n).toLocaleString();
 
   const handleSaveAcctItem = (groupId, origItem, patch) => {
     const key = `${groupId}::${origItem.name}`;

@@ -333,7 +333,7 @@ function InvestScreen({ hideAmounts, onOpenDetail, savedTrades = [], computedHol
     setTimeout(() => setRefreshing(false), 1200);
   };
 
-  const mask = (v) => hideAmounts ? '••••••' : fmtInv(v);
+  const mask = (v) => fmtInv(v); // 一般數字不再受眼睛遮蔽；只遮最上層總額（總市值/未實現損益）
 
   const md = masterData || {};
   const TAB_COLORS_INV = [TOKENS.incBlue, TOKENS.orange, TOKENS.green, TOKENS.indigo, TOKENS.red, TOKENS.teal, TOKENS.gold2, TOKENS.gray3];
@@ -440,7 +440,7 @@ function InvestScreen({ hideAmounts, onOpenDetail, savedTrades = [], computedHol
           <div style={{ marginTop: SP(4), display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between' }}>
             <div style={{ fontFamily: TOKENS.fontMono, fontSize: FS(34), fontWeight: 700,
                 color: TOKENS.surface, letterSpacing: -0.5 }}>
-              {mask(portfolioMv)}
+              {hideAmounts ? '••••••' : fmtInv(portfolioMv)}
             </div>
           </div>
           </>
@@ -452,7 +452,7 @@ function InvestScreen({ hideAmounts, onOpenDetail, savedTrades = [], computedHol
               <span style={{ ...{ display: 'inline-flex', alignItems: 'center', gap: SP(5),
                 padding: PAD('4px 12px'), borderRadius: RS(999), background: 'rgba(255,255,255,0.92)',
                 color: portPnl < 0 ? TOKENS.red : TOKENS.incBlue, fontSize: FS(17), fontWeight: 600, fontFamily: TOKENS.fontMono, whiteSpace: 'nowrap', height: "32px" }, padding: "4px 12px" }}>
-                {portPnl < 0 ? '-' : ''}{mask(Math.abs(portPnl))}
+                {hideAmounts ? '••••••' : (portPnl < 0 ? '-' : '') + fmtInv(Math.abs(portPnl))}
                 <span style={{ opacity: 0.7, fontWeight: 400 }}>({portPnl < 0 ? '' : '+'}{portPct.toFixed(1)}%)</span>
               </span>
             </div>

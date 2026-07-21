@@ -285,7 +285,7 @@ function flowIconName(t) {
 
 function DailyView({ date, hideAmounts, extraFlows = [], extraTrades = [], onEditRecord, recordEdits = {}, recordDeletes = [], curMap = {}, masterData = {} }) {
   const { Calendar, ArrowUpRight } = window.Icons;
-  const mask = (v) => hideAmounts ? '••••••' : fmtMoney(Math.round(v));
+  const mask = (v) => fmtMoney(Math.round(v)); // 一般數字不再受眼睛遮蔽；只遮最上層總額
 
   // 類別（群組）查詢：支出用 cat_exp，收入用 cat_inc
   const catGroupOf = (t) => {
@@ -507,7 +507,7 @@ function DailyView({ date, hideAmounts, extraFlows = [], extraTrades = [], onEdi
 
 function DashWidget({ which, hideAmounts, accountsPie, stocks }) {
   const { ChartPie, Activity, ArrowUpRight } = window.Icons;
-  const mask = (v) => hideAmounts ? '••••' : fmtMoney(Math.round(v));
+  const mask = (v) => fmtMoney(Math.round(v)); // 一般數字不遮；小工具中央總額另外處理
   const STOCK_COLORS = [TOKENS.ink2, TOKENS.green, TOKENS.gray3, TOKENS.gray3, TOKENS.gray2, TOKENS.gray4];
 
   let title, Icon, pie, centerLabel, centerValue, centerSub;
@@ -529,7 +529,7 @@ function DashWidget({ which, hideAmounts, accountsPie, stocks }) {
       return { label: s.code, color: STOCK_COLORS[i % STOCK_COLORS.length], pct: mv / totalMv * 100, value: mv };
     }) : [{ label: '尚無持倉', color: TOKENS.warmBorder2, pct: 100, value: 0 }];
     centerLabel = '台股市值';
-    centerValue = mask(totalMv);
+    centerValue = hideAmounts ? '••••••' : fmtMoney(Math.round(totalMv)); // 最上層總額 → 眼睛遮蔽
     centerSub = `${stocks.length} 檔`;
   } else {
     title = '資產配置';
@@ -621,7 +621,7 @@ function DashboardScreen({ hideAmounts, setHideAmounts, savedFlows = [], savedTr
   const monthlyExp = curMonthFlows.filter((f) => f.kind === 'exp').reduce((a, f) => a + flowTWD(f), 0);
   const monthlyInc = curMonthFlows.filter((f) => f.kind === 'inc').reduce((a, f) => a + flowTWD(f), 0);
 
-  const mask = (v) => hideAmounts ? '••••••' : fmtMoney(Math.round(v));
+  const mask = (v) => fmtMoney(Math.round(v)); // 一般數字不再受眼睛遮蔽；只遮最上層總額
 
   const doRefresh = () => {
     if (refreshing) return;

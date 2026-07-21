@@ -660,7 +660,7 @@ function AccountItemRow({ item, group, mask, last, onOpen }) {
 /* ─── Main AccountsScreen ────────────────────────────────────────────── */
 function AccountsScreen({ hideAmounts, onOpenDetail, computedAcctGroups = [], computedHoldings = [], savedFlows = [], masterData, onOpenNetWorth }) {
   const { ChartPie } = window.Icons;
-  const mask = (n) => hideAmounts ? '••••••' : fmtAcct(n);
+  const mask = (n) => fmtAcct(n); // 一般數字（含群組小計、單一帳戶）不再受眼睛遮蔽；只遮最上層總資產淨額
   const [openId, setOpenId] = useStateAcct(null);
 
   const LIGHT_TINTS = { cash: TOKENS.surface, stock: TOKENS.accentTintHi, bond: TOKENS.chart2, other: TOKENS.chart1 };
@@ -746,7 +746,7 @@ function AccountsScreen({ hideAmounts, onOpenDetail, computedAcctGroups = [], co
             </div>
             <div style={{ marginTop: SP(4), fontFamily: TOKENS.fontMono, fontSize: FS(30), fontWeight: 700,
               color: TOKENS.surface, letterSpacing: -0.5 }}>
-              {mask(netWorth)}
+              {hideAmounts ? '••••••' : fmtAcct(netWorth)}
             </div>
           </div>
         </div>
