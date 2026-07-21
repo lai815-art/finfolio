@@ -178,7 +178,7 @@
   };
 
   // 支出分類群組（與收入分類相同的兩層結構）
-  window.EXP_GROUPS = ['餐飲', '交通', '日常', '娛樂', '醫療', '教育', '投資損失', '其他'];
+  window.EXP_GROUPS = ['餐飲', '交通', '日常', '娛樂', '醫療', '教育', '金融保險', '投資損失', '其他'];
   // 攤平支出分類供記帳選單使用：有子項目列子項目，空群組列群組本身
   window.flattenExpCats = function (catExp) {
     var items = (catExp || []).map(function (c) {

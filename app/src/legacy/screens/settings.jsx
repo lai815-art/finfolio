@@ -67,6 +67,8 @@ const DEFAULT_DATA = {
   { name: '購物', group: '娛樂' },
   { name: '掛號費', group: '醫療' },
   { name: '保健食品', group: '醫療' },
+  { name: '各種稅金', group: '金融保險' },
+  { name: '保險費', group: '金融保險' },
   { name: '台股', group: '投資損失' },
   { name: '美股', group: '投資損失' }],
 
@@ -1120,7 +1122,7 @@ function CategoriesManager({ data, onChange, color }) {
       <IncomeGroupManager items={data.cat_exp} onChange={(items) => onChange(items, tab)}
       color={color} groups={window.EXP_GROUPS} defaultGroup="其他"
       groupColors={{ '餐飲': TOKENS.red, '交通': TOKENS.blue2, '日常': TOKENS.teal, '娛樂': TOKENS.gold,
-        '醫療': TOKENS.green, '教育': TOKENS.indigo, '投資損失': TOKENS.orange, '其他': TOKENS.gray4 }}
+        '醫療': TOKENS.green, '教育': TOKENS.indigo, '金融保險': TOKENS.blue, '投資損失': TOKENS.orange, '其他': TOKENS.gray4 }}
       groupLabels={{}} /> :
       <StringListManager key={tab} items={data[tab]}
       onChange={(items) => onChange(items, tab)} color={color}

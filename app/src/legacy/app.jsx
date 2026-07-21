@@ -1243,6 +1243,22 @@ function App() {
       return next;
     });
   };
+  // 一次性遷移：補上「金融保險」大類的預設支出分類（各種稅金／保險費）。只跑一次，
+  // 之後使用者自行刪除不會再被加回。
+  useEffectApp(() => {
+    try {
+      if (localStorage.getItem('ff_migrate_finins') === '1') return;
+      setMasterData((md) => {
+        const cx = Array.isArray(md.cat_exp) ? md.cat_exp.slice() : [];
+        const has = (n) => cx.some((c) => (typeof c === 'string' ? c : c.name) === n);
+        const add = [];
+        if (!has('各種稅金')) add.push({ name: '各種稅金', group: '金融保險' });
+        if (!has('保險費')) add.push({ name: '保險費', group: '金融保險' });
+        return add.length ? { ...md, cat_exp: [...cx, ...add] } : md;
+      });
+      localStorage.setItem('ff_migrate_finins', '1');
+    } catch {}
+  }, []);
   const [recordEdits, setRecordEdits] = useStateApp(() => {
     try {const s = localStorage.getItem('ff_record_edits');if (s) return JSON.parse(s);} catch {}
     return {};
