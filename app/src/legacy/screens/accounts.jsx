@@ -248,6 +248,9 @@ function AccountDetailSheet({ data, mask, onClose, onSaveItem, savedFlows = [], 
     source: 'real', _orig: f
   }));
 
+  // 已有自動投資轉帳流水的買進 tradeJA 集合（避免交割戶重複列出買進交易）
+  const buyXferJAs = new Set((savedFlows || []).filter((f) => f._buyXfer).map((f) => f._linkedTradeJA));
+
   const realTrades = isBrokerage ?
   savedTrades.filter((t) => brokerMatch(t.broker)).map((t) => ({
     date: fmtDate(t.date), _ts: new Date(t.date).getTime(),
@@ -255,9 +258,9 @@ function AccountDetailSheet({ data, mask, onClose, onSaveItem, savedFlows = [], 
     amount: t.side === 'buy' ? -(t.shares * t.price) : t.shares * t.price,
     source: 'real', _orig: t, _isTrade: true
   })) :
-  // 交割戶：買進會從此戶扣款買股（賣出已由自動「投資轉帳」記錄），
-  // 列出買進交易並於說明標示買了什麼、幾股。
-  savedTrades.filter((t) => t.side === 'buy' && matchAcct(t.settleAccount)).map((t) => {
+  // 交割戶：新版買進已自動產生「投資轉帳」流水（realFlows 會列出），這裡就不再重複列出
+  // 該買進交易，避免同一筆扣款出現兩次；舊資料的買進（沒有投資轉帳流水）才由這裡列出。
+  savedTrades.filter((t) => t.side === 'buy' && matchAcct(t.settleAccount) && !buyXferJAs.has(t._justAdded)).map((t) => {
     const gross = (parseFloat(t.shares) || 0) * (parseFloat(t.price) || 0);
     const cost = t.net != null && t.net > 0 ? t.net : gross + (parseFloat(t.fee) || 0);
     return {

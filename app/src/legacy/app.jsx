@@ -1440,8 +1440,8 @@ function App() {
               toAccount: data.broker || '__stock_position__', // 券商部位（非現金帳戶，不影響其他餘額）
               account: `${data.settleAccount} → ${data.broker || ''}`,
               cat: '投資轉帳',
-              merchant: data.broker || data.name || '證券戶',
-              note: data.name || '',
+              merchant: `買進 ${data.name || data.code || ''}`.trim() || '證券戶',
+              note: data.broker || data.name || '',
               date: settleDate || new Date(),
               time: nowStr(), _autoGen: true, _buyXfer: true,
               _linkedTradeJA: tradeJA,
