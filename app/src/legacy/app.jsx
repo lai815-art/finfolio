@@ -605,7 +605,7 @@ function TabBar({ tab, setTab, onVoice, onManualRecord, onSettings }) {
 
 }
 
-function RecordSheet({ open, draft, onClose, onSaved, onDelete, masterData, computedHoldings }) {
+function RecordSheet({ open, draft, onClose, onSaved, onDelete, masterData, computedHoldings, defaultDate }) {
   const { X, Mic, Plus, Sparkles, Pencil } = window.Icons;
   // Mount-only animation
   const [shown, setShown] = useStateApp(false);
@@ -666,7 +666,7 @@ function RecordSheet({ open, draft, onClose, onSaved, onDelete, masterData, comp
         </div>
         {/* Scrollable body */}
         <div style={{ flex: 1, overflowY: 'auto', overflowX: 'hidden', paddingBottom: SP(32) }}>
-          <AccountingScreen onSaved={onSaved} onDelete={onDelete} initialDraft={draft} masterData={masterData} computedHoldings={computedHoldings} />
+          <AccountingScreen onSaved={onSaved} onDelete={onDelete} initialDraft={draft} masterData={masterData} computedHoldings={computedHoldings} defaultDate={defaultDate} />
         </div>
       </div>
     </div>);
@@ -1164,6 +1164,7 @@ function App() {
 
   const [recordOpen, setRecordOpen] = useStateApp(false);
   const [recordDraft, setRecordDraft] = useStateApp(null);
+  const dashDateRef = React.useRef(null); // 看板目前檢視的日期，供「+記一筆」預設帶入
   const [recordReturnTab, setRecordReturnTab] = useStateApp('dashboard');
   const [recordReturnAcctDetail, setRecordReturnAcctDetail] = useStateApp(null);
   const [recordReturnInvestDetail, setRecordReturnInvestDetail] = useStateApp(null);
@@ -1618,7 +1619,7 @@ function App() {
         overflowY: 'auto', overflowX: 'hidden',
         paddingBottom: SP(130)
       }}>
-          {tab === 'dashboard' && <DashboardScreen hideAmounts={hideAmounts} setHideAmounts={setHideAmounts} savedFlows={effFlows} savedTrades={effTrades} dashWidget={dashWidget} recordEdits={recordEdits} recordDeletes={recordDeletes} onEditRecord={(d) => {setRecordReturnTab('dashboard');setRecordDraft(d);setRecordOpen(true);}} computedAcctGroups={computedAcctGroups} computedHoldings={computedHoldings} masterData={masterData} onOpenStats={() => setStatsOpen(true)} />}
+          {tab === 'dashboard' && <DashboardScreen hideAmounts={hideAmounts} setHideAmounts={setHideAmounts} savedFlows={effFlows} savedTrades={effTrades} dashWidget={dashWidget} recordEdits={recordEdits} recordDeletes={recordDeletes} onEditRecord={(d) => {setRecordReturnTab('dashboard');setRecordDraft(d);setRecordOpen(true);}} computedAcctGroups={computedAcctGroups} computedHoldings={computedHoldings} masterData={masterData} onOpenStats={() => setStatsOpen(true)} onDateChange={(d) => { dashDateRef.current = d; }} />}
           {tab === 'accounts' && <AccountsScreen hideAmounts={hideAmounts}
         computedAcctGroups={computedAcctGroups}
         computedHoldings={computedHoldings}
@@ -1650,6 +1651,7 @@ function App() {
         setRecordOpen(true);
       }} />
       <RecordSheet open={recordOpen} draft={recordDraft} masterData={masterData}
+      defaultDate={tab === 'dashboard' ? dashDateRef.current : null}
       computedHoldings={computedHoldings}
       onClose={() => {
         setRecordOpen(false);

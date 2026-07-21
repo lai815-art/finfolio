@@ -79,7 +79,9 @@ const VOICE_SCENARIOS = [
 }];
 
 
-function AccountingScreen({ onSaved, onDelete, initialDraft, masterData, computedHoldings }) {
+function AccountingScreen({ onSaved, onDelete, initialDraft, masterData, computedHoldings, defaultDate }) {
+  // 新記錄的預設日期：優先用外層帶入的 defaultDate（例如看板切換後的日期），否則今天
+  const baseDate = () => defaultDate ? new Date(defaultDate) : new Date(window.TODAY_DATE || TODAY_ACC);
   const recordId = initialDraft && initialDraft.recordId;
   const draftFlow = initialDraft && initialDraft.intent === 'flow' ? initialDraft.apply : null;
   const draftStock = initialDraft && initialDraft.intent === 'stock' ? initialDraft.apply : null;
@@ -108,7 +110,7 @@ function AccountingScreen({ onSaved, onDelete, initialDraft, masterData, compute
       fromAccount: firstFrom,
       toAccount: firstTo,
       xferFee: '',
-      date: new Date(window.TODAY_DATE || TODAY_ACC), note: '',
+      date: baseDate(), note: '',
       ...(draftFlow || {}),
       // category 放在 spread 之後，且只有 draft 沒指定時才用預設（避免覆蓋 draft 帶來的分類）
       category: draftFlow && draftFlow.category || defaultCat
@@ -133,7 +135,7 @@ function AccountingScreen({ onSaved, onDelete, initialDraft, masterData, compute
       feeOverride: null, // null = 依費率自動計算；字串(含空字串)= 使用者自己填的手續費（空 = 清成 0）
       taxOverride: null, // null = 依稅率自動計算；字串(含空字串)= 使用者自己填的證交稅（空 = 清成 0）
       taxRateMode: null, // null = 依股票類別自動選稅率；數字 = 使用者手動選的稅率
-      date: new Date(window.TODAY_DATE || TODAY_ACC), note: '',
+      date: baseDate(), note: '',
       ...(draftStock || {})
     };
   });

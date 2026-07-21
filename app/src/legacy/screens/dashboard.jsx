@@ -591,12 +591,14 @@ function DashWidget({ which, hideAmounts, accountsPie, stocks }) {
 
 }
 
-function DashboardScreen({ hideAmounts, setHideAmounts, savedFlows = [], savedTrades = [], dashWidget = 'accounts', onEditRecord, recordEdits = {}, recordDeletes = [], computedAcctGroups = [], computedHoldings = [], masterData = {}, onOpenStats }) {
+function DashboardScreen({ hideAmounts, setHideAmounts, savedFlows = [], savedTrades = [], dashWidget = 'accounts', onEditRecord, recordEdits = {}, recordDeletes = [], computedAcctGroups = [], computedHoldings = [], masterData = {}, onOpenStats, onDateChange }) {
   const { RefreshCw, Eye, EyeOff, TrendUp, TrendDown, ArrowUpRight, ChartPie } = window.Icons;
   const [refreshing, setRefreshing] = useStateDash(false);
   const [refreshedAt, setRefreshedAt] = useStateDash('剛剛');
   const [priceTick, setPriceTick] = useStateDash(0);
   const [selectedDate, setSelectedDate] = useStateDash(new Date(TODAY));
+  // 回報目前檢視的日期給上層：從看板點「+記一筆」時，預設帶入切換後的日期
+  useEffectDash(() => { if (onDateChange) onDateChange(selectedDate); }, [selectedDate]);
   const [calOpen, setCalOpen] = useStateDash(false);
   const [slideDir, setSlideDir] = useStateDash(0);
 
