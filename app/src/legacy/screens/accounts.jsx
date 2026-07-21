@@ -581,7 +581,7 @@ function AssetGroupRow({ group, openId, setOpenId, mask, onOpenDetail }) {
             // sum 對負債群組已是「應繳為正」；帶號取負即可——溢繳（sum<0）要顯示成正數資產，
             // 不能用 Math.abs 硬翻成更大的負債（否則繳完卡費看起來反而負更多）。
             const sv = group.sign < 0 ? -sum : sum;
-            const neg = sv < 0;
+            const neg = Math.round(sv) < 0; // 四捨五入後才判斷負號/紅字：-0.x 顯示成 0 不帶負號、不紅字
             return (
           <div style={{ fontFamily: TOKENS.fontMono, fontSize: FS(22), fontWeight: 700, whiteSpace: 'nowrap', flexShrink: 0,
             color: neg ? TOKENS.red : TOKENS.ink }}>
@@ -633,7 +633,7 @@ function AccountItemRow({ item, group, mask, last, onOpen }) {
         </div>
         {(() => {
           const av = group.sign < 0 ? -item.amount : item.amount; // 帶號顯示：欠款為負、溢繳為正
-          const neg = av < 0;
+          const neg = Math.round(av) < 0; // 四捨五入後才判斷負號/紅字：-0.x 顯示成 0 不帶負號、不紅字
           return (
         <div style={{ fontFamily: TOKENS.fontMono, fontSize: FS(18), fontWeight: 600, flexShrink: 0, whiteSpace: 'nowrap',
           color: neg ? TOKENS.red : TOKENS.ink }}>
