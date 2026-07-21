@@ -368,8 +368,6 @@ function DropField({ label, value, options, onChange, icon, groups, dotColor }) 
         {icon && <span style={{ color: 'rgba(44,44,50,0.5)', flexShrink: 0 }}>{icon}</span>}
         <div style={{ flex: 1, minWidth: 0, fontSize: FS(19), fontWeight: 500,
           display: 'flex', alignItems: 'center', gap: SP(7) }}>
-          {dotColor && <span style={{ width: 9, height: 9, borderRadius: 5, flexShrink: 0,
-            background: dotColor, boxShadow: `0 0 0 2px ${dotColor}33` }} />}
           <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{value}</span>
         </div>
         <ChevronDown size={16} style={{ color: 'rgba(44,44,50,0.5)', flexShrink: 0,
@@ -388,8 +386,6 @@ function DropField({ label, value, options, onChange, icon, groups, dotColor }) 
           fontWeight: o === value ? 600 : 400,
           display: 'flex', alignItems: 'center', gap: SP(10)
         }}>
-          {color && <span style={{ width: 9, height: 9, borderRadius: 5, flexShrink: 0,
-            background: color, boxShadow: o === value ? 'none' : `0 0 0 2px ${color}33` }} />}
           <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{o}</span>
         </button>;
         return (
@@ -410,7 +406,6 @@ function DropField({ label, value, options, onChange, icon, groups, dotColor }) 
             <div style={{ display: 'flex', alignItems: 'center', gap: SP(7),
               padding: PAD('6px 12px 4px'), fontSize: FS(13), fontWeight: 700,
               letterSpacing: 0.6, color: g.color, textTransform: 'uppercase' }}>
-              <span style={{ width: 7, height: 7, borderRadius: 4, background: g.color }} />
               {g.label}
             </div>
             {g.items.map((o) => optBtn(o, g.color))}
