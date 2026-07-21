@@ -160,13 +160,13 @@
         }
       }
       // 動態島/瀏海是「置中凸起」的。主畫面標題(FinFolio/資產帳戶…)短、靠左，右上只有一顆
-      // 眼睛按鈕，都在島的「兩側」不會被蓋到，所以只要清掉狀態列文字那一列(約44px)即可，
-      // 不必含整個動態島高度——上限 44px，消除主畫面多餘的頂部留白。
-      // 明細頁(資產配置明細…)標題較長、會延伸到中央島的下方，需要完整安全區才不會被切，
-      // 所以 --ff-detail-top 仍用完整安全區 +2px。
+      // 眼睛按鈕，都在島的「兩側」不會被蓋到，所以只要清掉狀態列文字那一列(約28px)即可。
+      // 明細/統計頁標題較長會延伸到中央，理論上要留完整安全區才不會被中央的動態島切到；
+      // 但依需求把頂部留白減半（下限 30px，避免標題被切太多）。若長標題(如「0050 元大台灣50」)
+      // 中段被實體動態島蓋到，再往上調 detailTop 即可。
       var satC = Math.round(satScreen / k);
       var mainTop = window.FF_STANDALONE ? Math.min(satC, 28) : 62;
-      var detailTop = window.FF_STANDALONE ? satC + 2 : 62;
+      var detailTop = window.FF_STANDALONE ? Math.max(Math.round((satC + 2) / 2), 30) : 62;
       document.documentElement.style.setProperty('--ff-detail-top', detailTop + 'px');
       document.documentElement.style.setProperty('--ff-main-top', mainTop + 'px');
     }
