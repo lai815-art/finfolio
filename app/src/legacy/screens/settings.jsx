@@ -103,7 +103,7 @@ const DEFAULT_DATA = {
   brokers: [
   { name: '主要券商', sub: '富邦證券 · ••• 8832', settleAccount: '券商交割戶', currency: 'TWD' },
   { name: '副券商', sub: '元大證券 · ••• 1024', settleAccount: '', currency: 'TWD' },
-  { name: '複委託', sub: '國泰證券 · ••• 2207', settleAccount: '複委託交割戶', currency: 'USD' }],
+  { name: '複委託', sub: '國泰證券 · ••• 2207', settleAccount: '複委託交割戶', currency: 'USD', t2: false }],
 
   settle: [
   { name: '券商交割戶', sub: '對應主要券商', currency: 'TWD' },
@@ -1479,6 +1479,7 @@ function BrokerManager({ items, onChange, color, settleOptions = [] }) {
                     <span style={{ fontSize: FS(16), color: 'rgba(44,44,50,0.88)' }}>
                         {[
                   it.settleAccount ? `交割：${it.settleAccount}` : '',
+                  it.t2 === false ? '當日交割' : (it.t2 === true ? 'T+2' : ''),
                   `手續費 ${it.feeRate != null && String(it.feeRate).trim() !== '' ? it.feeRate : '0.1425'}%`,
                   (it.discount && parseFloat(it.discount) > 0 && parseFloat(it.discount) < 10) ? `${it.discount} 折` : ''].
                   filter(Boolean).join(' · ')}
@@ -1506,6 +1507,16 @@ function BrokerManager({ items, onChange, color, settleOptions = [] }) {
                 <div style={{ display: 'flex', alignItems: 'center', gap: SP(8) }}>
                   <span style={{ fontSize: FS(16), color: 'rgba(44,44,50,0.84)', whiteSpace: 'nowrap', flexShrink: 0 }}>對應交割戶</span>
                   <SettleSelect value={edit.settleAccount || ''} onChange={(v) => setEdit({ ...edit, settleAccount: v })} />
+                </div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: SP(8) }}>
+                  <span style={{ fontSize: FS(16), color: 'rgba(44,44,50,0.84)', whiteSpace: 'nowrap', flexShrink: 0 }}>交割規則</span>
+                  {(() => { const on = edit.t2 != null ? !!edit.t2 : edit.currency !== 'USD'; return (
+                    <button onClick={() => setEdit({ ...edit, t2: !on })} style={{ flex: 1, minWidth: 0, height: 34, borderRadius: RS(8),
+                      background: on ? `${color}1f` : 'rgba(0,0,0,0.06)', border: `1px solid ${on ? color : 'rgba(0,0,0,0.16)'}`,
+                      color: on ? color : 'rgba(44,44,50,0.7)', fontSize: FS(16), fontWeight: 500,
+                      display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                      {on ? 'T+2 交割（台股）' : '當日交割（美股，無 T+2）'}
+                    </button>); })()}
                 </div>
                 <div style={{ display: 'flex', alignItems: 'center', gap: SP(6) }}>
                   <span style={{ fontSize: FS(16), color: 'rgba(44,44,50,0.84)', whiteSpace: 'nowrap', flexShrink: 0 }}>手續費</span>
@@ -1536,6 +1547,16 @@ function BrokerManager({ items, onChange, color, settleOptions = [] }) {
           <div style={{ display: 'flex', alignItems: 'center', gap: SP(8), marginBottom: SP(10) }}>
             <span style={{ fontSize: FS(16), color: 'rgba(44,44,50,0.84)', whiteSpace: 'nowrap' }}>對應交割戶</span>
             <SettleSelect value={addV.settleAccount || ''} onChange={(v) => setAddV({ ...addV, settleAccount: v })} />
+          </div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: SP(8), marginBottom: SP(10) }}>
+            <span style={{ fontSize: FS(16), color: 'rgba(44,44,50,0.84)', whiteSpace: 'nowrap' }}>交割規則</span>
+            {(() => { const on = addV.t2 != null ? !!addV.t2 : addV.currency !== 'USD'; return (
+              <button onClick={() => setAddV({ ...addV, t2: !on })} style={{ flex: 1, minWidth: 0, height: 34, borderRadius: RS(8),
+                background: on ? `${color}1f` : 'rgba(0,0,0,0.06)', border: `1px solid ${on ? color : 'rgba(0,0,0,0.16)'}`,
+                color: on ? color : 'rgba(44,44,50,0.7)', fontSize: FS(16), fontWeight: 500,
+                display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                {on ? 'T+2 交割（台股）' : '當日交割（美股，無 T+2）'}
+              </button>); })()}
           </div>
           <div style={{ display: 'flex', alignItems: 'center', gap: SP(6), marginBottom: SP(10) }}>
             <span style={{ fontSize: FS(16), color: 'rgba(44,44,50,0.84)', whiteSpace: 'nowrap', flexShrink: 0 }}>手續費</span>

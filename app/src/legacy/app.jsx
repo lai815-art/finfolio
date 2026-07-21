@@ -1421,8 +1421,12 @@ function App() {
         // excludeRecordId = 's-XXX' of the trade being edited (to remove it from FIFO history).
         const buildTradeFlows = (tradeJA, excludeRecordId) => {
           if (!data.settleAccount) return [];
-          const isTW = /^\d/.test(String(data.code || ''));
-          const settleDate = isTW ? addBizDays(data.date, 2) : data.date;
+          const isTW = /^\d/.test(String(data.code || '')); // 用於損益分類（台股/美股）
+          // 交割是否 T+2：優先看該證券戶設定的 t2 旗標；沒設定則沿用舊行為（依代號判斷，
+          // 台股數字代號 T+2、美股當日）。美股帳戶把 t2 設為 false 即可當日交割。
+          const brokerRec = (masterData.brokers || []).find((b) => b.name === data.broker);
+          const useT2 = brokerRec && brokerRec.t2 != null ? !!brokerRec.t2 : isTW;
+          const settleDate = useT2 ? addBizDays(data.date, 2) : data.date;
           // ── 買進：T+2 從交割戶扣款的投資轉帳 ──
           if (data.side === 'buy') {
             const sh = parseFloat(data.shares) || 0;
