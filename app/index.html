@@ -243,21 +243,42 @@
         var el = document.activeElement;
         if (!el || !/^(INPUT|TEXTAREA|SELECT)$/.test(el.tagName)) { restore(); return; }
         var kb = kbHeight();
-        if (kb < 60) { // 鍵盤沒開（或已收起）：不加內距，仍置中一次
+        var sc = scrollParent(el);
+        if (kb < 60) { // 鍵盤沒開（或已收起）：還原內距即可
           restore();
-          try { el.scrollIntoView({ block: 'center', behavior: 'smooth' }); } catch (_) {}
           return;
         }
-        var sc = scrollParent(el);
+        var k = scaleK() || 1;
         if (sc) {
           if (padded && padded !== sc) restore();
           if (padded !== sc) { padded = sc; padOld = sc.style.paddingBottom; }
-          sc.style.paddingBottom = Math.round(kb / scaleK() + 24) + 'px';
+          // 加足底部內距，讓容器有捲動空間可把最底部的欄位捲到鍵盤上方
+          sc.style.paddingBottom = Math.round(kb / k + 80) + 'px';
         }
-        try { el.scrollIntoView({ block: 'center', behavior: 'smooth' }); } catch (_) {}
+        // 等 padding 生效後，依「鍵盤上方可見區」把欄位捲到鍵盤上緣之上（非置中，
+        // 因為容器會延伸到鍵盤底下，置中常常還在鍵盤後面）。座標換算：getBoundingClientRect
+        // 是縮放後的視窗 px，容器 scrollTop 是畫布 px，故位移量要 ÷k。
+        var place = function () {
+          if (!window.visualViewport) { try { el.scrollIntoView({ block: 'center' }); } catch (_) {} return; }
+          var vvh = window.visualViewport.height;
+          var vvtop = window.visualViewport.offsetTop || 0;
+          var visibleBottom = vvtop + vvh; // 鍵盤上緣（layout px）
+          var margin = 16;
+          var r = el.getBoundingClientRect();
+          if (!sc) { try { el.scrollIntoView({ block: 'center' }); } catch (_) {} return; }
+          var over = r.bottom - (visibleBottom - margin); // 欄位底部超出鍵盤上緣多少
+          if (over > 0) sc.scrollTop += over / k;
+          var r2 = el.getBoundingClientRect(); // 若被捲過頭（欄位頂跑到可見區之上）再拉回
+          var above = (vvtop + margin) - r2.top;
+          if (above > 0) sc.scrollTop -= above / k;
+        };
+        requestAnimationFrame(function () { requestAnimationFrame(place); });
       }
-      // 聚焦後等鍵盤動畫、鍵盤高度改變時（打開/換輸入法/收起）都重新對位
-      document.addEventListener('focusin', function () { setTimeout(reveal, 350); });
+      // 聚焦後鍵盤動畫要幾百毫秒，且高度會分段變化——多補幾拍重新對位，
+      // 確保欄位最後一定停在鍵盤上方；高度改變（打開/換輸入法/收起）也重對位。
+      document.addEventListener('focusin', function () {
+        [120, 300, 500, 750].forEach(function (t) { setTimeout(reveal, t); });
+      });
       if (window.visualViewport) {
         window.visualViewport.addEventListener('resize', function () { setTimeout(reveal, 60); });
       }
