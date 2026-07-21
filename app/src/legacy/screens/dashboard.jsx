@@ -776,8 +776,8 @@ function assetIconName(n) {
   return 'TrendUp';
 }
 window.assetIconName = assetIconName;
-// 資產配置圓餅圖裡較難理解的類別，給一句白話說明。
-const ASSET_CAT_NOTE = { '現金': '錢包 + 儲值卡 + 電子支付 + 其他', '存款': '銀行帳戶（含交割戶）' };
+// 資產配置圓餅圖各類別的白話說明。現金/存款不再顯示提示小字（依需求移除）。
+const ASSET_CAT_NOTE = {};
 
 /* ── MonthlyStatsSheet ─────────────────────────────────────────────── */
 function MonthlyStatsSheet({ open, onClose, savedFlows, masterData, hideAmounts, nowDate, mask }) {
