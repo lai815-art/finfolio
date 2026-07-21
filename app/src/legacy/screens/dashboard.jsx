@@ -829,9 +829,11 @@ function MonthlyStatsSheet({ open, onClose, savedFlows, masterData, hideAmounts,
   const spY = viewDate.getFullYear(), spM = viewDate.getMonth();
   const EXP_COLORS = [TOKENS.red, TOKENS.orange, TOKENS.gold, TOKENS.red2, TOKENS.gold2, '#A85638', '#D9A05B', TOKENS.indigo, TOKENS.teal, TOKENS.gray4];
   const spendMap = {};
-  savedFlows.forEach((f) => { if (f.kind !== 'exp') return; const d = dOf(f); if (d.getFullYear() !== spY || d.getMonth() !== spM) return; if (isInvestExp(f.cat)) return; const k = f.cat || '其他'; spendMap[k] = (spendMap[k] || 0) + amtOf(f); });
+  // 消費分析納入投資損失（賣股虧損），股票類別(台股/美股)合併成單一「投資損失」切片。
+  savedFlows.forEach((f) => { if (f.kind !== 'exp') return; const d = dOf(f); if (d.getFullYear() !== spY || d.getMonth() !== spM) return; const k = isInvestExp(f.cat) ? '投資損失' : f.cat || '其他'; spendMap[k] = (spendMap[k] || 0) + amtOf(f); });
   const spendTotal = Object.values(spendMap).reduce((a, v) => a + v, 0);
-  const spendCats = Object.entries(spendMap).sort((a, b) => b[1] - a[1]).map(([k, v], i) => ({ name: k, value: v, color: EXP_COLORS[i % EXP_COLORS.length], pct: spendTotal > 0 ? v / spendTotal * 100 : 0 }));
+  // 投資損失固定用深色，和一般消費類別區隔
+  const spendCats = Object.entries(spendMap).sort((a, b) => b[1] - a[1]).map(([k, v], i) => ({ name: k, value: v, color: k === '投資損失' ? TOKENS.ink2 : EXP_COLORS[i % EXP_COLORS.length], pct: spendTotal > 0 ? v / spendTotal * 100 : 0 }));
 
   // ── 每月收支（年）──
   const viewYear = now.getFullYear() + yearOffset;
