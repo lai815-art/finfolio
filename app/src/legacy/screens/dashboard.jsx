@@ -817,11 +817,12 @@ function MonthlyStatsSheet({ open, onClose, savedFlows, masterData, hideAmounts,
   // 統計一律換算台幣：外幣帳戶依 curMap[帳戶] 幣別換算，不以面額直接加總
   const curMap = window.buildCurMap(masterData);
   const amtOf = (f) => window.fxToTWD(f.amount, curMap[f.account]);
-  const emptyAgg = () => ({ inc: 0, exp: 0, groups: { '主動收入': 0, '被動收入': 0, '投資收入': 0, '其他': 0 }, incCats: {} });
+  // exp = 總支出（含投資損失）；investLoss = 其中的投資損失（賣股虧損），供彈窗拆成「消費支出／投資損失」
+  const emptyAgg = () => ({ inc: 0, exp: 0, investLoss: 0, groups: { '主動收入': 0, '被動收入': 0, '投資收入': 0, '其他': 0 }, incCats: {} });
   const addFlow = (a, f) => {
     const v = amtOf(f);
     if (f.kind === 'inc') { a.inc += v; const g = incGroupOf(f.cat); a.groups[g] = (a.groups[g] || 0) + v; a.incCats[f.cat] = (a.incCats[f.cat] || 0) + v; } else
-    if (f.kind === 'exp') { a.exp += v; }
+    if (f.kind === 'exp') { a.exp += v; if (isInvestExp(f.cat)) a.investLoss += v; }
   };
 
   // ── 消費分析（月）──
@@ -829,11 +830,10 @@ function MonthlyStatsSheet({ open, onClose, savedFlows, masterData, hideAmounts,
   const spY = viewDate.getFullYear(), spM = viewDate.getMonth();
   const EXP_COLORS = [TOKENS.red, TOKENS.orange, TOKENS.gold, TOKENS.red2, TOKENS.gold2, '#A85638', '#D9A05B', TOKENS.indigo, TOKENS.teal, TOKENS.gray4];
   const spendMap = {};
-  // 消費分析納入投資損失（賣股虧損），股票類別(台股/美股)合併成單一「投資損失」切片。
-  savedFlows.forEach((f) => { if (f.kind !== 'exp') return; const d = dOf(f); if (d.getFullYear() !== spY || d.getMonth() !== spM) return; const k = isInvestExp(f.cat) ? '投資損失' : f.cat || '其他'; spendMap[k] = (spendMap[k] || 0) + amtOf(f); });
+  // 消費分析只計「消費支出」，排除投資損失（賣股虧損）——投資損失改在每月/年度收支彈窗與折線圖呈現。
+  savedFlows.forEach((f) => { if (f.kind !== 'exp') return; const d = dOf(f); if (d.getFullYear() !== spY || d.getMonth() !== spM) return; if (isInvestExp(f.cat)) return; const k = f.cat || '其他'; spendMap[k] = (spendMap[k] || 0) + amtOf(f); });
   const spendTotal = Object.values(spendMap).reduce((a, v) => a + v, 0);
-  // 投資損失固定用深色，和一般消費類別區隔
-  const spendCats = Object.entries(spendMap).sort((a, b) => b[1] - a[1]).map(([k, v], i) => ({ name: k, value: v, color: k === '投資損失' ? TOKENS.ink2 : EXP_COLORS[i % EXP_COLORS.length], pct: spendTotal > 0 ? v / spendTotal * 100 : 0 }));
+  const spendCats = Object.entries(spendMap).sort((a, b) => b[1] - a[1]).map(([k, v], i) => ({ name: k, value: v, color: EXP_COLORS[i % EXP_COLORS.length], pct: spendTotal > 0 ? v / spendTotal * 100 : 0 }));
 
   // ── 每月收支（年）──
   const viewYear = now.getFullYear() + yearOffset;
@@ -851,15 +851,23 @@ function MonthlyStatsSheet({ open, onClose, savedFlows, masterData, hideAmounts,
   // 點選月/年 → 彈出視窗顯示該期間數字（圖表與表格共用同一個選取狀態）
   const toggleSel = (i) => setSelIdx(selIdx === i ? null : i);
   const NET_POS = TOKENS.ink2, NET_NEG = TOKENS.red;
-  // 整合圖：收支餘額柱狀（背景）＋ 收入四類與總支出折線（前景），共用同一數值刻度。
+  // 折線系列：主動收入／被動收入／投資損益(投資收入−投資損失，可為負)／其他／消費支出(總支出−投資損失)
+  const CHART_SERIES = [
+    { k: '主動收入', c: TOKENS.incBlue, val: (a) => a.groups['主動收入'] || 0 },
+    { k: '被動收入', c: TOKENS.green, val: (a) => a.groups['被動收入'] || 0 },
+    { k: '投資損益', c: TOKENS.gold, val: (a) => (a.groups['投資收入'] || 0) - (a.investLoss || 0) },
+    { k: '其他', c: TOKENS.gray3, val: (a) => a.groups['其他'] || 0 },
+    { k: '消費支出', c: TOKENS.red, dashed: true, val: (a) => (a.exp || 0) - (a.investLoss || 0) }
+  ];
+  // 整合圖：收支餘額柱狀（背景）＋ 上述折線（前景），共用同一數值刻度。
   const ComboChart = ({ data, labels }) => {
     const W = 340, H = 172, pL = 16, pR = 12, pT = 14, pB = 22, n = data.length;
     const chartH = H - pT - pB;
     const nets = data.map((a) => a.inc - a.exp);
     let maxPos = 0, maxNeg = 0;
     data.forEach((a, i) => {
-      INC_GROUPS.forEach((g) => { maxPos = Math.max(maxPos, a.groups[g.k] || 0); });
-      maxPos = Math.max(maxPos, a.exp || 0, nets[i]);
+      CHART_SERIES.forEach((s) => { const v = s.val(a); maxPos = Math.max(maxPos, v); maxNeg = Math.max(maxNeg, -v); });
+      maxPos = Math.max(maxPos, nets[i]);
       maxNeg = Math.max(maxNeg, -nets[i]);
     });
     maxPos = maxPos || 1;
@@ -881,14 +889,11 @@ function MonthlyStatsSheet({ open, onClose, savedFlows, masterData, hideAmounts,
         {/* 選取虛線 */}
         {selIdx != null && selIdx < n &&
         <line x1={xAt(selIdx)} y1={pT} x2={xAt(selIdx)} y2={H - pB} stroke="rgba(0,0,0,0.28)" strokeWidth="1.5" strokeDasharray="3 3" />}
-        {/* 收入四類折線 */}
-        {INC_GROUPS.map((g) =>
-        <polyline key={g.k} points={data.map((a, i) => `${xAt(i).toFixed(1)},${yAt(a.groups[g.k] || 0).toFixed(1)}`).join(' ')}
-          fill="none" stroke={g.c} strokeWidth="2" strokeLinejoin="round" strokeLinecap="round" />
+        {/* 折線：主動收入／被動收入／投資損益／其他／消費支出（消費支出為紅虛線） */}
+        {CHART_SERIES.map((s) =>
+        <polyline key={s.k} points={data.map((a, i) => `${xAt(i).toFixed(1)},${yAt(s.val(a)).toFixed(1)}`).join(' ')}
+          fill="none" stroke={s.c} strokeWidth="2" strokeDasharray={s.dashed ? '5 3' : undefined} strokeLinejoin="round" strokeLinecap="round" />
         )}
-        {/* 總支出折線（紅虛線） */}
-        <polyline points={data.map((a, i) => `${xAt(i).toFixed(1)},${yAt(a.exp || 0).toFixed(1)}`).join(' ')}
-          fill="none" stroke={TOKENS.red} strokeWidth="2" strokeDasharray="5 3" strokeLinejoin="round" strokeLinecap="round" />
         {data.map((_, i) => i % step === 0 ? <text key={'t' + i} x={xAt(i)} y={H - 6} textAnchor="middle" fill="rgba(44,44,50,0.5)" style={{ fontSize: '14px' }}>{labels[i]}</text> : null)}
         {/* 點擊熱區：每欄一條 → 開啟彈出視窗 */}
         {data.map((_, i) => <rect key={'h' + i} x={xAt(i) - cw / 2} y={0} width={cw} height={H} fill="transparent" onClick={() => toggleSel(i)} style={{ cursor: 'pointer' }} />)}
@@ -899,6 +904,7 @@ function MonthlyStatsSheet({ open, onClose, savedFlows, masterData, hideAmounts,
   const SelPopup = () => {
     if (selIdx == null || !curData[selIdx]) return null;
     const a = curData[selIdx];const net = a.inc - a.exp;
+    const invLoss = a.investLoss || 0; const spend = a.exp - invLoss; // 消費支出 = 總支出 − 投資損失
     const label = view === 'month' ? `${viewYear} 年 ${selIdx + 1} 月` : `${decadeYears[selIdx]} 年`;
     const row = (lbl, v, color, sign, dot) =>
     <div style={{ display: 'flex', alignItems: 'center', gap: SP(8), padding: PAD('6px 0') }}>
@@ -924,7 +930,8 @@ function MonthlyStatsSheet({ open, onClose, savedFlows, masterData, hideAmounts,
           </div>
           <div style={{ borderTop: '1px solid rgba(0,0,0,0.12)', marginTop: SP(6), paddingTop: SP(4) }}>
             {row('總收入', a.inc, TOKENS.incBlue)}
-            {row('總支出', a.exp, TOKENS.red, a.exp > 0 ? '-' : '')}
+            {row('消費支出', spend, TOKENS.red, spend > 0 ? '-' : '')}
+            {row('投資損失', invLoss, TOKENS.ink2, invLoss > 0 ? '-' : '')}
             {row('餘額', net, net < 0 ? TOKENS.red : TOKENS.ink, net < 0 ? '-' : '')}
           </div>
         </div>
@@ -969,8 +976,7 @@ function MonthlyStatsSheet({ open, onClose, savedFlows, masterData, hideAmounts,
 
   const IncLegend = () =>
   <div style={{ display: 'flex', flexWrap: 'wrap', gap: SP(10), marginBottom: SP(8), paddingLeft: SP(2) }}>
-    {INC_GROUPS.map((g) => <span key={g.k} style={{ display: 'flex', alignItems: 'center', gap: SP(4), fontSize: FS(13), color: 'rgba(44,44,50,0.6)' }}><span style={{ width: 12, height: 3, borderRadius: RS(2), background: g.c }} />{g.k}</span>)}
-    <span style={{ display: 'flex', alignItems: 'center', gap: SP(4), fontSize: FS(13), color: 'rgba(44,44,50,0.6)' }}><span style={{ width: 12, height: 3, borderRadius: RS(2), background: TOKENS.red, opacity: 0.85 }} />總支出</span>
+    {CHART_SERIES.map((s) => <span key={s.k} style={{ display: 'flex', alignItems: 'center', gap: SP(4), fontSize: FS(13), color: 'rgba(44,44,50,0.6)' }}><span style={{ width: 12, height: 3, borderRadius: RS(2), background: s.c, opacity: s.dashed ? 0.85 : 1 }} />{s.k}</span>)}
   </div>;
 
   const cardStyle = { background: TOKENS.surface, borderRadius: RS(20), border: '1px solid rgba(0,0,0,0.07)', padding: PAD('16px 12px') };
@@ -1056,10 +1062,9 @@ function MonthlyStatsSheet({ open, onClose, savedFlows, masterData, hideAmounts,
               onTouchStart={onSwipeStart} onTouchEnd={onSwipeEnd}
               onMouseDown={onSwipeStart} onMouseUp={onSwipeEnd}>
               <div style={{ marginBottom: SP(6) }}>{secTitle(view === 'month' ? '每月收支' : '年度收支')}</div>
-              {/* 整合圖：收入四類＋總支出折線、收支餘額柱狀 */}
+              {/* 整合圖：主動收入／被動收入／投資損益／其他／消費支出 折線＋收支餘額柱狀 */}
               <div style={{ display: 'flex', flexWrap: 'wrap', gap: SP(10), marginBottom: SP(8), paddingLeft: SP(2) }}>
-                {INC_GROUPS.map((g) => <span key={g.k} style={{ display: 'flex', alignItems: 'center', gap: SP(4), fontSize: FS(13), color: 'rgba(44,44,50,0.6)' }}><span style={{ width: 12, height: 3, borderRadius: RS(2), background: g.c }} />{g.k}</span>)}
-                <span style={{ display: 'flex', alignItems: 'center', gap: SP(4), fontSize: FS(13), color: 'rgba(44,44,50,0.6)' }}><span style={{ width: 12, height: 3, borderRadius: RS(2), background: TOKENS.red, opacity: 0.85 }} />總支出</span>
+                {CHART_SERIES.map((s) => <span key={s.k} style={{ display: 'flex', alignItems: 'center', gap: SP(4), fontSize: FS(13), color: 'rgba(44,44,50,0.6)' }}><span style={{ width: 12, height: 3, borderRadius: RS(2), background: s.c, opacity: s.dashed ? 0.85 : 1 }} />{s.k}</span>)}
                 <span style={{ display: 'flex', alignItems: 'center', gap: SP(4), fontSize: FS(13), color: 'rgba(44,44,50,0.6)' }}><span style={{ width: 10, height: 10, borderRadius: RS(2), background: NET_POS, opacity: 0.45 }} />餘額</span>
               </div>
               <ComboChart data={curData} labels={view === 'month' ? monthLabels : yearLabels} />
