@@ -177,6 +177,19 @@
     return map;
   };
 
+  // 股票手續費／證交稅：金額一律「無條件捨去」取整數。
+  // 手續費最低收費：整股(≥1000股/整張) 20 元、零股(<1000股) 1 元。
+  window.stockMinFee = function (shares) { return (shares > 0 && shares < 1000) ? 1 : 20; };
+  // +1e-6 吸收浮點誤差（如 600000*0.001425 在 JS 為 854.9999…），避免整數乘積被誤捨成少 1 元
+  window.calcAutoFee = function (gross, shares, ratePct, mult) {
+    var rate = (ratePct > 0 ? ratePct : 0) / 100 * (mult == null ? 1 : mult);
+    if (!(gross > 0) || rate <= 0) return 0;
+    return Math.max(window.stockMinFee(shares), Math.floor(gross * rate + 1e-6));
+  };
+  window.calcAutoTax = function (gross, taxRate) {
+    return gross > 0 && taxRate > 0 ? Math.floor(gross * taxRate + 1e-6) : 0;
+  };
+
   // 支出分類群組（與收入分類相同的兩層結構）
   window.EXP_GROUPS = ['餐飲', '交通', '日常', '娛樂', '醫療', '教育', '金融保險', '投資損失', '其他'];
   // 攤平支出分類供記帳選單使用：有子項目列子項目，空群組列群組本身

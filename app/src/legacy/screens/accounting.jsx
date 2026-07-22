@@ -806,19 +806,19 @@ function StockForm({ state, update, onSaved, onDelete, recordId, masterData, com
   const _feeRate = _brokerObj && _brokerObj.feeRate != null && String(_brokerObj.feeRate).trim() !== '' ? parseFloat(_brokerObj.feeRate) : 0.1425;
   const _feeDisc = _brokerObj && _brokerObj.discount != null && String(_brokerObj.discount).trim() !== '' ? parseFloat(_brokerObj.discount) : 10;
   const feeMult = _feeDisc > 0 && _feeDisc <= 10 ? _feeDisc / 10 : 1;
-  const autoFee = sh > 0 && pr > 0 && _feeRate > 0 ? Math.max(1, Math.round(gross * (_feeRate / 100) * feeMult)) : 0;
+  const autoFee = sh > 0 && pr > 0 ? window.calcAutoFee(gross, sh, _feeRate, feeMult) : 0;
   // 手續費／證交稅：預設自動試算（0.1425% / 賣出 0.3%），但可直接修改金額；清空即恢復自動
   // 使用者一旦動過手續費欄（含清空）就以其輸入為準；null 才代表沿用自動試算。
   const feeOverridden = state.feeOverride != null;
-  const fee = feeOverridden ? (Math.round(parseFloat(state.feeOverride)) || 0) : autoFee;
+  const fee = feeOverridden ? (Math.floor(parseFloat(state.feeOverride)) || 0) : autoFee;
   // 證交稅率依股票類型：一般股票 0.3% / 當沖 0.15% / 一般 ETF・權證 0.1% / 原型債券 ETF・公司債 0%。
   // 依「股票類別」給預設值：債券型→0%、其它 ETF 型→0.1%、美股(無台灣證交稅)→0%、個股→0.3%。
   const TAX_RATES = [{ r: 0.003, label: '一般 0.3%' }, { r: 0.0015, label: '當沖 0.15%' }, { r: 0.001, label: 'ETF 0.1%' }, { r: 0, label: '免稅 0%' }];
   const defaultTaxRate = (ac) => { const s = String(ac || ''); if (/債/.test(s)) return 0; if (s === '美股') return 0; if (/型$/.test(s) || /ETF/i.test(s) || /權證/.test(s)) return 0.001; return 0.003; };
   const taxRate = state.side === 'sell' ? (state.taxRateMode != null ? state.taxRateMode : defaultTaxRate(state.assetClass)) : 0;
-  const autoTax = state.side === 'sell' ? Math.round(gross * taxRate) : 0;
+  const autoTax = state.side === 'sell' ? window.calcAutoTax(gross, taxRate) : 0;
   const taxOverridden = state.side === 'sell' && state.taxOverride != null;
-  const tax = taxOverridden ? (Math.round(parseFloat(state.taxOverride)) || 0) : autoTax;
+  const tax = taxOverridden ? (Math.floor(parseFloat(state.taxOverride)) || 0) : autoTax;
   const net = state.side === 'buy' ? gross + fee : gross - fee - tax;
 
   const accent = state.side === 'buy' ? TOKENS.typeBuy : TOKENS.typeSell;
