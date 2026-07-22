@@ -785,6 +785,15 @@ function StockForm({ state, update, onSaved, onDelete, recordId, masterData, com
       assetClass: held && held.assetClass || classMap[s.class] || s.class || '股票' });
   };
 
+  // 代號輸入到「只剩一個相符選項」時，自動帶入名稱（及價格/類別）。
+  // 僅在該選項代號以目前輸入為開頭時才帶（避免用名稱模糊比對誤帶）；已有名稱則不動。
+  useEffectAcc(() => {
+    if (state.name || state.code.length < 1) return;
+    if (matches.length === 1 && matches[0].code.toLowerCase().startsWith(state.code.toLowerCase())) {
+      pick(matches[0]);
+    }
+  }, [state.code]);
+
   // 輸入代號或名稱時，若已是手上持有的股票，自動帶入該股票的類別。
   // deps 只放 code/name：使用者之後手動改類別不會被覆蓋（除非再改代號/名稱）。
   useEffectAcc(() => {
