@@ -558,8 +558,8 @@ function TabBar({ tab, setTab, onVoice, onManualRecord, onSettings }) {
                 color: TOKENS.surface, position: 'relative',
                 display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
                 boxShadow: holding ?
-                '0 0 0 6px rgba(0,0,0,0.20), 0 10px 24px rgba(217, 119, 87,0.5)' :
-                '0 10px 24px rgba(0,0,0,0.30), 0 0 0 1px rgba(0,0,0,0.14)',
+                TOKENS.innerGlow + ', 0 0 0 6px rgba(0,0,0,0.20), 0 10px 24px rgba(217, 119, 87,0.5)' :
+                TOKENS.innerGlow + ', 0 10px 24px rgba(0,0,0,0.30), 0 0 0 1px rgba(0,0,0,0.14)',
                 transform: holding ? 'scale(0.94)' : 'scale(1)',
                 transition: 'transform 140ms, box-shadow 200ms',
                 touchAction: 'none', WebkitUserSelect: 'none', userSelect: 'none'
@@ -588,6 +588,7 @@ function TabBar({ tab, setTab, onVoice, onManualRecord, onSettings }) {
             <button key={t.id} onClick={() => t.isSettings ? onSettings() : setTab(t.id)} style={{ ...{
                 flex: 1, minWidth: 0, minHeight: 70, borderRadius: RS(18),
                 background: active ? TOKENS.ink2 : 'transparent',
+                boxShadow: active ? TOKENS.innerGlow : 'none',
                 border: active ? `1px solid ${TOKENS.accent}` : '1px solid transparent',
                 color: active ? TOKENS.surface : 'rgba(0,0,0,0.90)',
                 display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',

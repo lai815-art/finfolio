@@ -269,7 +269,7 @@ function SettingsScreen({ masterData, setMasterData, dashWidget, setDashWidget, 
         marginTop: SP(4), padding: PAD('18px 20px'), borderRadius: RS(28),
         background: TOKENS.gradDark,
         border: 'none',
-        boxShadow: SH('0 12px 28px rgba(0,0,0,0.25)')
+        boxShadow: TOKENS.innerGlow + ', ' + SH('0 12px 28px rgba(0,0,0,0.25)')
       }}>
         <div style={{ position: 'absolute', top: -45, left: -30, width: 150, height: 150,
           borderRadius: '50%', background: 'rgba(255,255,255,0.10)', pointerEvents: 'none' }} />

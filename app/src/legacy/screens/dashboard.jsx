@@ -666,7 +666,7 @@ function DashboardScreen({ hideAmounts, setHideAmounts, savedFlows = [], savedTr
         position: 'relative', overflow: 'hidden', cursor: 'pointer',
         padding: PAD('14px 16px'), borderRadius: RS(22), border: 'none',
         background: TOKENS.gradDark,
-        boxShadow: SH('0 12px 28px rgba(0,0,0,0.25)')
+        boxShadow: TOKENS.innerGlow + ', ' + SH('0 12px 28px rgba(0,0,0,0.25)')
       }}>
         <div style={{ position: 'absolute', top: -30, left: -20, width: 110, height: 110,
           borderRadius: '50%', background: 'rgba(255,255,255,0.10)', pointerEvents: 'none' }} />

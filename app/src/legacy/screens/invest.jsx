@@ -178,7 +178,7 @@ function InvestDetailSheet({ data, mask, onClose, savedTrades = [], onEditRecord
         <div style={{
           padding: PAD('14px 18px'), borderRadius: RS(22), marginBottom: SP(14),
           background: TOKENS.gradDark,
-          boxShadow: SH('0 8px 20px rgba(0,0,0,0.18)'),
+          boxShadow: TOKENS.innerGlow + ', ' + SH('0 8px 20px rgba(0,0,0,0.18)'),
           position: 'relative', overflow: 'hidden'
         }}>
           <div style={{ position: 'absolute', top: -35, left: -25, width: 110, height: 110,
@@ -411,7 +411,7 @@ function InvestScreen({ hideAmounts, onOpenDetail, savedTrades = [], computedHol
       <div onClick={onOpenBreakdown} style={{ ...{
           padding: PAD('16px 18px'), borderRadius: RS(28),
           background: TOKENS.gradDark, cursor: 'pointer',
-          boxShadow: SH('0 12px 28px rgba(0,0,0,0.20)'),
+          boxShadow: TOKENS.innerGlow + ', ' + SH('0 12px 28px rgba(0,0,0,0.20)'),
           position: 'relative', overflow: 'hidden'
         }, borderRadius: "14px", padding: "15px" }}>
         <div style={{ position: 'absolute', top: -40, left: -30, width: 140, height: 140,

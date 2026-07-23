@@ -742,7 +742,7 @@ function AccountsScreen({ hideAmounts, onOpenDetail, computedAcctGroups = [], co
         cursor: 'pointer', marginBottom: SP(12),
         padding: PAD('14px 18px'), borderRadius: RS(22),
         background: TOKENS.gradDark,
-        boxShadow: SH('0 8px 20px rgba(0,0,0,0.20)'),
+        boxShadow: TOKENS.innerGlow + ', ' + SH('0 8px 20px rgba(0,0,0,0.20)'),
         position: 'relative', overflow: 'hidden'
       }}>
         <div style={{ position: 'absolute', top: -30, left: -20, width: 110, height: 110,
