@@ -479,8 +479,8 @@ function InvestScreen({ hideAmounts, onOpenDetail, savedTrades = [], computedHol
             onClick={(e) => {if (dragState.current.moved) {e.preventDefault();return;}setActiveTab(t.id);}}
             style={{ ...{
                 flexShrink: 0, height: 38, padding: PAD('0 18px'), borderRadius: RS(20),
-                background: active ? TOKENS.ink : 'rgba(0,0,0,0.08)',
-                border: active ? `1px solid ${TOKENS.ink}` : '1px solid transparent',
+                background: active ? TOKENS.coffee : 'rgba(0,0,0,0.08)',
+                border: active ? `1px solid ${TOKENS.coffee}` : '1px solid transparent',
                 color: active ? TOKENS.surface : 'rgba(0,0,0,0.65)',
                 fontSize: FS(17), fontWeight: active ? 600 : 500,
                 whiteSpace: 'nowrap', transition: 'all 180ms'

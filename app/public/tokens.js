@@ -15,7 +15,10 @@
     accentTintHi: '#FFE3C2', accentTint: '#FFEED0', accentTint2: '#FFD9B0', accentTint3: '#FFC9A8',
 
     /* Ink & neutral ramp */
-    ink: '#1C1C1E', inkDeep: '#1A1A1A', ink2: '#2C2C2E',
+    // 深色區塊/按鈕改用 App 圖示的深咖啡色（ink 仍為文字色，不動）。
+    // ink2 是各種「深色底/選取態」的底色（統計卡、記一筆鈕、下排當前分頁…）→ 改咖啡色。
+    ink: '#1C1C1E', inkDeep: '#1A1A1A', ink2: '#5C5048',
+    coffee: '#5C5048', coffee2: '#6E6157',
     gray1: '#3A3A3C', gray2: '#48484A', gray3: '#636366', gray4: '#8E8E93',
 
     /* Surfaces & backgrounds */
@@ -88,7 +91,7 @@
     var T = window.TOKENS || {};
     Object.keys(DEFAULTS).forEach(function (k) { T[k] = (k in ov) ? ov[k] : DEFAULTS[k]; });
     // gradients derived from current color tokens
-    T.gradDark = 'linear-gradient(145deg, ' + T.gray2 + ' 0%, ' + T.ink + ' 100%)';
+    T.gradDark = 'linear-gradient(145deg, ' + T.coffee2 + ' 0%, ' + T.coffee + ' 100%)';
     T.gradSage = 'linear-gradient(135deg, ' + T.sage + ', ' + T.sageDark + ')';
     T.gradWarm = 'linear-gradient(155deg, ' + T.bgWarm3 + ' 0%, ' + T.surface + ' 100%)';
     window.TOKENS = T;
