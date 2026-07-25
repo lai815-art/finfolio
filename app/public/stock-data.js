@@ -4,6 +4,7 @@
 /* ── 美股 / 美股 ETF 精選清單 ── */
 window.US_STOCK_LIST = [
   // 美股個股
+  { code:'SPCX', name:'SPCX', class:'美股' }, // 佔位名稱：請提供全名以替換
   { code:'AAPL', name:'Apple', class:'美股' },
   { code:'MSFT', name:'Microsoft', class:'美股' },
   { code:'GOOGL', name:'Alphabet A', class:'美股' },
