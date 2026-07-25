@@ -194,6 +194,8 @@
   window.calcAutoTax = function (gross, taxRate) {
     return gross > 0 && taxRate > 0 ? Math.floor(gross * taxRate + 1e-6) : 0;
   };
+  // 金額無條件捨去取整（+1e-6 吸收浮點誤差）。股票成交金額＝股價×股數也用它。
+  window.floorAmt = function (v) { return Math.floor((parseFloat(v) || 0) + 1e-6); };
 
   // 支出分類群組（與收入分類相同的兩層結構）
   window.EXP_GROUPS = ['餐飲', '交通', '日常', '娛樂', '醫療', '教育', '金融保險', '投資損失', '其他'];

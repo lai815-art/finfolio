@@ -312,7 +312,7 @@ function computeAccounts(accounts, settleList, flows, trades, initialBalances) {
     if (t.side !== 'buy') return;
     if (buyXferJAs.has(t._justAdded)) return; // 已有自動投資轉帳流水 → 扣款由流水負責（T+2）
     const sh = parseFloat(t.shares) || 0,pr = parseFloat(t.price) || 0;
-    const gross = sh * pr;
+    const gross = window.floorAmt(sh * pr);
     const fee = t.fee != null && t.fee > 0 ? t.fee : window.calcAutoFee(gross, sh, 0.1425, 1);
     const debit = t.net != null && t.net > 0 ? t.net : gross + fee;
     const broker = t.settleAccount || t.broker;
@@ -388,7 +388,7 @@ function computeHoldings(trades, masterData, livePrices = {}) {
     const s = stocks[t.code];
     const sh = parseFloat(t.shares) || 0,pr = parseFloat(t.price) || 0;
     if (t.side === 'buy') {
-      const gross = sh * pr;
+      const gross = window.floorAmt(sh * pr);
       // 有明確記錄手續費就採用（含 0，匯入資料的成本已內含費用）；只有完全沒有 fee 欄位
       // 的舊資料才回頭推算，避免對已含費用的成本再加一次手續費、灌大成本。
       const fee = t.fee != null ? t.fee : window.calcAutoFee(gross, sh, 0.1425, 1);
@@ -1449,7 +1449,7 @@ function App() {
           if (data.side === 'buy') {
             const sh = parseFloat(data.shares) || 0;
             const pr = parseFloat(data.price) || 0;
-            const gross = Math.round(sh * pr);
+            const gross = window.floorAmt(sh * pr);
             const buyFee = data.fee != null && data.fee > 0 ? data.fee : (window.calcAutoFee(gross, sh, 0.1425, 1));
             const debit = data.net != null && data.net > 0 ? data.net : gross + buyFee;
             return [{
@@ -1470,7 +1470,7 @@ function App() {
           if (data.side !== 'sell') return [];
           const sh = parseFloat(data.shares) || 0;
           const pr = parseFloat(data.price) || 0;
-          const gross = Math.round(sh * pr);
+          const gross = window.floorAmt(sh * pr);
           const sellFee = data.fee != null && data.fee > 0 ? data.fee : window.calcAutoFee(gross, sh, 0.1425, 1);
           const sellTax = data.tax != null && data.tax > 0 ? data.tax : window.calcAutoTax(gross, 0.003);
           const proceeds = gross - sellFee - sellTax;
@@ -1482,7 +1482,7 @@ function App() {
           const lots = [];
           hist.forEach((t) => {
             const hsh = parseFloat(t.shares) || 0, hpr = parseFloat(t.price) || 0;
-            const hgross = hsh * hpr;
+            const hgross = window.floorAmt(hsh * hpr);
             // 與持倉/明細一致：有記錄手續費就採用（含 0），只有缺欄位才推算，
             // 否則賣出時轉回交割戶的成本會比原始成本多算一次手續費。
             const hfee = t.fee != null ? t.fee : window.calcAutoFee(hgross, hsh, 0.1425, 1);

@@ -266,7 +266,7 @@ function AccountDetailSheet({ data, mask, onClose, onSaveItem, savedFlows = [], 
   // 交割戶：新版買進已自動產生「投資轉帳」流水（realFlows 會列出），這裡就不再重複列出
   // 該買進交易，避免同一筆扣款出現兩次；舊資料的買進（沒有投資轉帳流水）才由這裡列出。
   savedTrades.filter((t) => t.side === 'buy' && matchAcct(t.settleAccount) && !buyXferJAs.has(t._justAdded)).map((t) => {
-    const gross = (parseFloat(t.shares) || 0) * (parseFloat(t.price) || 0);
+    const gross = window.floorAmt((parseFloat(t.shares) || 0) * (parseFloat(t.price) || 0));
     const cost = t.net != null && t.net > 0 ? t.net : gross + (parseFloat(t.fee) || 0);
     return {
       date: fmtDate(t.date), _ts: new Date(t.date).getTime(),

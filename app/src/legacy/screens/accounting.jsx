@@ -808,7 +808,7 @@ function StockForm({ state, update, onSaved, onDelete, recordId, masterData, com
 
   const sh = parseFloat(state.shares) || 0;
   const pr = parseFloat(state.price) || 0;
-  const gross = sh * pr;
+  const gross = window.floorAmt(sh * pr);
   // 手續費：依所選券商設定。費率預設 0.1425%，可為 0（部分美股券商免手續費）；
   // 折扣以「折」表示（如 6 = 六折）；空白或 10 = 無折扣。
   const _brokerObj = (md.brokers || []).find((b) => b.name === state.broker);
