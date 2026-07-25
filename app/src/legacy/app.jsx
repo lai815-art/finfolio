@@ -858,12 +858,19 @@ function parseUtterance(text, masterData = {}) {
   const matched = matchStockV(t, stockList);
   const tNoMoney = t.replace(/[$＄]\s?[\d,]+(?:\.\d+)?/g, ' '); // 去掉「$金額」避免被當成代號
   const codeInText = /\b\d{4,6}[A-Z]?\b/.test(tNoMoney);
-  if ((sideBuy || sideSell) && (matched || codeInText && /股|張/.test(t))) {
+  // 判定為股票買賣：有買/賣關鍵字，且（比對到清單／台股代號+股張／明講「股」）。
+  // 加上「只要句中有『股』就算」→ 未在清單裡的股票（含美股代號如 SPCX）也能被判成股票。
+  if ((sideBuy || sideSell) && (matched || codeInText && /股|張/.test(t) || /股/.test(t))) {
     let code = matched ? matched.code : '';
     let name = matched ? matched.name : '';
     if (!code) {
       const cands = (tNoMoney.match(/\b\d{4,6}[A-Z]?\b/g) || []).filter((c) => c !== shares);
       code = cands.find((c) => stockList.some((s) => s.code === c)) || cands[0] || '';
+      // 台股數字代號抓不到 → 試著抓「在清單裡的美股英文代號」（安全，不亂猜）
+      if (!code) {
+        const us = (tNoMoney.toUpperCase().match(/\b[A-Z]{1,5}\b/g) || []);
+        code = us.find((c) => stockList.some((s) => s.code === c)) || '';
+      }
       const found = stockList.find((s) => s.code === code);
       if (found) name = found.name;
     }
