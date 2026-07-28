@@ -830,8 +830,8 @@ function MonthlyStatsSheet({ open, onClose, savedFlows, masterData, hideAmounts,
   const spY = viewDate.getFullYear(), spM = viewDate.getMonth();
   const EXP_COLORS = [TOKENS.red, TOKENS.orange, TOKENS.gold, TOKENS.red2, TOKENS.gold2, '#A85638', '#D9A05B', TOKENS.indigo, TOKENS.teal, TOKENS.gray4];
   const spendMap = {};
-  // 消費分析只計「消費支出」，排除投資損失（賣股虧損）——投資損失改在每月/年度收支彈窗與折線圖呈現。
-  savedFlows.forEach((f) => { if (f.kind !== 'exp') return; const d = dOf(f); if (d.getFullYear() !== spY || d.getMonth() !== spM) return; if (isInvestExp(f.cat)) return; const k = f.cat || '其他'; spendMap[k] = (spendMap[k] || 0) + amtOf(f); });
+  // 消費分析改以「大類」彙總（餐飲/交通/日常/娛樂/醫療/教育/金融保險/其他），排除投資損失。
+  savedFlows.forEach((f) => { if (f.kind !== 'exp') return; const d = dOf(f); if (d.getFullYear() !== spY || d.getMonth() !== spM) return; if (isInvestExp(f.cat)) return; const k = catExpGroup[f.cat] || '其他'; spendMap[k] = (spendMap[k] || 0) + amtOf(f); });
   const spendTotal = Object.values(spendMap).reduce((a, v) => a + v, 0);
   const spendCats = Object.entries(spendMap).sort((a, b) => b[1] - a[1]).map(([k, v], i) => ({ name: k, value: v, color: EXP_COLORS[i % EXP_COLORS.length], pct: spendTotal > 0 ? v / spendTotal * 100 : 0 }));
 
