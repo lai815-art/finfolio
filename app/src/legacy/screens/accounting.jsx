@@ -142,7 +142,7 @@ function AccountingScreen({ onSaved, onDelete, initialDraft, masterData, compute
   const updateStock = (patch) => setStock((s) => ({ ...s, ...patch }));
 
   return (
-    <div style={{ paddingTop: SP(2) }}>
+    <div style={{ display: 'flex', flexDirection: 'column', flex: 1, minHeight: 0, paddingTop: SP(2) }}>
       {/* AI prefill banner — shown only when data came from voice (not manual edit) */}
       {initialDraft && !initialDraft.edit && <VoicePrefillBanner draft={initialDraft} />}
 
@@ -510,7 +510,8 @@ function FlowForm({ state, update, onSaved, onDelete, recordId, masterData }) {
   const curExpItems = (expCatStruct.find((s) => s.group === curExpGroup) || { items: [] }).items;
 
   return (
-    <div style={{ padding: PAD('4px 14px 16px'), color: TOKENS.ink }}>
+    <div style={{ display: 'flex', flexDirection: 'column', flex: 1, minHeight: 0, color: TOKENS.ink }}>
+      <div style={{ flex: 1, minHeight: 0, overflowY: 'auto', overflowX: 'hidden', padding: PAD('4px 14px 12px') }}>
       {/* Big kind toggle */}
       <SectionLabel>記帳類型</SectionLabel>
       <div style={{ display: 'flex', gap: SP(8) }}>
@@ -682,8 +683,11 @@ function FlowForm({ state, update, onSaved, onDelete, recordId, masterData }) {
         }} />
       </div>
 
-      {/* Submit */}
-      <div style={{ marginTop: SP(14), display: 'flex', gap: SP(10) }}>
+      </div>
+      {/* Submit（固定於畫面底部） */}
+      <div style={{ flexShrink: 0, display: 'flex', gap: SP(10), padding: PAD('10px 14px'),
+        paddingBottom: 'calc(' + SP(12) + 'px + env(safe-area-inset-bottom, 0px))',
+        background: TOKENS.bg, borderTop: '1px solid rgba(0,0,0,0.08)' }}>
         <button onClick={() => {
           if (!state.amount || parseFloat(state.amount) <= 0) return;
           onSaved && onSaved('flow', { ...state, recordId: editId });
@@ -855,7 +859,8 @@ function StockForm({ state, update, onSaved, onDelete, recordId, masterData, com
   }, [settleAccounts.join('|'), state.settleAccount]);
 
   return (
-    <div style={{ padding: PAD('4px 14px 16px'), color: TOKENS.ink }}>
+    <div style={{ display: 'flex', flexDirection: 'column', flex: 1, minHeight: 0, color: TOKENS.ink }}>
+      <div style={{ flex: 1, minHeight: 0, overflowY: 'auto', overflowX: 'hidden', padding: PAD('4px 14px 12px') }}>
       {/* Buy / Sell big toggle */}
       <SectionLabel>交易方向</SectionLabel>
       <div style={{ display: 'flex', gap: SP(10) }}>
@@ -1091,8 +1096,11 @@ function StockForm({ state, update, onSaved, onDelete, recordId, masterData, com
         </div>
       </div>
 
-      {/* Submit */}
-      <div style={{ marginTop: SP(14), display: 'flex', gap: SP(10) }}>
+      </div>
+      {/* Submit（固定於畫面底部） */}
+      <div style={{ flexShrink: 0, display: 'flex', gap: SP(10), padding: PAD('10px 14px'),
+        paddingBottom: 'calc(' + SP(12) + 'px + env(safe-area-inset-bottom, 0px))',
+        background: TOKENS.bg, borderTop: '1px solid rgba(0,0,0,0.08)' }}>
         <button onClick={() => {
           if (!state.code || !state.shares || !state.price) return;
           onSaved && onSaved('stock', { ...state, fee, tax, net, recordId: editId });

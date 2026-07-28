@@ -633,16 +633,18 @@ function RecordSheet({ open, draft, onClose, onSaved, onDelete, masterData, comp
       display: 'flex', alignItems: 'flex-end'
     }} onClick={animateClose}>
       <div onClick={(e) => e.stopPropagation()} style={{
-        width: '100%', maxHeight: '92%',
+        width: '100%', height: '100%',
         background: TOKENS.bg,
-        borderTopLeftRadius: 30, borderTopRightRadius: 30,
+        borderRadius: 0,
         transform: shown ? 'translateY(0)' : 'translateY(100%)',
         transition: 'transform 280ms cubic-bezier(0.32, 0.72, 0.18, 1)',
         boxShadow: SH('0 -20px 40px rgba(0,0,0,0.5)'),
         display: 'flex', flexDirection: 'column'
       }}>
+        {/* 頂部安全區留白（全螢幕：讓標題不被狀態列/瀏海切到） */}
+        <div style={{ height: 'var(--ff-main-top, 28px)', flexShrink: 0 }} />
         {/* Handle */}
-        <div style={{ display: 'flex', justifyContent: 'center', padding: PAD('10px 0 4px') }}>
+        <div style={{ display: 'flex', justifyContent: 'center', padding: PAD('4px 0 4px') }}>
           <div style={{ width: 40, height: 4, borderRadius: RS(8), background: 'rgba(0,0,0,0.38)' }} />
         </div>
         {/* Header */}
@@ -665,8 +667,8 @@ function RecordSheet({ open, draft, onClose, onSaved, onDelete, masterData, comp
               color: 'rgba(44,44,50,0.7)', display: 'flex', alignItems: 'center', justifyContent: 'center'
             }, width: "40px", height: "40px", borderRadius: "18px" }}><X size={18} /></button>
         </div>
-        {/* Scrollable body */}
-        <div style={{ flex: 1, overflowY: 'auto', overflowX: 'hidden', paddingBottom: SP(32) }}>
+        {/* 內容區：表單自行捲動，動作按鈕固定在底部 */}
+        <div style={{ flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column' }}>
           <AccountingScreen onSaved={onSaved} onDelete={onDelete} initialDraft={draft} masterData={masterData} computedHoldings={computedHoldings} defaultDate={defaultDate} />
         </div>
       </div>
