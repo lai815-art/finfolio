@@ -226,6 +226,30 @@ async function getTWList(ctx) {
   return list;
 }
 
+// Yahoo Finance fallback (keyless) — covers symbols Finnhub misses (e.g. pre-IPO
+// / structured products like SPCX). Prefers post-market (盤後) price, else regular
+// market / previous close. v8 chart endpoint needs no crumb/auth.
+async function getYahoo(codes) {
+  const out = {};
+  if (!codes.length) return out;
+  await Promise.all(codes.slice(0, 25).map(async (c) => {
+    try {
+      const r = await fetch(`https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(c)}?interval=1d&range=1d`, {
+        headers: { 'User-Agent': 'Mozilla/5.0' }, cf: { cacheTtl: 120 },
+      });
+      if (!r.ok) return;
+      const d = await r.json();
+      const m = d && d.chart && d.chart.result && d.chart.result[0] && d.chart.result[0].meta;
+      if (!m) return;
+      const p = (m.postMarketPrice && m.postMarketPrice > 0) ? m.postMarketPrice :
+                (m.regularMarketPrice && m.regularMarketPrice > 0) ? m.regularMarketPrice :
+                (m.previousClose && m.previousClose > 0) ? m.previousClose : null;
+      if (p && p > 0) out[c] = p;
+    } catch (e) { /* ignore — best effort */ }
+  }));
+  return out;
+}
+
 // Full US symbol list via Finnhub (only when a key is set) — cached ~24h.
 async function getUSList(env, ctx) {
   if (!env || !env.FINNHUB_KEY) return [];
@@ -282,6 +306,16 @@ export default {
     const [fx, usMap] = await Promise.all([getFX(ctx), getUS(usCodes, env)]);
     Object.keys(usMap).forEach((c) => { prices[c] = usMap[c]; });
 
-    return json({ date: todayStr(), prices, fx, source: 'twse-mis' + (env && env.FINNHUB_KEY ? '+finnhub' : '') });
+    // Yahoo fallback for US codes Finnhub didn't cover (e.g. SPCX / pre-IPO),
+    // and for all US codes when no Finnhub key is set. Also carries 盤後價.
+    const usMiss = usCodes.filter((c) => prices[c] == null);
+    let usedYahoo = false;
+    if (usMiss.length) {
+      const yh = await getYahoo(usMiss);
+      Object.keys(yh).forEach((c) => { prices[c] = yh[c]; });
+      usedYahoo = Object.keys(yh).length > 0;
+    }
+
+    return json({ date: todayStr(), prices, fx, source: 'twse-mis' + (env && env.FINNHUB_KEY ? '+finnhub' : '') + (usedYahoo ? '+yahoo' : '') });
   },
 };
