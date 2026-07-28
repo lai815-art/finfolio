@@ -452,7 +452,7 @@ function FlowForm({ state, update, onSaved, onDelete, recordId, masterData }) {
     '信用卡': TOKENS.catCredit, '電子支付': TOKENS.catEpay, '儲值卡': TOKENS.catPrepaid,
     '現金': TOKENS.catCash, '其他': TOKENS.catOther
   };
-  const ACCT_KIND_ORDER = ['銀行', '交割戶', '信用卡', '現金', '電子支付', '儲值卡', '證券戶', '其他'];
+  const ACCT_KIND_ORDER = ['信用卡', '現金', '銀行', '交割戶', '電子支付', '儲值卡', '證券戶', '其他'];
   const nameKind = {};
   (md.accounts || []).forEach((a) => {nameKind[a.name] = a.kind || '其他';});
   (md.settle || []).forEach((s) => {if (nameKind[s.name] == null) nameKind[s.name] = '交割戶';});
