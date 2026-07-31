@@ -2115,7 +2115,7 @@ function ffExportOverdue() {
     return Date.now() - new Date(ts).getTime() > 14 * 864e5;
   } catch {return false;}
 }
-async function ffExportBackup(pass) {
+export async function ffExportBackup(pass) {
   // 純快取不進備份：ff_auto_snapshot 是全部資料的複本（會讓檔案倍增）、
   // ff_tw_stocks_v7 是可重新下載的台股清單快取。還原後會自動重建。
   const SKIP_EXPORT = { ff_auto_snapshot: 1, ff_tw_stocks_v7: 1 };
@@ -2153,7 +2153,7 @@ async function ffExportBackup(pass) {
   // 存檔對話框關閉後，保險起見重新套用一次版面（對應上方全螢幕失效的情況）。
   setTimeout(() => { try { window.fit && window.fit(); } catch (_) {} }, 500);
 }
-async function ffImportBackup(text, pass) {
+export async function ffImportBackup(text, pass) {
   // 每一步失敗給出「可分辨」的訊息，才能知道到底是選錯檔、密碼錯還是空間不足。
   if (!text || !String(text).trim()) throw new Error('檔案是空的（若存在 iCloud，請先在「檔案」App 點開下載後再選取）');
   let blob;

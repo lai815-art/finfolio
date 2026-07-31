@@ -1,0 +1,15 @@
+{
+  "name": "finfolio-prices",
+  "private": true,
+  "version": "1.0.0",
+  "type": "module",
+  "scripts": {
+    "deploy": "wrangler deploy",
+    "test": "vitest run"
+  },
+  "devDependencies": {
+    "@cloudflare/vitest-pool-workers": "^0.19.1",
+    "vitest": "^4.1.10",
+    "wrangler": "^4.116.0"
+  }
+}
