@@ -1,0 +1,159 @@
+# FinFolio — 專案規格（回顧現況）
+
+> 本文件如實記錄 `app/`（前端）與 `worker/`（股價服務）目前的實際狀態，作為之後開發的參考基礎。不包含 `project/` 資料夾內的設計原型（詳見 Further Notes）。撰寫時間：2026-07-31。
+
+## Problem Statement
+
+使用者想要一套個人資產管理工具，能：
+
+- 記錄日常收支、帳戶間轉帳、股票買賣
+- 同時管理多個帳戶（現金、銀行、信用卡、電子支付、儲值卡）與多個證券戶
+- 看到即時的淨資產、月度/年度收支統計、投資組合損益
+- 資料完全留在自己的裝置上，不上傳到任何雲端服務
+- 用語音快速記一筆帳，而不用每次都打開表單手動輸入
+- （規劃中）有一個 AI 顧問可以根據資產配置給建議
+
+## Solution
+
+FinFolio 是一個純前端的 PWA 風格 App（React 18 + Vite），所有資料（收支、持倉、設定）都存在瀏覽器 `localStorage`，不經過任何後端資料庫。唯一對外的網路呼叫是一個 Cloudflare Worker（`finfolio-prices`），只負責查股價/匯率，**只傳股票代號出去，不傳任何持倉、金額、身分資訊**。
+
+App 分四個主要分頁（底部 TabBar）＋一個全螢幕設定頁：
+
+- **看板（Dashboard）**：月度收支摘要、消費分類圓餅圖、12個月/多年收支走勢、逐日交易記錄
+- **資產（Accounts）**：淨資產總覽、7 大帳戶分類、帳戶明細
+- **記帳（Accounting）**：收支/轉帳/股票買賣表單，含語音輸入
+- **投資（Invest）**：依證券戶分頁的持倉列表、FIFO 損益計算、投資組合明細
+- **設定（Settings）**：主檔管理、AI 金鑰（BYOK）、初始餘額、加密備份匯出入
+
+還有一個**已寫好但目前對使用者隱藏**的「AI 顧問」分頁（`SHOW_ADVISOR=false`），程式碼會在之後版本繼續開發後才開放。
+
+## User Stories
+
+**看板**
+1. As a 使用者, I want to 一眼看到本月的總收入與總支出（換算成台幣）, so that 我知道這個月花超過還是省下來
+2. As a 使用者, I want to 點開本月收支摘要看消費分類圓餅圖（排除投資損失）, so that 我知道錢花在哪個類別最多
+3. As a 使用者, I want to 切到「每月收支」分頁看近 12 個月的收支走勢圖（主動收入/被動收入/投資損益/其他/消費支出）, so that 我能看出收支的季節性變化
+4. As a 使用者, I want to 切到「年度收支」分頁看多年（每頁 10 年）的收支走勢, so that 我能評估長期的財務趨勢
+5. As a 使用者, I want to 點圖表上任一根柱子/任一列看細項彈窗, so that 我能追查某個月/某年為什麼特別高或低
+6. As a 使用者, I want to 點開「資產淨額明細」看現金/存款/各投資分類的圓餅圖與負債明細, so that 我知道淨資產的組成
+7. As a 使用者, I want to 用日期列左右滑動或點日曆挑選任一天, so that 我能回顧某一天發生了什麼交易
+8. As a 使用者, I want to 看到選定那天的收支、轉帳、股票買賣（分三個區塊列出）, so that 我能快速確認當天的記帳內容
+9. As a 使用者, I want to 系統自動產生的紀錄（如股票交割的 T+2 轉帳）標示「系統自動」且不能誤觸編輯, so that 我不會不小心改壞自動產生的對帳資料
+
+**資產**
+10. As a 使用者, I want to 在資產頁頂端看到總淨資產金額（帳戶淨值＋投資市值）, so that 我一眼掌握目前身家
+11. As a 使用者, I want to 依信用卡/現金/銀行/證券戶/儲值卡/電子支付/其他 7 個分類收合查看帳戶, so that 資訊不會太雜亂
+12. As a 使用者, I want to 看到信用卡的額度使用率進度條, so that 我知道快不快刷爆
+13. As a 使用者, I want to 點進單一帳戶看該帳戶當月的交易明細與月份切換, so that 我能追蹤特定帳戶的資金流向
+
+**記帳**
+14. As a 使用者, I want to 記一筆支出（金額/兩層分類/帳戶/日期/備註）, so that 花費被正確歸類統計
+15. As a 使用者, I want to 記一筆收入（金額/分類/帳戶/日期/備註）, so that 收入被正確記錄
+16. As a 使用者, I want to 在兩個帳戶間記一筆轉帳（含手續費由轉出帳戶扣除、一鍵互換轉入轉出）, so that 帳戶餘額正確反映資金移動
+17. As a 使用者, I want to 記一筆股票買進（自動帶出手續費、依券商設定的費率/折扣計算）, so that 我不用自己算手續費
+18. As a 使用者, I want to 記一筆股票賣出（依資產類別自動帶出證交稅預設稅率，仍可手動覆蓋）, so that 損益計算含稅後淨額
+19. As a 使用者, I want to 長按中央的記帳按鈕開啟語音輸入, so that 我不用打開表單就能快速記帳
+20. As a 使用者, I want to 用語音說「午餐花了120用悠遊卡」之類的話, so that 系統自動解析出金額/分類/帳戶並帶入表單讓我確認
+21. As a 使用者, I want to 語音辨識失敗或裝置不支援時能改用文字輸入同一段話, so that 我仍然能用同一套解析邏輯記帳
+22. As a 使用者, I want to 編輯或刪除一筆已存在的記錄, so that 打錯的資料可以修正
+
+**投資**
+23. As a 使用者, I want to 依證券戶分頁查看我的持倉, so that 我能區分不同券商的部位
+24. As a 使用者, I want to 點進單一持倉看即時股價、市值、均價、未實現損益（金額與百分比）, so that 我知道這檔股票賺賠多少
+25. As a 使用者, I want to 看到該持倉完整的買賣歷史（FIFO 先進先出配對成本）, so that 我能理解均價是怎麼算出來的
+26. As a 使用者, I want to 點頂端市值圓餅圖看「投資組合明細」——全部券商加總的持倉分布, so that 我能看整體資產配置
+27. As a 使用者, I want to 切到「投資收益」分頁看各年度的股息/債息/操作損益長條圖, so that 我能評估投資的長期報酬
+
+**設定**
+28. As a 使用者, I want to 新增/編輯/刪除記帳分類（收入/支出/轉帳/資產類別）, so that 分類符合我自己的記帳習慣
+29. As a 使用者, I want to 系統阻擋我刪除「仍有記錄在用」的分類或帳戶, so that 我不會不小心弄出對不上帳的孤兒資料
+30. As a 使用者, I want to 重新命名帳戶/券商時，所有既有紀錄自動改用新名稱, so that 歷史資料不會斷掉
+31. As a 使用者, I want to 新增一般帳戶（銀行/信用卡/現金/電子支付/儲值卡/其他）, so that 我能追蹤名下所有帳戶
+32. As a 使用者, I want to 新增證券戶（含手續費率、折扣、交割帳戶、T+2 設定）, so that 股票買賣的手續費/交割能自動算對
+33. As a 使用者, I want to 設定每個帳戶的初始餘額, so that 淨資產計算從正確的起點開始
+34. As a 使用者, I want to 貼上自己的 Gemini/OpenAI/Claude API 金鑰並選一個當預設模型, so that 我能用 BYOK 方式使用 AI 相關功能（金鑰只存在我自己裝置上）
+35. As a 使用者, I want to 用密碼把所有資料加密匯出成一個備份檔, so that 我能自行保存或搬到別的裝置
+36. As a 使用者, I want to 用同一組密碼把備份檔還原回來, so that 換裝置或清資料後不會遺失歷史
+37. As a 使用者, I want to App 在背景自動做一份未加密的本機快照（開/關 App 時）, so that 意外的 App 狀態問題也有救援手段（但清瀏覽器資料時這份快照救不回來）
+38. As a 使用者, I want to 用「清除所有歷史資料」功能只清掉交易紀錄, so that 我能重新開始記帳但保留帳戶/分類等主檔設定
+39. As a 使用者, I want to 設定 App 鎖定 PIN 或生物辨識, so that 別人拿到我的手機也看不到資產資料
+40. As a 使用者, I want to 開啟「隱藏金額」開關把畫面上的數字都用遮罩蓋住, so that 在別人面前也能安心操作
+
+**AI 顧問（目前隱藏，未來版本開發）**
+41. As a 使用者, I want to （未來）在 AI 顧問分頁跟我自己選的 AI 模型對話討論資產配置, so that 我能得到客製化的理財建議
+42. As a 使用者, I want to （未來）看到系統依股票/債券/現金占比算出的健康度評分與提示, so that 我知道目前配置是否偏股或偏保守
+
+**系統層級**
+43. As a 使用者, I want to App 發生未預期錯誤時顯示可重試的錯誤畫面而不是白屏, so that 我不會因為一個小 bug 就完全用不了 App
+44. As a 使用者, I want to 資料結構升級時自動做 migration, so that 舊版本存的資料在新版 App 上不會壞掉
+
+## Implementation Decisions
+
+**資料層（全部存在 localStorage，`ff_` 前綴）**
+
+| Key | 內容 |
+|---|---|
+| `ff_flows` | 收支/轉帳紀錄陣列 |
+| `ff_trades` | 股票買賣紀錄陣列 |
+| `ff_master_data` | 分類/帳戶/券商/交割戶/資產類別主檔 |
+| `ff_init_bal` | 各帳戶初始餘額 |
+| `ff_recurring` | 週期性/自動扣款規則 |
+| `ff_ai_keys` / `ff_default_model` | BYOK AI 金鑰與預設模型 |
+| `ff_lock_pin` / `ff_lock_salt` / `ff_lock_bio` / `ff_lock_cred` | App 鎖 PIN（雜湊存放，不存明碼）與生物辨識憑證 |
+| `ff_auto_snapshot` / `ff_last_auto_backup` | 未加密的本機自動快照 |
+| `ff_schema_version` | schema migration 版本號（目前 `SCHEMA_VERSION=4`） |
+
+備份/還原、自動快照、清除功能都是**掃描所有 `ff_*` 開頭的 key**來運作，之後新增任何 `ff_*` key 會自動被納入，不需要額外改動備份邏輯。
+
+**核心計算邏輯**
+- `computeAccounts()`：從各帳戶初始餘額出發，依收支/轉帳/股票交易逐筆計算目前餘額；未來日期的紀錄不計入；信用卡類帳戶以「負債」方式顯示餘額。
+- `computeHoldings()`：依交易時間排序，用 **FIFO（先進先出）** 配對買賣成本，算出目前持股數量、均價、市值、未實現損益。
+
+**Worker API 合約（`finfolio-prices`）**
+- `GET /quotes?codes=...` → `{date, prices, fx, source}`：台股走 TWSE MIS 即時報價，缺的再補 TWSE/TPEx 收盤價；美股先查 Finnhub（需設定 `FINNHUB_KEY`），沒設定或查不到就 fallback 到 Yahoo Finance（不需金鑰）。
+- `GET /stocks` → 台股 + 美股清單。
+- 只有一個機密設定 `FINNHUB_KEY`（選用），其餘資料源皆為公開、免金鑰。
+- 只傳股票代號，不傳使用者的持倉/金額/身分資訊。
+
+**AI 顧問架構決定（明確記錄，因為涉及資料安全）**
+- BYOK 金鑰存在 `ff_ai_keys`（明碼存在 localStorage）。
+- API 呼叫**直接從瀏覽器發往 Gemini / Anthropic / OpenAI**，沒有經過任何後端代理（Claude 呼叫甚至帶了 `anthropic-dangerous-direct-browser-access: true` header）。
+- 這代表：金鑰外洩風險等同於「使用者裝置被存取」，且金鑰/對話內容會被瀏覽器層級的擴充功能等看到（因為是明碼直接發出）。目前此分頁整個被 `SHOW_ADVISOR=false` 隱藏，尚未對使用者開放。
+
+**加密備份的正確範圍（文案有誇大之嫌，需注意）**
+- 加密（AES-256-GCM，金鑰經 PBKDF2 15萬次迭代 + 隨機 salt/IV 導出）**只套用在「匯出的備份檔」上**。
+- 平常存在 `localStorage` 的資料**是明碼 JSON，沒有加密**。
+- Settings 頁面「🔒 本機加密盾」文案容易讓人誤以為日常資料本身就是加密的，實際上只有「資料不上雲」是對的，「加密」僅限匯出檔案那一刻。之後如果要修文案或加強（例如加密 at-rest），這是已知落差。
+
+**已知但沒接上線的死程式碼（開發不夠嚴謹的具體例子，建議之後清理）**
+- `portfolio.jsx` 整個檔案（`ASSET_GROUPS`、`INVEST_HOLDINGS`、`computePortfolio`）——沒有任何畫面真的呼叫，是舊設計留下的骨架。
+- `dashboard.jsx` 的 `DashWidget` 元件——定義了但沒被渲染。
+- `accounts.jsx` 的 `MonthlyFlowHero` 元件——同上，沒被渲染。
+- `accounting.jsx` 的 `VOICE_SCENARIOS`/`FLOW_EXAMPLES`/`STOCK_EXAMPLES`——匯出到 `window` 但沒人讀取。
+- `invest.jsx` 的 `INV_TABS`——定義了但實際分頁是動態依券商產生，沒用到這個常數。
+- AI 金鑰清單裡的「Ollama 本機」選項——UI 上可選，但沒有對應的 fetch 呼叫，選了也不會動作。
+
+## Testing Decisions
+
+目前 `app/` 與 `worker/` **完全沒有任何自動化測試**，所有驗證都靠手動操作畫面。
+
+之後如果要補測試，建議優先從純計算函式開始（風險最低、報酬最高）：
+- `computeAccounts()` / `computeHoldings()`（app.jsx）——輸入輸出明確，最適合寫單元測試
+- `parseUtterance()`（app.jsx 的語音解析）——規則多、邊界案例多，最容易回歸壞掉
+
+完整的測試涵蓋範圍與優先順序，另外開一份 `docs/test.md` 規劃，不在本文件展開。
+
+## Out of Scope
+
+- `project/` 資料夾內的設計原型（`FinFolio.html`、`Design System Editor.html` 等）——非本 spec 範圍，也非實際上線程式碼
+- AI 顧問分頁的實際上線與功能開發（目前 `SHOW_ADVISOR=false`，程式碼已存在但尚未對使用者開放）
+- 配色微調（收入類別降低彩度）
+- 賣股自動分錄的視覺標示
+- 初始餘額改用穩定 id（目前用帳戶名稱字串比對，改名會 migration，但機制不夠穩固）
+- 上述「已知死程式碼」的實際清理／移除（本文件只記錄現況，不在此規劃清理時程）
+
+## Further Notes
+
+- **README 的待辦清單已經過期，請勿照抄**：README 列的 7 項待辦裡，「加密備份匯出入」與「真實每日收盤市價」其實都已經做完了；「資料版本/migration」已經有基礎機制（`SCHEMA_VERSION=4`）但可能還不完整；只有配色、賣股標示、初始餘額 id、AI 顧問正式上線這幾項是真的還沒做。建議找時間更新 README，避免之後又照著舊清單重工。
+- `project/` 資料夾是另存的設計原型，跟 `app/` 的實際程式碼是兩條線，兩邊如果之後要同步視覺設計，需要人工比對，沒有自動化的設計稿轉程式碼流程。
+- 本文件依照 `mattpocock/skills` 的 `to-spec` 模板搭配 `/grill-me` 質詢流程產出，撰寫過程中的關鍵決策記錄在對話紀錄中（範圍、AI 顧問處理方式、README 落差的處理方式等）。
