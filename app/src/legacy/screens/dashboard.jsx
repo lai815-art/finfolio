@@ -293,7 +293,7 @@ function DailyView({ date, hideAmounts, extraFlows = [], extraTrades = [], onEdi
       const items = (masterData.cat_exp || []).map((c) => typeof c === 'string' ? { name: c, group: c } : c);
       const hit = items.find((c) => c.name === t.cat);
       if (hit) return hit.group;
-      if ((window.EXP_GROUPS || []).includes(t.cat)) return t.cat;
+      if ((masterData.exp_groups || []).some((g) => (typeof g === 'string' ? g : g.name) === t.cat)) return t.cat;
       return '其他';
     }
     if (t.kind === 'inc') {
@@ -802,12 +802,13 @@ function MonthlyStatsSheet({ open, onClose, savedFlows, masterData, hideAmounts,
   if (!open) return null;
 
   const now = nowDate || new Date();
-  // 收入大類：依 cat_inc 的 group 對應到顯示名（主動/被動/投資收入/其他）
+  // 收入大類：依 cat_inc 的 group 對應到顯示名，大類清單來自 masterData.inc_groups（使用者可自訂新增/刪除）
   const INC_LABEL = { '主動': '主動收入', '被動': '被動收入', '投資收入': '投資收入', '其他': '其他' };
+  const incGroupDefs = masterData.inc_groups || [];
   const catIncGroup = {};
   (masterData.cat_inc || []).forEach((c) => { const o = typeof c === 'string' ? { name: c, group: '其他' } : c; catIncGroup[o.name] = o.group || '其他'; });
-  const incGroupOf = (cat) => INC_LABEL[catIncGroup[cat]] || '其他';
-  const INC_GROUPS = [{ k: '主動收入', c: TOKENS.incBlue }, { k: '被動收入', c: TOKENS.green }, { k: '投資收入', c: TOKENS.gold }, { k: '其他', c: TOKENS.gray3 }];
+  const incGroupOf = (cat) => { const g = catIncGroup[cat] || '其他'; return INC_LABEL[g] || g; };
+  const INC_GROUPS = incGroupDefs.map((g) => ({ k: INC_LABEL[g.name] || g.name, c: g.color || TOKENS.gray3 }));
   // 支出：投資損失（賣股虧損）不算「消費」，消費分析排除
   const catExpGroup = {};
   (masterData.cat_exp || []).forEach((c) => { const o = typeof c === 'string' ? { name: c, group: c } : c; catExpGroup[o.name] = o.group || ''; });
@@ -818,7 +819,7 @@ function MonthlyStatsSheet({ open, onClose, savedFlows, masterData, hideAmounts,
   const curMap = window.buildCurMap(masterData);
   const amtOf = (f) => window.fxToTWD(f.amount, curMap[f.account]);
   // exp = 總支出（含投資損失）；investLoss = 其中的投資損失（賣股虧損），供彈窗拆成「消費支出／投資損失」
-  const emptyAgg = () => ({ inc: 0, exp: 0, investLoss: 0, groups: { '主動收入': 0, '被動收入': 0, '投資收入': 0, '其他': 0 }, incCats: {} });
+  const emptyAgg = () => ({ inc: 0, exp: 0, investLoss: 0, groups: Object.fromEntries(INC_GROUPS.map((g) => [g.k, 0])), incCats: {} });
   const addFlow = (a, f) => {
     const v = amtOf(f);
     if (f.kind === 'inc') { a.inc += v; const g = incGroupOf(f.cat); a.groups[g] = (a.groups[g] || 0) + v; a.incCats[f.cat] = (a.incCats[f.cat] || 0) + v; } else
@@ -851,14 +852,17 @@ function MonthlyStatsSheet({ open, onClose, savedFlows, masterData, hideAmounts,
   // 點選月/年 → 彈出視窗顯示該期間數字（圖表與表格共用同一個選取狀態）
   const toggleSel = (i) => setSelIdx(selIdx === i ? null : i);
   const NET_POS = TOKENS.ink2, NET_NEG = TOKENS.red;
-  // 折線系列：主動收入／被動收入／投資損益(投資收入−投資損失，可為負)／其他／消費支出(總支出−投資損失)
+  // 折線系列：依 inc_groups 動態產生每個大類一條線；「投資收入」大類特別淨額扣除投資損失，
+  // 顯示為「投資損益」；最後固定加一條消費支出(總支出−投資損失)。
   const CHART_SERIES = [
-    { k: '主動收入', c: TOKENS.incBlue, val: (a) => a.groups['主動收入'] || 0 },
-    { k: '被動收入', c: TOKENS.green, val: (a) => a.groups['被動收入'] || 0 },
-    { k: '投資損益', c: TOKENS.gold, val: (a) => (a.groups['投資收入'] || 0) - (a.investLoss || 0) },
-    { k: '其他', c: TOKENS.gray3, val: (a) => a.groups['其他'] || 0 },
-    { k: '消費支出', c: TOKENS.red, dashed: true, val: (a) => (a.exp || 0) - (a.investLoss || 0) }
-  ];
+  ...incGroupDefs.map((g) => {
+    const aggKey = INC_LABEL[g.name] || g.name;
+    if (g.name === '投資收入') {
+      return { k: '投資損益', c: g.color || TOKENS.gold, val: (a) => (a.groups[aggKey] || 0) - (a.investLoss || 0) };
+    }
+    return { k: aggKey, c: g.color || TOKENS.gray3, val: (a) => a.groups[aggKey] || 0 };
+  }),
+  { k: '消費支出', c: TOKENS.red, dashed: true, val: (a) => (a.exp || 0) - (a.investLoss || 0) }];
   // 整合圖：收支餘額柱狀（背景）＋ 上述折線（前景），共用同一數值刻度。
   const ComboChart = ({ data, labels }) => {
     const W = 340, H = 172, pL = 16, pR = 12, pT = 14, pB = 22, n = data.length;

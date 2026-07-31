@@ -88,6 +88,23 @@ const DEFAULT_DATA = {
   { name: '退稅', group: '其他' },
   { name: '其他', group: '其他' }],
 
+  exp_groups: [
+  { name: '餐飲', color: '#B85C4A' },
+  { name: '交通', color: '#4E7FA0' },
+  { name: '日常', color: '#5A8E88' },
+  { name: '投資損失', color: '#C4854A' },
+  { name: '娛樂', color: '#BFA176' },
+  { name: '醫療', color: '#6E9B6A' },
+  { name: '教育', color: '#7A6EA2' },
+  { name: '金融保險', color: '#7AAFC4' },
+  { name: '其他', color: '#8E8E93' }],
+
+  inc_groups: [
+  { name: '主動', color: '#4A6E8C' },
+  { name: '被動', color: '#6E9B6A' },
+  { name: '投資收入', color: '#BFA176' },
+  { name: '其他', color: '#636366' }],
+
   cat_xfer: ['日常轉帳', '投資轉入', '投資轉帳', '繳卡費'],
   asset_class: ['股票', '債券', '市值 ETF', '主動 ETF', '特別股'],
   accounts: [
@@ -906,7 +923,9 @@ function ManageSheet({ cfg, data, setData, onClose, initialBalances, setInitialB
         <div style={{ flex: 1, overflowY: 'auto', overflowX: 'hidden',
           padding: PAD('0 18px 28px') }}>
           {cfg.type === 'categories' &&
-          <CategoriesManager data={data} onChange={onItemsChange} color={cfg.color} />
+          <CategoriesManager data={data} onChange={onItemsChange}
+          onGroupsChange={(key, groups) => setData((d) => ({ ...d, [key]: groups }))}
+          onBlocked={onBlocked} color={cfg.color} />
           }
           {cfg.type === 'accounts' &&
           <AccountsTabsManager data={data} onChange={onItemsChange}
@@ -918,18 +937,29 @@ function ManageSheet({ cfg, data, setData, onClose, initialBalances, setInitialB
 
 }
 
-/* ── IncomeGroupManager: 主動 / 被動 / 其他 ──────────────────────────── */
-function IncomeGroupManager({ items, onChange, color, groups, groupColors, groupLabels, defaultGroup }) {
-  const { Plus, X, Check, Trash } = window.Icons;
-  const GROUPS = groups || ['\u4e3b\u52d5', '\u88ab\u52d5', '\u6295\u8cc7\u6536\u5165', '\u5176\u4ed6'];
-  const GROUP_COLORS = groupColors || { '\u4e3b\u52d5': '#1D4F9E', '\u88ab\u52d5': TOKENS.blue2, '\u6295\u8cc7\u6536\u5165': TOKENS.green2, '\u5176\u4ed6': '#4E86C4' };
-  const GROUP_LABELS = groupLabels || { '\u4e3b\u52d5': '\u4e3b\u52d5\u6536\u5165', '\u88ab\u52d5': '\u88ab\u52d5\u6536\u5165', '\u6295\u8cc7\u6536\u5165': '\u6295\u8cc7\u6536\u5165', '\u5176\u4ed6': '\u5176\u4ed6' };
+/* 大類新增時自動配色用的調色盤：依序挑一個尚未被其他大類使用的顏色。 */
+const GROUP_AUTO_PALETTE = ['#4E7FA0', '#6E9B6A', '#B85C4A', '#BFA176', '#7A6EA2', '#5A8E88', '#C4854A', '#7AAFC4', '#8E8E93', '#C47060', '#A8BD8C', '#4A6E8C'];
+function nextAutoGroupColor(groupDefs) {
+  const used = new Set((groupDefs || []).map((g) => g.color));
+  return GROUP_AUTO_PALETTE.find((c) => !used.has(c)) || GROUP_AUTO_PALETTE[(groupDefs || []).length % GROUP_AUTO_PALETTE.length];
+}
+
+/* ── IncomeGroupManager: 主動 / 被動 / 其他（大類本身也可新增/編輯/刪除） ── */
+function IncomeGroupManager({ items, onChange, groupDefs, onGroupsChange, onBlocked, groupLabels, lockedGroups }) {
+  const { Plus, X, Check, Trash, Pencil } = window.Icons;
+  const GROUPS = (groupDefs || []).map((g) => g.name);
+  const GROUP_COLORS = Object.fromEntries((groupDefs || []).map((g) => [g.name, g.color]));
+  const GROUP_LABELS = groupLabels || {};
   const [editing, setEditing] = useStateSet(null); // { group, idx }
   const [editVal, setEditVal] = useStateSet('');
   const [adding, setAdding] = useStateSet(null); // group string
   const [addVal, setAddVal] = useStateSet('');
+  const [editingGroup, setEditingGroup] = useStateSet(null); // group name being renamed
+  const [editGroupVal, setEditGroupVal] = useStateSet('');
+  const [addingGroup, setAddingGroup] = useStateSet(false);
+  const [addGroupVal, setAddGroupVal] = useStateSet('');
 
-  const normalised = (items || []).map((c) => typeof c === 'string' ? { name: c, group: defaultGroup || GROUPS[0] } : c);
+  const normalised = (items || []).map((c) => typeof c === 'string' ? { name: c, group: GROUPS[0] || '其他' } : c);
 
   const startEdit = (group, idx) => {
     setEditing({ group, idx });
@@ -953,6 +983,48 @@ function IncomeGroupManager({ items, onChange, color, groups, groupColors, group
     setAddVal('');setAdding(null);
   };
 
+  const startEditGroup = (group) => {setEditingGroup(group);setEditGroupVal(group);};
+  const saveEditGroup = () => {
+    const name = editGroupVal.trim();
+    if (!name || !editingGroup) {setEditingGroup(null);return;}
+    if (name !== editingGroup && GROUPS.includes(name)) {
+      onBlocked && onBlocked(`「${name}」大類已存在，請換一個名稱。`);
+      return;
+    }
+    const nextGroupDefs = (groupDefs || []).map((g) => g.name === editingGroup ? { ...g, name } : g);
+    const nextItems = normalised.map((c) => c.group === editingGroup ? { ...c, group: name } : c);
+    onGroupsChange(nextGroupDefs);
+    onChange(nextItems);
+    setEditingGroup(null);
+  };
+  const removeGroup = (group) => {
+    if ((lockedGroups || []).includes(group)) {
+      onBlocked && onBlocked(`「${group}」為系統預設大類，不可刪除。`);
+      return;
+    }
+    const cnt = normalised.filter((c) => c.group === group).length;
+    if (cnt > 0) {
+      onBlocked && onBlocked(`「${group}」底下還有 ${cnt} 個子分類，請先刪除或搬移才能刪除大類。`);
+      return;
+    }
+    onGroupsChange((groupDefs || []).filter((g) => g.name !== group));
+  };
+  const addGroup = () => {
+    const name = addGroupVal.trim();
+    if (!name) return;
+    if (GROUPS.includes(name)) {
+      onBlocked && onBlocked(`「${name}」大類已存在，請換一個名稱。`);
+      return;
+    }
+    const newGroup = { name, color: nextAutoGroupColor(groupDefs) };
+    const otherIdx = (groupDefs || []).findIndex((g) => g.name === '其他');
+    const nextGroupDefs = otherIdx >= 0 ?
+    [...(groupDefs || []).slice(0, otherIdx), newGroup, ...(groupDefs || []).slice(otherIdx)] :
+    [...(groupDefs || []), newGroup];
+    onGroupsChange(nextGroupDefs);
+    setAddGroupVal('');setAddingGroup(false);
+  };
+
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: SP(16) }}>
       {GROUPS.map((g) => {
@@ -961,9 +1033,44 @@ function IncomeGroupManager({ items, onChange, color, groups, groupColors, group
         const gItems = normalised.filter((c) => c.group === g);
         return (
           <div key={g}>
-            <div style={{ fontSize: FS(16), fontWeight: 600, color: gc, letterSpacing: 0.5,
-              textTransform: 'uppercase', marginBottom: SP(8), paddingLeft: SP(4) }}>
-              {gl}
+            <div style={{ display: 'flex', alignItems: 'center', gap: SP(8), marginBottom: SP(8), paddingLeft: SP(4) }}>
+              {editingGroup === g ?
+              <div style={{ display: 'flex', gap: SP(8), flex: 1 }}>
+                <input autoFocus value={editGroupVal} onChange={(e) => setEditGroupVal(e.target.value)}
+                onKeyDown={(e) => e.key === 'Enter' && saveEditGroup()}
+                style={{ flex: 1, minWidth: 0, height: 30, padding: PAD('0 10px'), borderRadius: RS(8),
+                  background: 'rgba(0,0,0,0.06)', border: `1px solid ${gc}55`,
+                  fontSize: FS(16), fontWeight: 600, color: TOKENS.ink, outline: 'none' }} />
+                <button onClick={saveEditGroup} style={{ width: 30, height: 30, borderRadius: RS(8), flexShrink: 0,
+                  background: gc, border: 'none', color: TOKENS.surface,
+                  display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                  <Check size={13} strokeWidth={2.5} />
+                </button>
+                <button onClick={() => setEditingGroup(null)} style={{ width: 30, height: 30, borderRadius: RS(8), flexShrink: 0,
+                  background: 'rgba(0,0,0,0.08)', border: '1px solid rgba(0,0,0,0.12)',
+                  color: 'rgba(44,44,50,0.84)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                  <X size={13} />
+                </button>
+              </div> :
+              <>
+                <div style={{ fontSize: FS(16), fontWeight: 600, color: gc, letterSpacing: 0.5,
+                  textTransform: 'uppercase', flex: 1 }}>
+                  {gl}
+                </div>
+                <button onClick={() => startEditGroup(g)} style={{ width: 26, height: 26, borderRadius: RS(7), flexShrink: 0,
+                  background: 'rgba(0,0,0,0.06)', border: '1px solid rgba(0,0,0,0.12)',
+                  color: 'rgba(44,44,50,0.6)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                  <Pencil size={12} />
+                </button>
+                {!(lockedGroups || []).includes(g) &&
+                <button onClick={() => removeGroup(g)} style={{ width: 26, height: 26, borderRadius: RS(7), flexShrink: 0,
+                  background: 'rgba(216,135,112,0.10)', border: '1px solid rgba(216,135,112,0.22)',
+                  color: TOKENS.red, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                  <Trash size={12} />
+                </button>
+                }
+              </>
+              }
             </div>
             <div style={{ background: TOKENS.surface, borderRadius: RS(18), overflow: 'hidden',
               border: '1px solid rgba(0,0,0,0.12)', marginBottom: SP(6) }}>
@@ -1034,6 +1141,29 @@ function IncomeGroupManager({ items, onChange, color, groups, groupColors, group
           </div>);
 
       })}
+      {addingGroup ?
+      <div style={{ display: 'flex', gap: SP(8) }}>
+        <input autoFocus value={addGroupVal} onChange={(e) => setAddGroupVal(e.target.value)}
+        onKeyDown={(e) => e.key === 'Enter' && addGroup()}
+        placeholder="新增大類…"
+        style={{ flex: 1, minWidth: 0, height: 40, padding: PAD('0 12px'), borderRadius: RS(10),
+          background: TOKENS.surface, border: '1px solid rgba(0,0,0,0.18)',
+          fontSize: FS(18), fontWeight: 600, color: TOKENS.ink, outline: 'none' }} />
+        <button onClick={addGroup} style={{ height: 40, padding: PAD('0 14px'), borderRadius: RS(10), flexShrink: 0,
+          background: TOKENS.ink2, border: 'none', color: TOKENS.surface,
+          fontSize: FS(17), fontWeight: 600 }}>新增</button>
+        <button onClick={() => {setAddingGroup(false);setAddGroupVal('');}} style={{ height: 40, padding: PAD('0 14px'), flexShrink: 0,
+          borderRadius: RS(10), background: 'rgba(0,0,0,0.08)', border: '1px solid rgba(0,0,0,0.12)',
+          color: 'rgba(44,44,50,0.84)', fontSize: FS(17) }}>取消</button>
+      </div> :
+
+      <button onClick={() => {setAddingGroup(true);setAddGroupVal('');}} style={{
+        height: 40, padding: PAD('0 14px'), borderRadius: RS(10),
+        background: 'rgba(0,0,0,0.05)', border: '1px dashed rgba(0,0,0,0.25)', color: TOKENS.ink2,
+        fontSize: FS(17), fontWeight: 600, display: 'flex', alignItems: 'center', gap: SP(5) }}>
+        <Plus size={14} /> 新增大類
+      </button>
+      }
     </div>);
 
 }
@@ -1091,7 +1221,7 @@ function AccountsTabsManager({ data, onChange, initialBalances, setInitialBalanc
 
 }
 
-function CategoriesManager({ data, onChange, color }) {
+function CategoriesManager({ data, onChange, onGroupsChange, onBlocked, color }) {
   const [tab, setTab] = useStateSet('cat_exp');
   const tabs = [
   { id: 'cat_exp', label: '支出', c: TOKENS.red },
@@ -1117,13 +1247,14 @@ function CategoriesManager({ data, onChange, color }) {
         )}
       </div>
       {tab === 'cat_inc' ?
-      <IncomeGroupManager items={data.cat_inc} onChange={(items) => onChange(items, tab)} color={color} /> :
+      <IncomeGroupManager items={data.cat_inc} onChange={(items) => onChange(items, tab)}
+      groupDefs={data.inc_groups} onGroupsChange={(g) => onGroupsChange('inc_groups', g)}
+      onBlocked={onBlocked} lockedGroups={['主動', '被動', '投資收入']}
+      groupLabels={{ '主動': '主動收入', '被動': '被動收入', '投資收入': '投資收入', '其他': '其他' }} /> :
       tab === 'cat_exp' ?
       <IncomeGroupManager items={data.cat_exp} onChange={(items) => onChange(items, tab)}
-      color={color} groups={window.EXP_GROUPS} defaultGroup="其他"
-      groupColors={{ '餐飲': TOKENS.red, '交通': TOKENS.blue2, '日常': TOKENS.teal, '娛樂': TOKENS.gold,
-        '醫療': TOKENS.green, '教育': TOKENS.indigo, '金融保險': TOKENS.blue, '投資損失': TOKENS.orange, '其他': TOKENS.gray4 }}
-      groupLabels={{}} /> :
+      groupDefs={data.exp_groups} onGroupsChange={(g) => onGroupsChange('exp_groups', g)}
+      onBlocked={onBlocked} lockedGroups={['餐飲', '交通', '日常', '投資損失']} groupLabels={{}} /> :
       <StringListManager key={tab} items={data[tab]}
       onChange={(items) => onChange(items, tab)} color={color}
       placeholder={tab === 'asset_class' ? '新增股票類別…' : '新增分類…'} />

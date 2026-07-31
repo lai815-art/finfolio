@@ -483,7 +483,7 @@ function FlowForm({ state, update, onSaved, onDelete, recordId, masterData }) {
   const active = KINDS.find((k) => k.id === state.kind);
 
   const categoriesByKind = {
-    exp: window.flattenExpCats ? window.flattenExpCats(md.cat_exp) : ['餐飲', '交通', '娛樂', '醫療', '其他'],
+    exp: window.flattenExpCats ? window.flattenExpCats(md.cat_exp, md.exp_groups) : ['餐飲', '交通', '娛樂', '醫療', '其他'],
     inc: (md.cat_inc || []).map((c) => typeof c === 'string' ? c : c.name),
     xfer: md.cat_xfer || ['轉帳']
   };
@@ -497,7 +497,7 @@ function FlowForm({ state, update, onSaved, onDelete, recordId, masterData }) {
   // 支出分類兩層結構：類別（群組）→ 項目（子分類）
   const expCatStruct = (() => {
     const items = (md.cat_exp || []).map((c) => typeof c === 'string' ? { name: c, group: c } : c);
-    const groups = (window.EXP_GROUPS || []).slice();
+    const groups = (md.exp_groups || []).map((g) => typeof g === 'string' ? g : g.name);
     items.forEach((c) => {if (c.group && !groups.includes(c.group)) groups.push(c.group);});
     return groups.map((g) => {
       const sub = items.filter((c) => c.group === g && c.name !== g).map((c) => c.name);

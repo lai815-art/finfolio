@@ -67,6 +67,42 @@ describe('migrateSchema', () => {
     expect(md.brokers.find((b) => b.name === '元大證券').feeRate).toBe('0.06');
   });
 
+  it('backfills exp_groups/inc_groups for old data missing them, without touching existing ones', () => {
+    localStorage.setItem(
+      'ff_master_data',
+      JSON.stringify({ cat_exp: [], inc_groups: [{ name: '自訂', color: '#111111' }] })
+    );
+
+    migrateSchema();
+
+    const md = JSON.parse(localStorage.getItem('ff_master_data'));
+    expect(md.exp_groups.map((g) => g.name)).toEqual(
+      expect.arrayContaining(['餐飲', '交通', '日常', '娛樂', '醫療', '教育', '金融保險', '投資損失', '其他'])
+    );
+    expect(md.inc_groups).toEqual([{ name: '自訂', color: '#111111' }]); // already present, untouched
+  });
+
+  it('resorts existing exp_groups/inc_groups so locked groups lead and 其他 trails, without reordering the rest', () => {
+    localStorage.setItem(
+      'ff_master_data',
+      JSON.stringify({
+        exp_groups: [
+          { name: '娛樂', color: '#1' }, { name: '其他', color: '#2' }, { name: '交通', color: '#3' },
+          { name: '餐飲', color: '#4' }, { name: '醫療', color: '#5' }, { name: '投資損失', color: '#6' }, { name: '日常', color: '#7' }
+        ],
+        inc_groups: [
+          { name: '其他', color: '#8' }, { name: '投資收入', color: '#9' }, { name: '主動', color: '#10' }, { name: '被動', color: '#11' }
+        ]
+      })
+    );
+
+    migrateSchema();
+
+    const md = JSON.parse(localStorage.getItem('ff_master_data'));
+    expect(md.exp_groups.map((g) => g.name)).toEqual(['餐飲', '交通', '日常', '投資損失', '娛樂', '醫療', '其他']);
+    expect(md.inc_groups.map((g) => g.name)).toEqual(['主動', '被動', '投資收入', '其他']);
+  });
+
   it('does nothing harmful when there is no master data at all', () => {
     expect(() => migrateSchema()).not.toThrow();
     expect(localStorage.getItem('ff_schema_version')).toBe(String(SCHEMA_VERSION));

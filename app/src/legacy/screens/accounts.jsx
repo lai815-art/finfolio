@@ -28,10 +28,11 @@ function MonthlyFlowHero({ savedFlows = [], masterData = {} }) {
   const curMap = window.buildCurMap(md);
   const toTWD = (f) => window.fxToTWD(f.amount, curMap[f.account]);
 
-  // 收入分類：主動 / 被動 / 投資收入（獨立一條線）
+  // 收入分類：每個收入大類（來自 masterData.inc_groups，使用者可自訂新增/刪除）獨立一條線
+  const incGroupDefs = md.inc_groups || [];
   const incCats = (md.cat_inc || []).map((c) => typeof c === 'string' ? { name: c, group: '主動' } : c);
-  const investSet = new Set(['投資收入']);
-  const passiveSet = new Set(incCats.filter((c) => c.group === '被動' && !investSet.has(c.name)).map((c) => c.name));
+  const incGroupOf = {};
+  incCats.forEach((c) => { incGroupOf[c.name] = c.group; });
 
   const now = window.TODAY_DATE || new Date();
   const [yearOffset, setYearOffset] = useStateAcct(0);
@@ -39,7 +40,7 @@ function MonthlyFlowHero({ savedFlows = [], masterData = {} }) {
   const canNextYear = yearOffset < 0;
   const months = Array.from({ length: 12 }, (_, i) => {
     const d = new Date(curYear, i, 1);
-    return { key: d.getFullYear() + '-' + d.getMonth(), label: i + 1 + '月', exp: 0, act: 0, pas: 0, inv: 0 };
+    return { key: d.getFullYear() + '-' + d.getMonth(), label: i + 1 + '月', exp: 0, inc: Object.fromEntries(incGroupDefs.map((g) => [g.name, 0])) };
   });
   (savedFlows || []).forEach((f) => {
     const d = f.date instanceof Date ? f.date : new Date(f.date);
@@ -48,18 +49,15 @@ function MonthlyFlowHero({ savedFlows = [], masterData = {} }) {
     const amt = toTWD(f);
     if (f.kind === 'exp') {m.exp += amt;} else
     if (f.kind === 'inc') {
-      if (investSet.has(f.cat)) {m.inv += amt;} else
-      if (passiveSet.has(f.cat)) {m.pas += amt;} else
-      {m.act += amt;}
+      const g = incGroupOf[f.cat] || (incGroupDefs[0] && incGroupDefs[0].name) || '其他';
+      m.inc[g] = (m.inc[g] || 0) + amt;
     }
   });
 
   const lines = [
   { key: 'exp', label: '支出', color: TOKENS.red, vals: months.map((m) => m.exp) },
-  { key: 'act', label: '主動收入', color: TOKENS.blue2, vals: months.map((m) => m.act) },
-  { key: 'pas', label: '被動收入', color: TOKENS.teal, vals: months.map((m) => m.pas) },
-  { key: 'inv', label: '投資收入', color: TOKENS.gold, vals: months.map((m) => m.inv) }];
-  const bars = months.map((m) => m.act + m.pas + m.inv - m.exp);
+  ...incGroupDefs.map((g) => ({ key: g.name, label: g.name, color: g.color || TOKENS.gray3, vals: months.map((m) => m.inc[g.name] || 0) }))];
+  const bars = months.map((m) => incGroupDefs.reduce((s, g) => s + (m.inc[g.name] || 0), 0) - m.exp);
 
   const allVals = [...lines.flatMap((s) => s.vals), ...bars];
   const maxV = Math.max(...allVals, 1000);
