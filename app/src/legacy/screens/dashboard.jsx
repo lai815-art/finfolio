@@ -47,6 +47,11 @@ function mulberry(seed) {
 
 const TODAY = new Date(); // 開啟 App 時的當前日期
 
+// 自動轉帳/定期支出規則的扣款日（1–28，與 settings.jsx 儲存時的夾限規則一致）
+function recurringDayOf(r) {return Math.min(Math.max(parseInt(r.dayOfMonth, 10) || 1, 1), 28);}
+// 只比較日期（忽略時分秒），用來判斷 selectedDate 是否為「今天以後」的未來日期
+function dateOnly(d) {return new Date(d.getFullYear(), d.getMonth(), d.getDate());}
+
 const EXP_TEMPLATES = [
 { icon: '🍞', cat: '早餐', merchant: '便利商店', account: '信用卡 A', range: [60, 130] },
 { icon: '🍔', cat: '午餐', merchant: '麥當勞', account: '信用卡 A', range: [120, 280] },
@@ -124,7 +129,7 @@ function DateStrip({ date, onPrev, onNext, onCal, isToday }) {
 
 }
 
-function CalendarSheet({ open, date, onPick, onClose }) {
+function CalendarSheet({ open, date, onPick, onClose, savedRecurring = [] }) {
   const { X, ChevronRight } = window.Icons;
   const [shown, setShown] = useStateDash(false);
   const [viewMonth, setViewMonth] = useStateDash(new Date(date.getFullYear(), date.getMonth(), 1));
@@ -152,6 +157,8 @@ function CalendarSheet({ open, date, onPick, onClose }) {
   const isSel = (d) => d === date.getDate() && month === date.getMonth() && year === date.getFullYear();
   const isToday = (d) => d === TODAY.getDate() && month === TODAY.getMonth() && year === TODAY.getFullYear();
   const isFuture = (d) => false;
+  // 自動轉帳/定期支出每月重複，只要「幾號」符合扣款日，不論該月是過去或未來都標記小點。
+  const hasRecurring = (d) => (savedRecurring || []).some((r) => r.enabled && recurringDayOf(r) === d);
   const week = ['日', '一', '二', '三', '四', '五', '六'];
 
   return (
@@ -228,10 +235,12 @@ function CalendarSheet({ open, date, onPick, onClose }) {
               const sel = isSel(d);
               const td = isToday(d);
               const fut = isFuture(d);
+              const rec = hasRecurring(d);
               const dow = i % 7;
               return (
                 <button key={i} disabled={fut} onClick={() => onPick(new Date(year, month, d))}
                 style={{
+                  position: 'relative',
                   aspectRatio: '1 / 1', borderRadius: RS(8),
                   background: sel ?
                   TOKENS.gradDark :
@@ -245,7 +254,13 @@ function CalendarSheet({ open, date, onPick, onClose }) {
                   fontFamily: TOKENS.fontMono,
                   display: 'flex', alignItems: 'center', justifyContent: 'center',
                   cursor: fut ? 'not-allowed' : 'pointer'
-                }}>{d}</button>);
+                }}>{d}
+                  {rec &&
+                  <span style={{ position: 'absolute', bottom: 5, left: '50%', transform: 'translateX(-50%)',
+                    width: 5, height: 5, borderRadius: '50%',
+                    background: sel ? TOKENS.surface : TOKENS.accent }} />
+                  }
+                </button>);
 
             })}
           </div>
@@ -283,7 +298,7 @@ function flowIconName(t) {
   return t.kind === 'inc' ? 'Banknote' : 'Receipt';
 }
 
-function DailyView({ date, hideAmounts, extraFlows = [], extraTrades = [], onEditRecord, recordEdits = {}, recordDeletes = [], curMap = {}, masterData = {} }) {
+function DailyView({ date, hideAmounts, extraFlows = [], extraTrades = [], onEditRecord, recordEdits = {}, recordDeletes = [], curMap = {}, masterData = {}, savedRecurring = [] }) {
   const { Calendar, ArrowUpRight } = window.Icons;
   const mask = (v) => fmtMoney(Math.round(v)); // 一般數字不再受眼睛遮蔽；只遮最上層總額
 
@@ -478,7 +493,12 @@ function DailyView({ date, hideAmounts, extraFlows = [], extraTrades = [], onEdi
 
   };
 
-  const noAny = flows.length === 0 && trades.length === 0;
+  // 未來日期（今天以後）才顯示「預定」提示，且金額不算入當日收支——要等到當天真的執行才算數。
+  const isFutureDay = dateOnly(date).getTime() > dateOnly(TODAY).getTime();
+  const pendingRecurring = isFutureDay ?
+  (savedRecurring || []).filter((r) => r.enabled && recurringDayOf(r) === date.getDate()) : [];
+
+  const noAny = flows.length === 0 && trades.length === 0 && pendingRecurring.length === 0;
   let firstSec = true;
   const takeFirst = () => {const f = firstSec;firstSec = false;return f;};
   return (
@@ -500,6 +520,37 @@ function DailyView({ date, hideAmounts, extraFlows = [], extraTrades = [], onEdi
       {trades.length > 0 && <React.Fragment>
         {secHead(ArrowUpRight, '當日股票買賣', (sellTotal - buyTotal < 0 ? '餘額 -' : '餘額 ') + mask(Math.abs(sellTotal - buyTotal)), sellTotal - buyTotal < 0 ? TOKENS.red : TOKENS.ink2, takeFirst())}
         <div style={cardBox}>{trades.map(renderTrade)}</div>
+      </React.Fragment>}
+      {pendingRecurring.length > 0 && <React.Fragment>
+        {secHead(Calendar, '預定項目', '', TOKENS.ink2, takeFirst())}
+        <div style={cardBox}>
+          {pendingRecurring.map((r, i) =>
+          <div key={r.id} style={{ display: 'flex', alignItems: 'center', gap: SP(14), padding: PAD('12px 14px'),
+            borderBottom: i < pendingRecurring.length - 1 ? '1px solid rgba(0,0,0,0.12)' : 'none', minHeight: 56 }}>
+            <div style={{ width: 38, height: 44, borderRadius: RS(19), flexShrink: 0,
+              background: 'rgba(0,0,0,0.05)', border: '1px dashed rgba(0,0,0,0.22)',
+              display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+              <Calendar size={16} style={{ color: 'rgba(44,44,50,0.5)' }} />
+            </div>
+            <div style={{ flex: 1, minWidth: 0 }}>
+              <div style={{ display: 'flex', alignItems: 'baseline', gap: SP(6), minWidth: 0 }}>
+                <span style={{ fontSize: FS(20), fontWeight: 500, overflow: 'hidden',
+                  textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                  {r.name || (r.type === 'transfer' ? '自動轉帳' : '定期支出')}
+                </span>
+                <span style={{ fontSize: FS(13), fontWeight: 600, color: TOKENS.gray3,
+                  background: 'rgba(0,0,0,0.06)', padding: '1px 6px', borderRadius: RS(6), whiteSpace: 'nowrap' }}>預定</span>
+              </div>
+              <div style={{ fontSize: FS(14), color: 'rgba(0,0,0,0.5)', marginTop: SP(2),
+                overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                {r.type === 'transfer' ? `${r.fromAccount} → ${r.toAccount}` : `${r.category} · ${r.account}`}
+              </div>
+            </div>
+            <div style={{ fontFamily: TOKENS.fontMono, fontSize: FS(18), fontWeight: 600,
+              color: 'rgba(44,44,50,0.5)', whiteSpace: 'nowrap', flexShrink: 0 }}>{mask(r.amount)}</div>
+          </div>
+          )}
+        </div>
       </React.Fragment>}
     </div>);
 
@@ -601,6 +652,10 @@ function DashboardScreen({ hideAmounts, setHideAmounts, savedFlows = [], savedTr
   useEffectDash(() => { if (onDateChange) onDateChange(selectedDate); }, [selectedDate]);
   const [calOpen, setCalOpen] = useStateDash(false);
   const [slideDir, setSlideDir] = useStateDash(0);
+  // 自動轉帳/定期支出規則：只用來畫月曆小點與「預定」提示，不在這裡編輯。用一般變數（非
+  // useState）每次 render 都重新讀 localStorage，避免因為在設定頁改了規則、切回看板時資料過期。
+  let savedRecurring = [];
+  try {savedRecurring = JSON.parse(localStorage.getItem('ff_recurring') || '[]') || [];} catch {}
 
   // Net worth from live computed data (accounts + investments - liabilities) — 統一換算台幣
   const curMap = useMemoDash(() => window.buildCurMap(masterData), [masterData]);
@@ -713,11 +768,13 @@ function DashboardScreen({ hideAmounts, setHideAmounts, savedFlows = [], savedTr
           <DailyView date={selectedDate} hideAmounts={hideAmounts} onEditRecord={onEditRecord}
           recordEdits={recordEdits} recordDeletes={recordDeletes} curMap={curMap} masterData={masterData}
           extraFlows={savedFlows.filter((f) => dayKey(f.date) === dayKey(selectedDate))}
-          extraTrades={savedTrades.filter((t) => dayKey(t.date) === dayKey(selectedDate))} />
+          extraTrades={savedTrades.filter((t) => dayKey(t.date) === dayKey(selectedDate))}
+          savedRecurring={savedRecurring} />
         </div>
       </div>
 
       <CalendarSheet open={calOpen}
+      savedRecurring={savedRecurring}
       date={selectedDate}
       onPick={(d) => {setSelectedDate(d);setCalOpen(false);setSlideDir(0);}}
       onClose={() => setCalOpen(false)} />
@@ -743,21 +800,25 @@ function StatDonut({ data, total, label, color, mask }) {
           {arcs.map((a, i) =>
           <circle key={i} cx={cx} cy={cx} r={DR} fill="none"
           stroke={a.color} strokeWidth={DT}
-          strokeDasharray={a.len + ' ' + DC} strokeDashoffset={-a.off} />
+          strokeDasharray={a.len + ' ' + DC} strokeDashoffset={-a.off}
+          style={{ '--arcFrom': DC, '--arcTo': -a.off,
+            animation: `fillArc 650ms cubic-bezier(0.32,0.72,0.18,1) ${i * 70}ms both` }} />
           )}
         </g>
         {arcs.filter((a) => a.pct >= 4).map((a, i) => {
           const ang = a.mid * 2 * Math.PI;
           const x = cx + labelR * Math.sin(ang),y = cx - labelR * Math.cos(ang);
           return (
-            <text key={i} x={x} y={y} textAnchor="middle" dominantBaseline="middle" fill="rgba(44,44,50,0.82)" style={{ fontSize: '13px' }}>
+            <text key={i} x={x} y={y} textAnchor="middle" dominantBaseline="middle" fill="rgba(44,44,50,0.82)"
+            style={{ fontSize: '13px', opacity: 0, animation: `fadeInStat 400ms ease-out ${450 + i * 70}ms forwards` }}>
               <tspan x={x} dy="-0.35em" style={{ fontWeight: 700, fontSize: '14px' }} fill={a.color}>{a.pct.toFixed(1)}%</tspan>
               <tspan x={x} dy="1.25em">{a.name}</tspan>
             </text>);
         })}
       </svg>
       <div style={{ position: 'absolute', inset: 0, display: 'flex', flexDirection: 'column',
-        alignItems: 'center', justifyContent: 'center', pointerEvents: 'none' }}>
+        alignItems: 'center', justifyContent: 'center', pointerEvents: 'none',
+        opacity: 0, animation: 'fadeInStat 420ms ease-out 200ms forwards' }}>
         <div style={{ fontSize: FS(15), color: 'rgba(44,44,50,0.55)' }}>{label}</div>
         <div style={{ fontSize: FS(amtFS), fontWeight: 700, color, fontFamily: TOKENS.fontMono, marginTop: SP(2), letterSpacing: aLen > 8 ? -0.5 : 0, lineHeight: 1 }}>
           {amtStr}
@@ -794,9 +855,15 @@ function MonthlyStatsSheet({ open, onClose, savedFlows, masterData, hideAmounts,
   const [decadeOffset, setDecadeOffset] = useStateDash(0);
   const [expanded, setExpanded] = useStateDash(null);
   const [selIdx, setSelIdx] = useStateDash(null); // 圖表點選的月/年（顯示金額小視窗）
+  const [hiddenSeries, setHiddenSeries] = useStateDash(() => new Set()); // 折線圖圖例點選隱藏的線
+  const toggleSeries = (k) => setHiddenSeries((prev) => {
+    const next = new Set(prev);
+    if (next.has(k)) next.delete(k);else next.add(k);
+    return next;
+  });
   const swipeRef = useRefDash({ x: 0, y: 0, active: false }); // 圖表左右滑動切換期間
   useEffectDash(() => {
-    if (open) { setMonthOffset(0); setYearOffset(0); setDecadeOffset(0); setExpanded(null); setSelIdx(null); setView('spend'); const t = setTimeout(() => setShown(true), 20); return () => clearTimeout(t); }
+    if (open) { setMonthOffset(0); setYearOffset(0); setDecadeOffset(0); setExpanded(null); setSelIdx(null); setView('spend'); setHiddenSeries(new Set()); const t = setTimeout(() => setShown(true), 20); return () => clearTimeout(t); }
     setShown(false);
   }, [open]);
   if (!open) return null;
@@ -864,13 +931,14 @@ function MonthlyStatsSheet({ open, onClose, savedFlows, masterData, hideAmounts,
   }),
   { k: '消費支出', c: TOKENS.red, dashed: true, val: (a) => (a.exp || 0) - (a.investLoss || 0) }];
   // 整合圖：收支餘額柱狀（背景）＋ 上述折線（前景），共用同一數值刻度。
-  const ComboChart = ({ data, labels }) => {
+  const ComboChart = ({ data, labels, hiddenSeries }) => {
+    const visibleSeries = CHART_SERIES.filter((s) => !hiddenSeries.has(s.k));
     const W = 340, H = 172, pL = 16, pR = 12, pT = 14, pB = 22, n = data.length;
     const chartH = H - pT - pB;
     const nets = data.map((a) => a.inc - a.exp);
     let maxPos = 0, maxNeg = 0;
     data.forEach((a, i) => {
-      CHART_SERIES.forEach((s) => { const v = s.val(a); maxPos = Math.max(maxPos, v); maxNeg = Math.max(maxNeg, -v); });
+      visibleSeries.forEach((s) => { const v = s.val(a); maxPos = Math.max(maxPos, v); maxNeg = Math.max(maxNeg, -v); });
       maxPos = Math.max(maxPos, nets[i]);
       maxNeg = Math.max(maxNeg, -nets[i]);
     });
@@ -884,19 +952,27 @@ function MonthlyStatsSheet({ open, onClose, savedFlows, masterData, hideAmounts,
     const step = Math.ceil(n / (n > 12 ? 12 : 8));
     return (
       <svg width="100%" viewBox={`0 0 ${W} ${H}`} style={{ display: 'block' }}>
-        {/* 餘額柱（背景、半透明），折線在上方 */}
+        {/* 餘額柱（背景、半透明），折線在上方；長條圖進場時由 0 長高（growBar），以基準線為軸心。 */}
         {nets.map((v, i) => { const h = Math.abs(v) / range * chartH, pos = v >= 0; const on = selIdx == null || selIdx === i;
           return <rect key={'b' + i} x={xAt(i) - bw / 2} y={pos ? zeroY - h : zeroY} width={bw} height={h} rx="2"
-            fill={pos ? NET_POS : NET_NEG} opacity={on ? 0.15 : 0.06} />; })}
+            fill={pos ? NET_POS : NET_NEG} opacity={on ? 0.15 : 0.06}
+            style={{ transformOrigin: `${xAt(i)}px ${zeroY}px`, animation: `growBar 520ms cubic-bezier(0.32,0.72,0.18,1) ${i * 18}ms both` }} />; })}
         {/* 零基準線 */}
         <line x1={pL} y1={zeroY} x2={W - pR} y2={zeroY} stroke="rgba(0,0,0,0.16)" />
         {/* 選取虛線 */}
         {selIdx != null && selIdx < n &&
         <line x1={xAt(selIdx)} y1={pT} x2={xAt(selIdx)} y2={H - pB} stroke="rgba(0,0,0,0.28)" strokeWidth="1.5" strokeDasharray="3 3" />}
-        {/* 折線：主動收入／被動收入／投資損益／其他／消費支出（消費支出為紅虛線） */}
-        {CHART_SERIES.map((s) =>
+        {/* 折線：依圖例勾選顯示，圖例切換顯示時（重新掛載）動畫都會重播一次。
+            實線用 pathLength=1 + drawLine 做「畫出來」效果；虛線（消費支出）本身已有 dash 花紋，
+            兩種 dasharray 疊在一起會互相干擾，改用單純淡入。 */}
+        {visibleSeries.map((s, si) =>
+        s.dashed ?
         <polyline key={s.k} points={data.map((a, i) => `${xAt(i).toFixed(1)},${yAt(s.val(a)).toFixed(1)}`).join(' ')}
-          fill="none" stroke={s.c} strokeWidth="2" strokeDasharray={s.dashed ? '5 3' : undefined} strokeLinejoin="round" strokeLinecap="round" />
+          fill="none" stroke={s.c} strokeWidth="2" strokeDasharray="5 3" strokeLinejoin="round" strokeLinecap="round"
+          style={{ opacity: 0, animation: `fadeInStat 400ms ease-out ${180 + si * 90}ms forwards` }} /> :
+        <polyline key={s.k} pathLength="1" points={data.map((a, i) => `${xAt(i).toFixed(1)},${yAt(s.val(a)).toFixed(1)}`).join(' ')}
+          fill="none" stroke={s.c} strokeWidth="2" strokeDasharray="1" strokeLinejoin="round" strokeLinecap="round"
+          style={{ animation: `drawLine 650ms cubic-bezier(0.32,0.72,0.18,1) ${180 + si * 90}ms both` }} />
         )}
         {data.map((_, i) => i % step === 0 ? <text key={'t' + i} x={xAt(i)} y={H - 6} textAnchor="middle" fill="rgba(44,44,50,0.5)" style={{ fontSize: '14px' }}>{labels[i]}</text> : null)}
         {/* 點擊熱區：每欄一條 → 開啟彈出視窗 */}
@@ -1040,7 +1116,7 @@ function MonthlyStatsSheet({ open, onClose, savedFlows, masterData, hideAmounts,
             {spendCats.length === 0 ?
             <div style={{ fontSize: FS(17), color: 'rgba(44,44,50,0.4)', textAlign: 'center', padding: PAD('24px 0') }}>本月尚無消費紀錄</div> :
             <>
-              {StatDonut && <StatDonut data={spendCats} total={spendTotal} label="總支出" color={TOKENS.red} mask={mask} />}
+              {StatDonut && <StatDonut key={`${spY}-${spM}`} data={spendCats} total={spendTotal} label="總支出" color={TOKENS.red} mask={mask} />}
               <div style={{ marginTop: SP(18), display: 'flex', flexDirection: 'column' }}>
                 {spendCats.map((c, i) =>
                 <div key={c.name} style={{ display: 'flex', alignItems: 'center', gap: SP(12), padding: PAD('12px 2px'), borderTop: i === 0 ? '1px solid rgba(0,0,0,0.07)' : 'none', borderBottom: '1px solid rgba(0,0,0,0.07)' }}>
@@ -1066,12 +1142,27 @@ function MonthlyStatsSheet({ open, onClose, savedFlows, masterData, hideAmounts,
               onTouchStart={onSwipeStart} onTouchEnd={onSwipeEnd}
               onMouseDown={onSwipeStart} onMouseUp={onSwipeEnd}>
               <div style={{ marginBottom: SP(6) }}>{secTitle(view === 'month' ? '每月收支' : '年度收支')}</div>
-              {/* 整合圖：主動收入／被動收入／投資損益／其他／消費支出 折線＋收支餘額柱狀 */}
+              {/* 整合圖：主動收入／被動收入／投資損益／其他／消費支出 折線＋收支餘額柱狀。
+                  圖例可點擊：單獨隱藏/顯示某一條線，也可以連續點掉其他線只留一條看。 */}
               <div style={{ display: 'flex', flexWrap: 'wrap', gap: SP(10), marginBottom: SP(8), paddingLeft: SP(2) }}>
-                {CHART_SERIES.map((s) => <span key={s.k} style={{ display: 'flex', alignItems: 'center', gap: SP(4), fontSize: FS(13), color: 'rgba(44,44,50,0.6)' }}><span style={{ width: 12, height: 3, borderRadius: RS(2), background: s.c, opacity: s.dashed ? 0.85 : 1 }} />{s.k}</span>)}
+                {CHART_SERIES.map((s) => {
+                  const off = hiddenSeries.has(s.k);
+                  return (
+                    <button key={s.k} onClick={() => toggleSeries(s.k)} style={{
+                      display: 'flex', alignItems: 'center', gap: SP(4), fontSize: FS(13),
+                      color: off ? 'rgba(44,44,50,0.32)' : 'rgba(44,44,50,0.6)',
+                      background: 'transparent', border: 'none', padding: 0, cursor: 'pointer',
+                      textDecoration: off ? 'line-through' : 'none', transition: 'color 160ms' }}>
+                      <span style={{ width: 12, height: 3, borderRadius: RS(2),
+                        background: off ? 'rgba(0,0,0,0.18)' : s.c,
+                        opacity: !off && s.dashed ? 0.85 : 1, transition: 'background 160ms' }} />
+                      {s.k}
+                    </button>);
+                })}
                 <span style={{ display: 'flex', alignItems: 'center', gap: SP(4), fontSize: FS(13), color: 'rgba(44,44,50,0.6)' }}><span style={{ width: 10, height: 10, borderRadius: RS(2), background: NET_POS, opacity: 0.45 }} />餘額</span>
               </div>
-              <ComboChart data={curData} labels={view === 'month' ? monthLabels : yearLabels} />
+              <ComboChart key={view + '-' + (view === 'month' ? viewYear : decadeYears[0])}
+              data={curData} labels={view === 'month' ? monthLabels : yearLabels} hiddenSeries={hiddenSeries} />
               <div style={{ fontSize: FS(12), color: 'rgba(44,44,50,0.4)', marginTop: SP(4), paddingLeft: SP(2) }}>點圖或下方列表可查看該{view === 'month' ? '月' : '年'}明細</div>
             </div>
             <div style={{ ...cardStyle, padding: PAD('14px') }}>

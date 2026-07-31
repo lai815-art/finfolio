@@ -31,8 +31,8 @@ App 分四個主要分頁（底部 TabBar）＋一個全螢幕設定頁：
 
 **看板**
 1. As a 使用者, I want to 一眼看到本月的總收入與總支出（換算成台幣）, so that 我知道這個月花超過還是省下來
-2. As a 使用者, I want to 點開本月收支摘要看消費分類圓餅圖（排除投資損失）, so that 我知道錢花在哪個類別最多
-3. As a 使用者, I want to 切到「每月收支」分頁看近 12 個月的收支走勢圖（主動收入/被動收入/投資損益/其他/消費支出）, so that 我能看出收支的季節性變化
+2. As a 使用者, I want to 點開本月收支摘要看消費分類圓餅圖（排除投資損失），圓餅圖進場時有展開動畫, so that 我知道錢花在哪個類別最多
+3. As a 使用者, I want to 切到「每月收支」分頁看近 12 個月的收支走勢圖（主動收入/被動收入/投資損益/其他/消費支出），折線進場有畫出動畫，且能點圖例單獨隱藏/顯示某一條線, so that 我能看出收支的季節性變化，也能只留下我想比較的那幾條線
 4. As a 使用者, I want to 切到「年度收支」分頁看多年（每頁 10 年）的收支走勢, so that 我能評估長期的財務趨勢
 5. As a 使用者, I want to 點圖表上任一根柱子/任一列看細項彈窗, so that 我能追查某個月/某年為什麼特別高或低
 6. As a 使用者, I want to 點開「資產淨額明細」看現金/存款/各投資分類的圓餅圖與負債明細, so that 我知道淨資產的組成
@@ -78,14 +78,16 @@ App 分四個主要分頁（底部 TabBar）＋一個全螢幕設定頁：
 38. As a 使用者, I want to 用「清除所有歷史資料」功能只清掉交易紀錄, so that 我能重新開始記帳但保留帳戶/分類等主檔設定
 39. As a 使用者, I want to 設定 App 鎖定 PIN 或生物辨識, so that 別人拿到我的手機也看不到資產資料
 40. As a 使用者, I want to 開啟「隱藏金額」開關把畫面上的數字都用遮罩蓋住, so that 在別人面前也能安心操作
+41. As a 使用者, I want to 設定「自動轉帳」（任意帳戶→任意帳戶，固定金額）或「定期支出」規則，每月到期自動補記入帳, so that 房租、Netflix、定期定額投資不用每次手動記
+42. As a 使用者, I want to 在月曆上看到哪幾天有排定的自動轉帳/定期支出（小點標記，每月重複顯示，不分過去未來），並且切到「未來」某一天時在看板當日顯示「預定」提示（金額不算入當日/當月收支，要等到當天真的執行才算數）, so that 我一眼就知道這個月哪幾天會有自動扣款，也不會被還沒發生的支出誤導
 
 **AI 顧問（目前隱藏，未來版本開發）**
-41. As a 使用者, I want to （未來）在 AI 顧問分頁跟我自己選的 AI 模型對話討論資產配置, so that 我能得到客製化的理財建議
-42. As a 使用者, I want to （未來）看到系統依股票/債券/現金占比算出的健康度評分與提示, so that 我知道目前配置是否偏股或偏保守
+43. As a 使用者, I want to （未來）在 AI 顧問分頁跟我自己選的 AI 模型對話討論資產配置, so that 我能得到客製化的理財建議
+44. As a 使用者, I want to （未來）看到系統依股票/債券/現金占比算出的健康度評分與提示, so that 我知道目前配置是否偏股或偏保守
 
 **系統層級**
-43. As a 使用者, I want to App 發生未預期錯誤時顯示可重試的錯誤畫面而不是白屏, so that 我不會因為一個小 bug 就完全用不了 App
-44. As a 使用者, I want to 資料結構升級時自動做 migration, so that 舊版本存的資料在新版 App 上不會壞掉
+45. As a 使用者, I want to App 發生未預期錯誤時顯示可重試的錯誤畫面而不是白屏, so that 我不會因為一個小 bug 就完全用不了 App
+46. As a 使用者, I want to 資料結構升級時自動做 migration, so that 舊版本存的資料在新版 App 上不會壞掉
 
 ## Implementation Decisions
 
@@ -97,7 +99,7 @@ App 分四個主要分頁（底部 TabBar）＋一個全螢幕設定頁：
 | `ff_trades` | 股票買賣紀錄陣列 |
 | `ff_master_data` | 分類/帳戶/券商/交割戶/資產類別主檔 |
 | `ff_init_bal` | 各帳戶初始餘額 |
-| `ff_recurring` | 週期性/自動扣款規則 |
+| `ff_recurring` | 自動轉帳/定期支出規則（`type:'expense'`\|`'transfer'`） |
 | `ff_ai_keys` / `ff_default_model` | BYOK AI 金鑰與預設模型 |
 | `ff_lock_pin` / `ff_lock_salt` / `ff_lock_bio` / `ff_lock_cred` | App 鎖 PIN（雜湊存放，不存明碼）與生物辨識憑證 |
 | `ff_auto_snapshot` / `ff_last_auto_backup` | 未加密的本機自動快照 |
@@ -110,6 +112,18 @@ App 分四個主要分頁（底部 TabBar）＋一個全螢幕設定頁：
 - 刪除規則：大類底下還有子分類就擋下；以下幾個系統預設大類永遠不可刪除——支出：餐飲/交通/日常/投資損失；收入：主動/被動/投資收入。
 - 排序規則：不可刪除的大類固定排最前面，「其他」固定排最後，其餘大類維持原本相對順序；每次啟動 App 都會冪等校正既有資料的順序。
 - 舊資料沒有 `exp_groups`/`inc_groups` 欄位時，`migrateSchema()` 會自動補上目前使用的預設大類與顏色。
+
+**自動轉帳 / 定期支出**
+- 規則存在 `ff_recurring`：`{ id, type:'expense'|'transfer', name, enabled, dayOfMonth(1-28), lastRun:'YYYY-MM', ... }`；`expense` 額外有 `amount/category/account`，`transfer` 額外有 `fromAccount/toAccount/amount`（任意帳戶對任意帳戶，只支援固定金額，沒有「信用卡全額繳清」這種特殊模式）。
+- 執行時機：`ffRunRecurring()`（app.jsx）每次開 App 時檢查所有規則，把「上次產生之後、到本月為止且已過扣款日」的月份補記成真正的 `flow` 紀錄（`auto:true`），之後跟手動記帳資料走同一套渲染路徑。
+- 月曆標記：只要某天的「幾號」符合已啟用規則的 `dayOfMonth`，該天下方就顯示小點——每月重複顯示，不論該月是過去或未來。
+- 看板「預定」提示：切到「今天以後」的未來日期時，若當天符合某規則的 `dayOfMonth`，看板當日視圖會顯示一張「預定」卡片（名稱、帳戶、金額），但這個金額**不會**算入當日/當月的收支總計——要等到那天真的到期、被 `ffRunRecurring()` 寫成真實紀錄才算數。
+
+**統計圖表動畫與圖例互動**（`StatDonut`／`ComboChart`，dashboard.jsx）
+- 純 CSS `@keyframes`（`fillArc`/`drawLine`/`growBar`/`fadeInStat`，定義在 index.html），沒有用任何動畫函式庫。
+- 折線用 SVG `pathLength="1"` 技巧：把整條線正規化成 0–1，`stroke-dashoffset` 從 1 動畫到 0 做「畫出來」效果；虛線（消費支出，本身已有 dash 花紋）改用單純淡入，避免兩種 dasharray 互相干擾。
+- 圓餅圖用 CSS 自訂屬性（`--arcFrom`/`--arcTo`）讓每段弧線各自動畫到自己的 `stroke-dashoffset` 終點。
+- 折線圖圖例可點擊：`MonthlyStatsSheet` 用 `hiddenSeries`（Set）記錄被隱藏的線，`ComboChart` 依可見的線重新計算 Y 軸範圍（隱藏掉大數值的線後，其餘線會自動放大顯示）；圖表容器加了 `key`（依所在月/年年份），切換月份/年份時整組圖表會重新掛載、動畫重播一次。
 
 **核心計算邏輯**
 - `computeAccounts()`：從各帳戶初始餘額出發，依收支/轉帳/股票交易逐筆計算目前餘額；未來日期的紀錄不計入；信用卡類帳戶以「負債」方式顯示餘額。

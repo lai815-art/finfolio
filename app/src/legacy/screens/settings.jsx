@@ -341,11 +341,11 @@ function SettingsScreen({ masterData, setMasterData, dashWidget, setDashWidget, 
         onClick={() => setImportOpen(true)} />
       </Section>
 
-      {/* 自動扣款 / 定期支出 */}
-      <Section label="自動扣款 / 定期支出">
+      {/* 自動轉帳 / 定期支出 */}
+      <Section label="自動轉帳與定期支出">
         <ManageRow icon={<ArrowUpRight size={18} />} color={TOKENS.accent}
-        label="自動扣款規則" count={recurCount}
-        sub="每月定期支出 · 自動繳卡費"
+        label="設定自動規則" count={recurCount}
+        sub="每月定期支出 · 自動轉帳"
         onClick={() => setRecurOpen(true)} />
       </Section>
 
@@ -463,7 +463,7 @@ function SettingsScreen({ masterData, setMasterData, dashWidget, setDashWidget, 
       {/* Encrypted backup / restore sheet */}
       <BackupSheet open={backupOpen} onClose={() => setBackupOpen(false)} />
 
-      {/* 自動扣款 / 定期支出 */}
+      {/* 自動轉帳 / 定期支出 */}
       <RecurringSheet open={recurOpen} data={data}
       onClose={() => {
         setRecurOpen(false);
@@ -2496,7 +2496,7 @@ function BackupSheet({ open, onClose }) {
     </div>);
 }
 
-/* ===================== 自動扣款 / 定期支出 ===================== */
+/* ===================== 自動轉帳 / 定期支出 ===================== */
 function RecurringSheet({ open, onClose, data }) {
   const { X, Plus, Trash, Check, Calendar, Pencil } = window.Icons;
   const [shown, setShown] = useStateSet(false);
@@ -2518,14 +2518,13 @@ function RecurringSheet({ open, onClose, data }) {
 
   const md = data || {};
   const allAccts = (md.accounts || []).map((a) => a.name);
-  const creditAccts = (md.accounts || []).filter((a) => a.kind === '信用卡').map((a) => a.name);
   const payAccts = (md.accounts || []).filter((a) => a.kind !== '信用卡').map((a) => a.name);
   const expItems = (md.cat_exp || []).map((c) => typeof c === 'string' ? c : c.name);
 
   const persist = (next) => {setRules(next);try {localStorage.setItem('ff_recurring', JSON.stringify(next));} catch {}};
   const genId = () => 'r' + Date.now() + Math.floor(Math.random() * 1000);
   const blankExpense = () => ({ id: genId(), type: 'expense', name: '', enabled: true, dayOfMonth: 5, amount: '', category: expItems[0] || '', account: payAccts[0] || allAccts[0] || '', lastRun: '' });
-  const blankCard = () => ({ id: genId(), type: 'card', name: '', enabled: true, dayOfMonth: 15, fromAccount: payAccts[0] || allAccts[0] || '', cardAccount: creditAccts[0] || '', cardMode: 'full', fixedAmount: '', lastRun: '' });
+  const blankTransfer = () => ({ id: genId(), type: 'transfer', name: '', enabled: true, dayOfMonth: 15, fromAccount: payAccts[0] || allAccts[0] || '', toAccount: allAccts[1] || allAccts[0] || '', amount: '', lastRun: '' });
 
   const upd = (patch) => setForm((f) => ({ ...f, ...patch }));
   const toggleRule = (id) => persist(rules.map((r) => r.id === id ? { ...r, enabled: !r.enabled } : r));
@@ -2541,8 +2540,9 @@ function RecurringSheet({ open, onClose, data }) {
       if (!f.account) {setErr('請選擇扣款帳戶');return;}
     } else {
       if (!f.fromAccount) {setErr('請選擇轉出帳戶');return;}
-      if (!f.cardAccount) {setErr('請選擇信用卡帳戶（需先在帳戶新增信用卡）');return;}
-      if (f.cardMode === 'fixed' && !(parseFloat(f.fixedAmount) > 0)) {setErr('固定金額需大於 0');return;}
+      if (!f.toAccount) {setErr('請選擇轉入帳戶');return;}
+      if (f.fromAccount === f.toAccount) {setErr('轉出與轉入帳戶不能相同');return;}
+      if (!(parseFloat(f.amount) > 0)) {setErr('請輸入大於 0 的金額');return;}
     }
     const rule = { ...f, dayOfMonth: day };
     if (!rule.lastRun) rule.lastRun = window.ffInitialLastRun ? window.ffInitialLastRun(day, new Date()) : '';
@@ -2564,7 +2564,7 @@ function RecurringSheet({ open, onClose, data }) {
         </div>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: PAD('8px 18px 12px') }}>
           <div>
-            <div style={{ fontSize: FS(20), fontWeight: 700, color: TOKENS.ink }}>自動扣款 / 定期支出</div>
+            <div style={{ fontSize: FS(20), fontWeight: 700, color: TOKENS.ink }}>自動轉帳與定期支出</div>
             <div style={{ fontSize: FS(16), color: 'rgba(44,44,50,0.5)', marginTop: SP(2) }}>每月開 App 時，到期自動補記入帳</div>
           </div>
           <button onClick={onClose} style={{ width: 40, height: 40, borderRadius: RS(18), background: 'rgba(0,0,0,0.14)', border: 'none', color: 'rgba(44,44,50,0.7)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}><X size={18} /></button>
@@ -2575,19 +2575,19 @@ function RecurringSheet({ open, onClose, data }) {
           <>
               {/* 規則清單 */}
               {rules.length === 0 &&
-            <div style={{ padding: PAD('26px 0'), textAlign: 'center', color: 'rgba(44,44,50,0.4)', fontSize: FS(16) }}>尚無自動扣款規則</div>
+            <div style={{ padding: PAD('26px 0'), textAlign: 'center', color: 'rgba(44,44,50,0.4)', fontSize: FS(16) }}>尚無自動轉帳/定期支出規則</div>
             }
               {rules.map((r) =>
             <div key={r.id} style={{ background: TOKENS.surface, borderRadius: RS(16), border: '1px solid rgba(0,0,0,0.12)', padding: PAD('12px 14px'), marginBottom: SP(10), opacity: r.enabled ? 1 : 0.5 }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: SP(10) }}>
                     <div style={{ flex: 1, minWidth: 0 }}>
                       <div style={{ fontSize: FS(18), fontWeight: 600, color: TOKENS.ink }}>
-                        {r.name || (r.type === 'card' ? '繳卡費' : '定期支出')}
-                        <span style={{ fontSize: FS(13), fontWeight: 500, color: TOKENS.accent, marginLeft: SP(8) }}>{r.type === 'card' ? '繳卡費' : '定期支出'}</span>
+                        {r.name || (r.type === 'transfer' ? '自動轉帳' : '定期支出')}
+                        <span style={{ fontSize: FS(13), fontWeight: 500, color: TOKENS.accent, marginLeft: SP(8) }}>{r.type === 'transfer' ? '自動轉帳' : '定期支出'}</span>
                       </div>
                       <div style={{ fontSize: FS(15), color: 'rgba(44,44,50,0.6)', marginTop: SP(2) }}>
-                        每月 {r.dayOfMonth} 日 · {r.type === 'card' ?
-                    `${r.fromAccount} → ${r.cardAccount} · ${r.cardMode === 'full' ? '全額繳清' : '固定 ' + r.fixedAmount}` :
+                        每月 {r.dayOfMonth} 日 · {r.type === 'transfer' ?
+                    `${r.fromAccount} → ${r.toAccount} · ${r.amount}` :
                     `${r.category} · ${r.account} · ${r.amount}`}
                       </div>
                     </div>
@@ -2605,7 +2605,7 @@ function RecurringSheet({ open, onClose, data }) {
               {/* 新增按鈕 */}
               <div style={{ display: 'flex', gap: SP(10), marginTop: SP(8) }}>
                 <button onClick={() => {setErr('');setForm(blankExpense());}} style={bigBtn('linear-gradient(135deg, ' + TOKENS.accentLight + ', ' + TOKENS.accent + ')', '#fff')}><Plus size={18} /> 定期支出</button>
-                <button onClick={() => {setErr('');setForm(blankCard());}} style={bigBtn(TOKENS.ink2, '#fff')}><Plus size={18} /> 自動繳卡費</button>
+                <button onClick={() => {setErr('');setForm(blankTransfer());}} style={bigBtn(TOKENS.ink2, '#fff')}><Plus size={18} /> 自動轉帳</button>
               </div>
             </>
           }
@@ -2614,11 +2614,11 @@ function RecurringSheet({ open, onClose, data }) {
           <>
               <div style={{ display: 'flex', gap: SP(8), marginBottom: SP(4) }}>
                 <button onClick={() => upd({ type: 'expense' })} style={seg(form.type === 'expense')}>定期支出</button>
-                <button onClick={() => upd({ type: 'card' })} style={seg(form.type === 'card')}>自動繳卡費</button>
+                <button onClick={() => upd({ type: 'transfer' })} style={seg(form.type === 'transfer')}>自動轉帳</button>
               </div>
 
               <div style={lbl}>名稱</div>
-              <input value={form.name} onChange={(e) => upd({ name: e.target.value })} placeholder={form.type === 'card' ? '例：國泰卡費' : '例：房租、Netflix'} style={inp} />
+              <input value={form.name} onChange={(e) => upd({ name: e.target.value })} placeholder={form.type === 'transfer' ? '例：投資轉帳' : '例：房租、Netflix'} style={inp} />
 
               <div style={lbl}>每月扣款日（1–28）</div>
               <input value={form.dayOfMonth} onChange={(e) => upd({ dayOfMonth: e.target.value.replace(/[^0-9]/g, '') })} inputMode="numeric" placeholder="5" style={inp} />
@@ -2638,28 +2638,16 @@ function RecurringSheet({ open, onClose, data }) {
                 </> :
 
             <>
-                  <div style={lbl}>轉出帳戶（付款）</div>
+                  <div style={lbl}>轉出帳戶</div>
                   <select value={form.fromAccount} onChange={(e) => upd({ fromAccount: e.target.value })} style={inp}>
-                    {(payAccts.length ? payAccts : allAccts).map((a) => <option key={a} value={a}>{a}</option>)}
+                    {allAccts.map((a) => <option key={a} value={a}>{a}</option>)}
                   </select>
-                  <div style={lbl}>信用卡帳戶</div>
-                  {creditAccts.length === 0 ?
-              <div style={{ ...inp, display: 'flex', alignItems: 'center', color: TOKENS.red, fontSize: FS(15) }}>尚無信用卡帳戶，請先到「記帳帳戶」新增</div> :
-              <select value={form.cardAccount} onChange={(e) => upd({ cardAccount: e.target.value })} style={inp}>
-                      {creditAccts.map((a) => <option key={a} value={a}>{a}</option>)}
-                    </select>
-              }
-                  <div style={lbl}>繳費金額</div>
-                  <div style={{ display: 'flex', gap: SP(8) }}>
-                    <button onClick={() => upd({ cardMode: 'full' })} style={seg(form.cardMode === 'full')}>全額繳清（當期應繳）</button>
-                    <button onClick={() => upd({ cardMode: 'fixed' })} style={seg(form.cardMode === 'fixed')}>固定金額</button>
-                  </div>
-                  {form.cardMode === 'fixed' &&
-              <input value={form.fixedAmount} onChange={(e) => upd({ fixedAmount: e.target.value.replace(/[^0-9.]/g, '') })} inputMode="decimal" placeholder="固定金額" style={{ ...inp, marginTop: SP(8) }} />
-              }
-                  <div style={{ fontSize: FS(13), color: 'rgba(44,44,50,0.45)', marginTop: SP(6), lineHeight: 1.5 }}>
-                    「全額繳清」會在扣款日產生一筆金額 = 該卡目前未繳餘額的轉帳。
-                  </div>
+                  <div style={lbl}>轉入帳戶</div>
+                  <select value={form.toAccount} onChange={(e) => upd({ toAccount: e.target.value })} style={inp}>
+                    {allAccts.map((a) => <option key={a} value={a}>{a}</option>)}
+                  </select>
+                  <div style={lbl}>金額</div>
+                  <input value={form.amount} onChange={(e) => upd({ amount: e.target.value.replace(/[^0-9.]/g, '') })} inputMode="decimal" placeholder="0" style={inp} />
                 </>
             }
 
@@ -3075,7 +3063,7 @@ function ImportSheet({ open, onClose, data, setData, savedFlows, savedTrades, se
 
 /* ===================== 清除所有歷史資料 ===================== */
 // 只清除記帳交易本身：支出/收入/轉帳紀錄、股票交易紀錄，以及套在這些紀錄上的編輯/刪除覆寫。
-// 不會清除：主檔設定（分類/帳戶/證券戶/交割戶/資產類別）、初始餘額、自動扣款規則、
+// 不會清除：主檔設定（分類/帳戶/證券戶/交割戶/資產類別）、初始餘額、自動轉帳/定期支出規則、
 // App 密碼鎖、AI 金鑰設定、外觀偏好——這些都是「設定」，不是「記帳交易」。
 // ff_auto_snapshot 一併清：它是被清除紀錄的完整複本，留著會佔掉數 MB 儲存空間，
 // 造成之後匯入/儲存時空間不足。ff_import_meta 也清：紀錄已刪，舊批次的初始餘額
@@ -3126,7 +3114,7 @@ function ClearDataSheet({ open, onClose }) {
               <div style={{ padding: PAD('14px 16px'), borderRadius: RS(16), background: 'rgba(184,92,74,0.10)', border: '1px solid rgba(184,92,74,0.3)', color: TOKENS.red, fontSize: FS(15), lineHeight: 1.7 }}>
                 <b>會被清除：</b>所有記帳紀錄（支出/收入/轉帳）、股票交易紀錄。
                 <br /><br />
-                <b>不會清除：</b>分類、帳戶、證券戶、交割戶等主檔設定、初始餘額、自動扣款規則、App 密碼鎖、AI 金鑰設定、外觀偏好。
+                <b>不會清除：</b>分類、帳戶、證券戶、交割戶等主檔設定、初始餘額、自動轉帳/定期支出規則、App 密碼鎖、AI 金鑰設定、外觀偏好。
               </div>
               <div style={{ marginTop: SP(14), fontSize: FS(15), color: 'rgba(44,44,50,0.6)', lineHeight: 1.6 }}>
                 建議先到「安全與備份 → 加密備份 / 還原」匯出一份備份，以防日後需要找回資料。

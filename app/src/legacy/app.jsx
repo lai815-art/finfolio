@@ -56,11 +56,11 @@ function ffFindDupNames(md) {
 }
 if (typeof window !== 'undefined') window.ffFindDupNames = ffFindDupNames;
 
-/* ── 自動扣款 / 定期支出 ─────────────────────────────────────────────
+/* ── 自動轉帳 / 定期支出 ─────────────────────────────────────────────
    規則存於 localStorage ff_recurring：
-   { id, type:'expense'|'card', name, enabled, dayOfMonth(1..28), lastRun:'YYYY-MM',
-     // expense: amount, category, account
-     // card:    fromAccount, cardAccount, cardMode:'full'|'fixed', fixedAmount }
+   { id, type:'expense'|'transfer', name, enabled, dayOfMonth(1..28), lastRun:'YYYY-MM',
+     // expense:  amount, category, account
+     // transfer: fromAccount, toAccount, amount }
    每次開 App 時把「上次產生之後、到本月為止且已過扣款日」的月份補記入帳。 */
 function ffYM(d) {return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0');}
 function ffPrevYM(ym) {const a = ym.split('-').map(Number);return ffYM(new Date(a[0], a[1] - 2, 1));}
@@ -88,7 +88,6 @@ function ffRunRecurring(ctx) {
   const mkDate = (ym, day) => ym + '-' + String(day).padStart(2, '0');
   const mkStamp = () => base + seq++;
   const newFlows = [];
-  let acctGroups = null;
   let changed = false;
 
   rules.forEach((r) => {
@@ -103,25 +102,15 @@ function ffRunRecurring(ctx) {
       account: r.account, date: mkDate(ym, day), icon: '🔁',
       auto: true, recurringId: r.id, time: '自動', _justAdded: mkStamp() });
 
-    const mkCard = (ym, amt) => ({
-      kind: 'xfer', amount: amt, cat: '繳卡費', merchant: '自動 · ' + (r.name || '繳卡費'),
-      account: r.fromAccount + ' → ' + r.cardAccount, fromAccount: r.fromAccount, toAccount: r.cardAccount,
+    const mkTransfer = (ym, amt) => ({
+      kind: 'xfer', amount: amt, cat: '自動轉帳', merchant: '自動 · ' + (r.name || '自動轉帳'),
+      account: r.fromAccount + ' → ' + r.toAccount, fromAccount: r.fromAccount, toAccount: r.toAccount,
       xferFee: 0, date: mkDate(ym, day), icon: '↔️',
       auto: true, recurringId: r.id, time: '自動', _justAdded: mkStamp() });
 
-    if (r.type === 'card' && r.cardMode === 'full') {
-      // 全額繳清：只補「當期」一筆，金額 = 該卡目前未繳餘額（無欠款則略過）
-      if (!acctGroups) acctGroups = computeAccounts(ctx.accounts, ctx.settle, ctx.flows.concat(newFlows), ctx.trades, ctx.initBal);
-      const item = acctGroups.flatMap((g) => g.items).find((it) => it.name === r.cardAccount);
-      // 信用卡的 item.amount 已是「正的應繳欠款」（computeAccounts 對負債群組取了 -raw），
-      // 直接用它即可；無欠款(<=0)則略過本次繳款。
-      const outstanding = item ? Math.max(0, item.amount || 0) : 0;
-      const ym = due[due.length - 1];
-      if (outstanding > 0) newFlows.push(mkCard(ym, Math.round(outstanding)));
-      r.lastRun = ym;changed = true;
-    } else if (r.type === 'card') {
-      const amt = parseFloat(r.fixedAmount) || 0;
-      due.forEach((ym) => {if (amt > 0) newFlows.push(mkCard(ym, amt));});
+    if (r.type === 'transfer') {
+      const amt = parseFloat(r.amount) || 0;
+      due.forEach((ym) => {if (amt > 0) newFlows.push(mkTransfer(ym, amt));});
       r.lastRun = due[due.length - 1];changed = true;
     } else {
       const amt = parseFloat(r.amount) || 0;
