@@ -3,90 +3,14 @@
 // React is bundled — no runtime CDN dependency.
 import React from 'react';
 import * as ReactDOMClient from 'react-dom/client';
+import { migrateSchema } from './schema-migration.js';
 
 window.React = React;
 window.ReactDOM = ReactDOMClient;
 
 // ── Data schema migration ──────────────────────────────────────────────
-// User records may live for years across app updates. Every release bumps
-// SCHEMA_VERSION and adds an idempotent step here; data is never wiped.
-(function migrate() {
-  var SCHEMA_VERSION = 4;
-  try {
-    var cur = parseInt(localStorage.getItem('ff_schema_version') || '0', 10) || 0;
-    // v0 → v1: the current localStorage shape (ff_flows / ff_trades / …) is v1.
-    // v1..v3 → v4: 記帳分類(收入) 分組定案，把既有自訂資料一次校正到最終結構：
-    //   被動收入 = 租金 / 股息 / 債息 / 利息 / 紅利回饋
-    //   投資收入 = 台股 / 美股 / 投資收入（買賣損益）
-    // 只調整這幾個具名項目的大類、並補齊缺少的項目；其餘項目與使用者自訂皆不動。
-    if (cur < 4) {
-      try {
-        var md = JSON.parse(localStorage.getItem('ff_master_data') || 'null');
-        if (md && Array.isArray(md.cat_inc)) {
-          var PASSIVE = { '股息': 1, '債息': 1, '利息': 1, '紅利回饋': 1 };
-          var INVEST = { '台股': 1, '美股': 1, '投資收入': 1 };
-          var nameOf = function (c) {return typeof c === 'string' ? c : c && c.name;};
-          md.cat_inc = md.cat_inc.map(function (c) {
-            var n = nameOf(c);
-            if (PASSIVE[n]) return { name: n, group: '被動' };
-            if (INVEST[n]) return { name: n, group: '投資收入' };
-            return c; // 其他項目維持原本大類
-          });
-          var ensure = function (name, group, beforeName) {
-            if (md.cat_inc.some(function (c) {return nameOf(c) === name;})) return;
-            var i = md.cat_inc.findIndex(function (c) {return nameOf(c) === beforeName;});
-            var item = { name: name, group: group };
-            if (i >= 0) md.cat_inc.splice(i, 0, item);else md.cat_inc.push(item);
-          };
-          ensure('債息', '被動', '利息');
-          ensure('台股', '投資收入', '美股');
-          ensure('美股', '投資收入', '投資收入');
-          localStorage.setItem('ff_master_data', JSON.stringify(md));
-        }
-      } catch (e) {/* 解析失敗就跳過，不影響其他資料 */}
-    }
-    // 每次啟動都補齊「投資收入」相關的收入分類（冪等）：還原舊備份、或早期資料的
-    // ff_schema_version 已 ≥4 但 cat_inc 沒有這些項目時，仍能自我修復——否則設定頁看得到
-    // 「投資收入」大類，但記一筆的收入分類下拉卻選不到，兩邊不一致。
-    try {
-      var md2 = JSON.parse(localStorage.getItem('ff_master_data') || 'null');
-      if (md2 && Array.isArray(md2.cat_inc)) {
-        var nameOf2 = function (c) {return typeof c === 'string' ? c : c && c.name;};
-        var has = function (n) {return md2.cat_inc.some(function (c) {return nameOf2(c) === n;});};
-        var before = function (n) {return md2.cat_inc.findIndex(function (c) {return nameOf2(c) === n;});};
-        var ensure2 = function (name, group, beforeName) {
-          if (has(name)) return false;
-          var i = before(beforeName);
-          var item = { name: name, group: group };
-          if (i >= 0) md2.cat_inc.splice(i, 0, item);else md2.cat_inc.push(item);
-          return true;
-        };
-        var changed = false;
-        changed = ensure2('債息', '被動', '利息') || changed;
-        changed = ensure2('台股', '投資收入', '發票中獎') || changed;
-        changed = ensure2('美股', '投資收入', '發票中獎') || changed;
-        changed = ensure2('投資收入', '投資收入', '發票中獎') || changed;
-        if (changed) localStorage.setItem('ff_master_data', JSON.stringify(md2));
-      }
-    } catch (e) {/* 忽略 */}
-    // 券商手續費率：沒設定的一律明確補上預設 0.1425（%），使用者仍可在設定中自行修改。
-    try {
-      var md3 = JSON.parse(localStorage.getItem('ff_master_data') || 'null');
-      if (md3 && Array.isArray(md3.brokers)) {
-        var bChanged = false;
-        md3.brokers.forEach(function (b) {
-          if (b && (b.feeRate == null || String(b.feeRate).trim() === '')) {b.feeRate = '0.1425';bChanged = true;}
-        });
-        if (bChanged) localStorage.setItem('ff_master_data', JSON.stringify(md3));
-      }
-    } catch (e) {/* 忽略 */}
-    if (cur < SCHEMA_VERSION) {
-      localStorage.setItem('ff_schema_version', String(SCHEMA_VERSION));
-    }
-  } catch (e) {
-    /* localStorage unavailable — run without persistence */
-  }
-})();
+// Logic lives in ./schema-migration.js so it can be unit-tested on its own.
+migrateSchema();
 
 // Dynamic import so the globals above are set before any legacy module evaluates
 // (static imports would be hoisted and run first).

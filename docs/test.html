@@ -1,0 +1,244 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>FinFolio｜測試規劃</title>
+<style>
+:root{
+  --bg:#0b0f0e; --surface:#131a17; --surface-2:#1b2420; --surface-3:#212b26;
+  --border:#25322c; --border-soft:#1c2620;
+  --text:#eef2ef; --body:#b7c2bb; --muted:#78857e; --dim:#57635d;
+  --good:#35d399; --good-soft:rgba(53,211,153,.12);
+  --warn:#f0b429; --warn-soft:rgba(240,180,41,.12);
+  --info:#4fb8e0; --info-soft:rgba(79,184,224,.12);
+  --bad:#f4735e; --bad-soft:rgba(244,115,94,.12);
+  --font:"PingFang TC","Hiragino Sans TC","Microsoft JhengHei","Noto Sans TC",-apple-system,system-ui,sans-serif;
+  --mono:ui-monospace,"SF Mono",Menlo,Consolas,monospace;
+}
+:root[data-theme="light"]{
+  --bg:#f6f8f6; --surface:#ffffff; --surface-2:#eef2ef; --surface-3:#e4e9e5;
+  --border:#d8ded9; --border-soft:#e4e9e5;
+  --text:#141a17; --body:#3d4844; --muted:#6b756f; --dim:#8b948e;
+  --good:#158f63; --good-soft:rgba(21,143,99,.09);
+  --warn:#a6720a; --warn-soft:rgba(166,114,10,.09);
+  --info:#0e7ba3; --info-soft:rgba(14,123,163,.09);
+  --bad:#c14634; --bad-soft:rgba(193,70,52,.09);
+}
+@media (prefers-color-scheme:light){
+  :root:not([data-theme="dark"]){
+    --bg:#f6f8f6; --surface:#ffffff; --surface-2:#eef2ef; --surface-3:#e4e9e5;
+    --border:#d8ded9; --border-soft:#e4e9e5;
+    --text:#141a17; --body:#3d4844; --muted:#6b756f; --dim:#8b948e;
+    --good:#158f63; --good-soft:rgba(21,143,99,.09);
+    --warn:#a6720a; --warn-soft:rgba(166,114,10,.09);
+    --info:#0e7ba3; --info-soft:rgba(14,123,163,.09);
+    --bad:#c14634; --bad-soft:rgba(193,70,52,.09);
+  }
+}
+*{box-sizing:border-box;margin:0;padding:0}
+body{background:var(--bg);color:var(--text);font-family:var(--font);line-height:1.7;padding:0 20px 90px;
+  -webkit-font-smoothing:antialiased}
+.wrap{max-width:980px;margin:0 auto}
+
+header{padding:56px 0 32px;border-bottom:1px solid var(--border)}
+.eyebrow{font-family:var(--mono);font-size:12.5px;color:var(--dim);letter-spacing:.1em;text-transform:uppercase}
+h1{font-size:clamp(26px,4vw,38px);font-weight:700;margin:12px 0 14px;letter-spacing:-.01em;text-wrap:balance}
+.lede{color:var(--muted);font-size:16px;max-width:66ch}
+.lede b{color:var(--body);font-weight:600}
+
+/* status bar */
+.status{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:1px;
+  background:var(--border);border:1px solid var(--border);border-radius:10px;overflow:hidden;margin-top:28px}
+.stat{background:var(--surface);padding:18px 20px}
+.stat .n{font-family:var(--mono);font-size:26px;font-weight:600;font-variant-numeric:tabular-nums}
+.stat .n.bad{color:var(--bad)}
+.stat .l{font-size:13px;color:var(--muted);margin-top:2px}
+
+h2{font-size:21px;font-weight:700;margin-bottom:6px;display:flex;align-items:baseline;gap:10px}
+.h2-tag{font-family:var(--mono);font-size:12px;padding:2px 9px;border-radius:99px;font-weight:600}
+.tag-p0{background:var(--bad-soft);color:var(--bad)}
+.tag-p1{background:var(--warn-soft);color:var(--warn)}
+.tag-setup{background:var(--info-soft);color:var(--info)}
+.sec-note{color:var(--muted);font-size:14.5px;margin-bottom:22px;max-width:72ch}
+section.block{margin-top:52px}
+
+.tbl-wrap{overflow-x:auto;border:1px solid var(--border);border-radius:10px}
+table{border-collapse:collapse;width:100%;min-width:640px;font-size:14px;background:var(--surface)}
+th,td{padding:13px 16px;text-align:left;border-bottom:1px solid var(--border-soft);vertical-align:top}
+thead th{background:var(--surface-2);color:var(--muted);font-weight:600;font-size:12.5px;
+  text-transform:uppercase;letter-spacing:.04em;white-space:nowrap}
+tbody tr:last-child td{border-bottom:none}
+tbody tr:hover{background:var(--surface-2)}
+td:first-child{font-family:var(--mono);font-weight:600;color:var(--text);white-space:nowrap}
+.prio{display:inline-flex;align-items:center;gap:6px;font-family:var(--mono);font-size:12px;
+  padding:3px 9px;border-radius:99px;font-weight:600;white-space:nowrap}
+.prio::before{content:"";width:6px;height:6px;border-radius:50%}
+.prio.p0{background:var(--bad-soft);color:var(--bad)}
+.prio.p0::before{background:var(--bad)}
+.prio.p1{background:var(--warn-soft);color:var(--warn)}
+.prio.p1::before{background:var(--warn)}
+
+.flow-list{list-style:none;counter-reset:f;margin-top:18px;display:flex;flex-direction:column;gap:2px}
+.flow-list li{counter-increment:f;padding:16px 0 16px 48px;position:relative;border-bottom:1px solid var(--border-soft)}
+.flow-list li:last-child{border-bottom:none}
+.flow-list li::before{content:counter(f);position:absolute;left:0;top:14px;width:28px;height:28px;
+  border:1px solid var(--info);color:var(--info);border-radius:50%;font-family:var(--mono);font-size:12.5px;
+  display:flex;align-items:center;justify-content:center;flex-shrink:0}
+.flow-list b{color:var(--text);font-size:15px}
+.flow-list .why{color:var(--muted);font-size:13.5px;margin-top:3px}
+.flow-list .prio{margin-left:10px;vertical-align:1px}
+
+.checklist{background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:8px 24px;margin-top:18px}
+.checklist .item{display:flex;gap:12px;align-items:flex-start;padding:15px 0;border-bottom:1px solid var(--border-soft)}
+.checklist .item:last-child{border-bottom:none}
+.checklist .box{width:17px;height:17px;border:1.5px solid var(--dim);border-radius:4px;flex-shrink:0;margin-top:2px}
+.checklist code{font-family:var(--mono);font-size:13px;color:var(--info);background:var(--info-soft);
+  padding:1px 6px;border-radius:4px}
+.checklist .item p{font-size:14.5px;color:var(--body)}
+.checklist .item .path{display:block;font-family:var(--mono);font-size:12.5px;color:var(--muted);margin-top:3px}
+
+.callout{margin-top:18px;border-radius:10px;padding:20px 22px;background:var(--surface);border:1px dashed var(--border)}
+.callout.oos{border-color:var(--dim)}
+.callout-h{font-size:14.5px;font-weight:700;color:var(--muted);margin-bottom:10px;
+  text-transform:uppercase;letter-spacing:.04em;font-family:var(--mono)}
+.callout p{font-size:14.5px;color:var(--body);margin-bottom:8px}
+.callout p:last-child{margin-bottom:0}
+.callout code{font-family:var(--mono);font-size:13px;color:var(--text);background:var(--surface-2);padding:1px 6px;border-radius:4px}
+
+footer{margin-top:60px;padding-top:20px;border-top:1px solid var(--border);color:var(--dim);font-size:13px}
+footer a{color:var(--info)}
+
+@media (max-width:640px){
+  table{min-width:560px}
+  .flow-list li{padding-left:40px}
+}
+@media (prefers-reduced-motion:reduce){*{transition:none!important;animation:none!important}}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<header>
+  <div class="eyebrow">FinFolio · 測試規劃</div>
+  <h1>目前零自動化測試，<br>這份文件排出補測試的順序與範圍</h1>
+  <p class="lede">依照 <b>docs/spec.md</b> 裡記錄的現況，先把風險最高的「錢算得對不對」跟「資料救不救得回來」顧好，其他之後再補。</p>
+
+  <div class="status">
+    <div class="stat"><div class="n bad">0%</div><div class="l">目前自動化覆蓋率</div></div>
+    <div class="stat"><div class="n">7</div><div class="l">單元測試目標</div></div>
+    <div class="stat"><div class="n">5</div><div class="l">E2E 關鍵流程</div></div>
+    <div class="stat"><div class="n">Vitest</div><div class="l">單元／整合框架</div></div>
+    <div class="stat"><div class="n">Playwright</div><div class="l">E2E 框架</div></div>
+  </div>
+</header>
+
+<section class="block">
+  <h2>環境建置 <span class="h2-tag tag-setup">先做這步</span></h2>
+  <p class="sec-note">跑任何測試之前，這幾件事要先就位。</p>
+  <div class="checklist">
+    <div class="item">
+      <div class="box"></div>
+      <p><b>app/</b> 加入 <code>vitest</code> devDependency，新增 <code>vitest.config.js</code>（沿用現有 <code>vite.config.js</code> 的 alias/plugin 設定）
+        <span class="path">app/vitest.config.js</span></p>
+    </div>
+    <div class="item">
+      <div class="box"></div>
+      <p><b>worker/</b> 目前沒有 <code>package.json</code>，要先建立一份，加入 <code>vitest</code> 與 <code>@cloudflare/vitest-pool-workers</code>（讓測試在真的 Workers runtime 裡跑，含 <code>caches</code> 這類 Worker 專屬 API）
+        <span class="path">worker/package.json</span></p>
+    </div>
+    <div class="item">
+      <div class="box"></div>
+      <p>加入 <code>@playwright/test</code>，設定對 <code>npm run dev</code>（Vite dev server）跑 E2E，先只跑 Chromium 一個瀏覽器
+        <span class="path">app/playwright.config.ts</span></p>
+    </div>
+    <div class="item">
+      <div class="box"></div>
+      <p>三個套件都加上 <code>npm run test</code> / <code>test:e2e</code> script，方便之後串 CI（CI 本身這次不規劃，見下方 Out of Scope）</p>
+    </div>
+  </div>
+</section>
+
+<section class="block">
+  <h2>單元測試 — app 核心計算 <span class="h2-tag tag-p0">最高風險</span></h2>
+  <p class="sec-note">這些函式錯了，使用者會看到錯的餘額、錯的損益，而且不會有任何警訊——是整個 App 最值得優先顧的地方。</p>
+  <div class="tbl-wrap">
+  <table>
+    <thead><tr><th>目標</th><th>優先度</th><th>為什麼</th><th>該覆蓋的案例</th></tr></thead>
+    <tbody>
+      <tr><td>computeAccounts()</td><td><span class="prio p0">P0</span></td>
+        <td>所有帳戶餘額、淨資產的唯一計算來源</td>
+        <td>初始餘額、收支加減、轉帳含手續費、未來日期紀錄跳過、信用卡負號顯示、股票買進雙軌（有/無自動轉帳流）</td></tr>
+      <tr><td>computeHoldings()</td><td><span class="prio p0">P0</span></td>
+        <td>FIFO 配對錯一次，均價/損益全部跟著錯</td>
+        <td>單純買賣、部分賣出後均價重算、賣光後從清單消失、無即時股價時退回最後成交價、跨幣別換算</td></tr>
+      <tr><td>ffExportBackup / ffImportBackup</td><td><span class="prio p0">P0</span></td>
+        <td>備份救不回來等於資料全毀，且不會有錯誤訊息提早提醒</td>
+        <td>加密/解密往返後資料完全一致、密碼錯誤要明確報錯、salt/iv 每次都不同、大量資料不超出 storage 配額</td></tr>
+      <tr><td>main.js schema migration</td><td><span class="prio p0">P0</span></td>
+        <td>升級版本時如果 migration 壞掉，是舊資料整批壞掉</td>
+        <td>舊版本資料升級到 v4 後結構正確、重複跑 migration 要是 idempotent（不能跑兩次壞掉）</td></tr>
+      <tr><td>StockForm 手續費／證交稅計算</td><td><span class="prio p1">P1</span></td>
+        <td>算錯金額使用者自己看得出來，風險比上面幾項低</td>
+        <td>依券商費率/折扣算手續費、四種證交稅預設稅率、手動覆蓋優先於自動計算</td></tr>
+      <tr><td>parseUtterance()（語音解析）</td><td><span class="prio p1">P1</span></td>
+        <td>規則多、最容易改壞，但解析錯使用者確認畫面就看得出來</td>
+        <td>股票買賣關鍵字、轉帳雙帳戶切分、中文數字金額（張/股）、分類模糊比對、辨識失敗時退回文字輸入</td></tr>
+    </tbody>
+  </table>
+  </div>
+</section>
+
+<section class="block">
+  <h2>單元測試 — worker 股價服務 <span class="h2-tag tag-p1">中風險</span></h2>
+  <p class="sec-note">算錯不會毀資料，但會讓使用者看到錯的市值——用 <code>vitest-pool-workers</code> 搭配 mock <code>fetch</code>，不真的打外部 API。</p>
+  <div class="tbl-wrap">
+  <table>
+    <thead><tr><th>目標</th><th>優先度</th><th>該覆蓋的案例</th></tr></thead>
+    <tbody>
+      <tr><td>getMIS / getDailyAll 備援鏈</td><td><span class="prio p1">P1</span></td>
+        <td>即時報價缺漏時退回收盤價、TWSE 缺的再查 TPEx／興櫃</td></tr>
+      <tr><td>getUS / getYahoo 備援鏈</td><td><span class="prio p1">P1</span></td>
+        <td>未設定 FINNHUB_KEY 時全部走 Yahoo、Finnhub 查不到的個股退回 Yahoo</td></tr>
+      <tr><td>/quotes、/stocks 路由</td><td><span class="prio p1">P1</span></td>
+        <td>回應格式（prices/fx/source）正確、CORS header 存在、未知路徑回 404</td></tr>
+    </tbody>
+  </table>
+  </div>
+</section>
+
+<section class="block">
+  <h2>E2E — 關鍵使用者流程</h2>
+  <p class="sec-note">用 Playwright 實際點畫面，驗證從「使用者操作」到「畫面顯示結果」這一整條路是通的——單元測試顧邏輯，這裡顧串接。</p>
+  <ol class="flow-list">
+    <li><b>記一筆支出 → 資產頁餘額正確扣掉</b><span class="prio p0 prio">P0</span>
+      <div class="why">最基本、最高頻的使用路徑，任何回歸都會第一時間被使用者發現</div></li>
+    <li><b>記一筆股票買進 → 投資頁出現新持倉、手續費金額正確顯示</b><span class="prio p0 prio">P0</span>
+      <div class="why">串起表單輸入、手續費計算、FIFO 建倉三件事，任一環壞了這條會抓到</div></li>
+    <li><b>加密備份匯出 → 清除所有資料 → 用密碼匯入 → 資料與匯出前一致</b><span class="prio p0 prio">P0</span>
+      <div class="why">是「不上雲」架構下使用者唯一的救命索，壞掉等於資料歸零</div></li>
+    <li><b>設定 App 鎖 PIN → 重新整理頁面 → 要求輸入 PIN 才能看到資料</b><span class="prio p1 prio">P1</span>
+      <div class="why">安全性功能，壞掉的後果是「形同虛設」而非資料損毀，優先度稍低</div></li>
+    <li><b>清除所有歷史資料 → 主檔設定（帳戶/分類/券商）保留、交易紀錄清空</b><span class="prio p1 prio">P1</span>
+      <div class="why">驗證 FF_CLEAR_KEYS 的清單沒有清錯範圍——多清或少清都是使用者資料事故</div></li>
+  </ol>
+</section>
+
+<section class="block">
+  <div class="callout oos">
+    <div class="callout-h">Out of Scope（這次不規劃）</div>
+    <p>視覺回歸測試（screenshot diff）——UI 還在變動，先不投資。</p>
+    <p>CI 串接（GitHub Actions）——先在本機把測試寫出來、跑得動，串 CI 是下一步。</p>
+    <p>多瀏覽器/多裝置矩陣測試——先讓 Chromium 過，之後有餘力再擴大。</p>
+    <p>AI 顧問分頁的測試——功能本身還沒上線（<code>SHOW_ADVISOR=false</code>），沒有測試的對象。</p>
+    <p>`project/` 資料夾的設計原型——同 spec.md，非本文件範圍。</p>
+  </div>
+</section>
+
+<footer>
+  依據 <code>docs/spec.md</code> 的 Testing Decisions 展開撰寫。之後如果技術選型或優先順序有變，直接編輯本檔即可。
+</footer>
+
+</div>
+</body>
+</html>
