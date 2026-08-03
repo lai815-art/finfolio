@@ -770,7 +770,13 @@ function App() {
       if (Object.keys(got).length > 0) {
         setLivePrices((prev) => {
           const merged = { ...prev, ...got };
-          try { localStorage.setItem('ff_prices', JSON.stringify({ prices: merged, fx: data.fx || {}, date: data.date || null })); } catch (e) {}
+          // 匯率只在真的拿到時才覆寫：報價服務回報 partial 時 fx 可能是空物件，直接寫回去會
+          // 把上次的匯率清掉，美股持股的台幣市值就會用預設匯率算，變成靜靜地算錯。
+          let fx = data.fx && data.fx.USD ? data.fx : null;
+          if (!fx) {
+            try { const prevSaved = JSON.parse(localStorage.getItem('ff_prices') || 'null');fx = prevSaved && prevSaved.fx || {}; } catch (e) { fx = {}; }
+          }
+          try { localStorage.setItem('ff_prices', JSON.stringify({ prices: merged, fx, date: data.date || null })); } catch (e) {}
           return merged;
         });
         setPricesFetchedAt(data.date ? new Date(data.date) : new Date());

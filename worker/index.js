@@ -73,33 +73,56 @@ async function getMIS(codes) {
   return out;
 }
 
-// Fallback: full TW daily-close map (TWSE 上市 + TPEX 上櫃), cached ~30 min.
-// `need` = 呼叫端真正缺價的代號。只有在這些代號連上市/上櫃都查不到時，才去打最貴的
-// 興櫃那幾份大檔——冷路徑一次抓解析五份全市場資料太吃 CPU，實測會讓整包請求被執行環境
-// 中斷（Cloudflare 1101）。
-async function getDailyAll(ctx, need = []) {
-  const cache = caches.default;
-  const key = new Request(`https://ff-cache.local/tw/v2/${todayStr()}`);
-  let map = null;
+// 當日收盤總表（TWSE 上市 + TPEX 上櫃 + 興櫃），快取一天。
+//
+// 這份總表是 MIS 查不到時的補價來源，但「建表」很貴：要抓並解析數份全市場資料。實測放在
+// 請求路徑上會把執行預算吃光，接在後面的匯率查詢就跟著拋例外（症狀：fx 變成空物件），
+// 而且對「永遠查不到的代號」每次請求都會重跑一遍、快取永遠轉不暖。
+//
+// 所以請求路徑上只做「讀快取」這件便宜事；缺的代號交給背景（ctx.waitUntil）去建表，
+// 這次就先回 MIS 的結果並標記 partial，下一次刷新自然就補上了。
+const DAILY_KEY = () => new Request(`https://ff-cache.local/tw/v3/${todayStr()}`);
+// 興櫃候選 endpoint 一天只探一次：查不到的代號（下市、打錯）本來就不會出現在任何清單裡，
+// 不設這個閘門就會每次都白跑一輪最貴的請求。
+const ESB_MARK = () => new Request(`https://ff-cache.local/tw/esb-done/${todayStr()}`);
+
+async function readDailyCache() {
   try {
-    const hit = await cache.match(key);
-    if (hit) map = await hit.json();
-  } catch (e) { /* 快取讀失敗就當沒有 */ }
-  const fromCache = !!map;
-  if (fromCache) {
-    // 快取已涵蓋需要的代號就直接用；還有缺的才往下走興櫃補價。
-    if (!need.some((c) => map[c] == null)) return map;
-  } else {
+    const hit = await caches.default.match(DAILY_KEY());
+    if (hit) return await hit.json();
+  } catch (e) { /* 讀不到就當沒有 */ }
+  return null;
+}
+
+// 背景執行：建（或補強）當日收盤總表並寫回快取。不回傳給這次請求用。
+async function refreshDailyCache(need) {
+  const cache = caches.default;
+  let map = await readDailyCache();
+  const hadCache = !!map;
+  if (!map) {
     map = {};
     await fillListedDailyClose(map);
   }
-  await fillEmergingDailyClose(map, need);
-  if (Object.keys(map).length > 50) {
-    ctx.waitUntil(cache.put(key, new Response(JSON.stringify(map), {
-      headers: { 'Content-Type': 'application/json', 'Cache-Control': 'public, max-age=1800' },
-    })));
+  if (need.some((c) => map[c] == null)) {
+    let esbDone = false;
+    try { esbDone = !!(await cache.match(ESB_MARK())); } catch (e) {}
+    if (!esbDone) {
+      await fillEmergingDailyClose(map, need);
+      try {
+        await cache.put(ESB_MARK(), new Response('1', {
+          headers: { 'Content-Type': 'text/plain', 'Cache-Control': 'public, max-age=86400' },
+        }));
+      } catch (e) {}
+    }
   }
-  return map;
+  const size = Object.keys(map).length;
+  if (size > 50 && (!hadCache || size > 0)) {
+    try {
+      await cache.put(DAILY_KEY(), new Response(JSON.stringify(map), {
+        headers: { 'Content-Type': 'application/json', 'Cache-Control': 'public, max-age=86400' },
+      }));
+    } catch (e) {}
+  }
 }
 
 // 上市（TWSE）+ 上櫃（TPEx）當日收盤。
@@ -334,12 +357,18 @@ export default {
       const need = twCodes.filter((c) => prices[c] == null);
       if (need.length) {
         // 補價是「有就好」，絕不能拖垮整包回應。匯入歷史後一定會有下市／已賣光的代號查不到，
-        // 而這條冷路徑一失敗以前會讓整個請求 500，連 MIS 已經查到的持股也一起沒有報價，
+        // 以前這條路徑一失敗會讓整個請求 500，連 MIS 已經查到的持股也一起沒有報價，
         // 前端的 `if (!res.ok) return` 又是靜默的，症狀就是「收盤價永遠不更新」。
+        // 現在請求路徑只讀快取；還缺的丟到背景建表，下一次刷新就補上。
         try {
-          const all = await getDailyAll(ctx, need);
-          need.forEach((c) => { if (all[c] != null) prices[c] = all[c]; });
-        } catch (e) { partial = true; }
+          const cached = await readDailyCache();
+          if (cached) need.forEach((c) => { if (cached[c] != null) prices[c] = cached[c]; });
+        } catch (e) { /* 讀快取失敗就當沒補到 */ }
+        const stillMissing = need.filter((c) => prices[c] == null);
+        if (stillMissing.length) {
+          partial = true;
+          ctx.waitUntil(refreshDailyCache(stillMissing).catch(() => {}));
+        }
       }
     }
 
