@@ -664,7 +664,7 @@ function AccountItemRow({ item, group, mask, last, onOpen }) {
 }
 
 /* ─── Main AccountsScreen ────────────────────────────────────────────── */
-function AccountsScreen({ hideAmounts, onOpenDetail, computedAcctGroups = [], computedHoldings = [], savedFlows = [], masterData, onOpenNetWorth }) {
+function AccountsScreen({ hideAmounts, onOpenDetail, computedAcctGroups = [], computedHoldings = [], savedFlows = [], masterData, hiddenAccts, onOpenNetWorth }) {
   const { ChartPie } = window.Icons;
   const mask = (n) => fmtAcct(n); // 一般數字（含群組小計、單一帳戶）不再受眼睛遮蔽；只遮最上層總資產淨額
   const [openId, setOpenId] = useStateAcct(null);
@@ -705,8 +705,11 @@ function AccountsScreen({ hideAmounts, onOpenDetail, computedAcctGroups = [], co
 
   // 證券戶 group = 設定內的證券戶清單 + 證券持倉市值（依證券戶加總）
   // 單一證券戶的市值用「該戶自己的幣別」顯示（amount），只有群組小計／總資產淨額才換算台幣（amountTWD）。
+  // 被隱藏的證券戶要跳過：masterData 是完整資料（設定頁仍要能編輯），這裡不濾掉的話
+  // 隱藏的證券戶會留在清單上顯示 0 元。持倉那側的 computedHoldings 已經濾過了。
   const secByBroker = {};
   (masterData && masterData.brokers || []).forEach((b) => {
+    if (hiddenAccts && hiddenAccts.has(b.name)) return;
     // 種類副標題不再顯示，只保留外幣資訊（透過 currency 欄位在金額前顯示幣別）
     secByBroker[b.name] = { name: b.name, currency: b.currency || 'TWD', amount: 0, amountTWD: 0, badge: b.name.slice(0, 2) };
   });

@@ -189,7 +189,8 @@ function LockScreen({ onUnlock }) {
 // computeAccounts/computeHoldings/tradeChrono/fifoConsume moved to ./compute.js
 // (pure logic, no React) so they can be unit-tested without importing this
 // file's ReactDOM.createRoot(...) mount call at the bottom.
-import { computeAccounts, computeHoldings, tradeChrono, fifoConsume } from './compute.js';
+import { computeAccounts, computeHoldings, tradeChrono, fifoConsume,
+  excludeHiddenAccounts, excludeHiddenHoldings } from './compute.js';
 import { parseUtterance } from './voice-parse.js';
 import { ffRunRecurring } from './recurring.js';
 
@@ -866,28 +867,42 @@ function App() {
   const toggleStockHidden = (code) => setHidden((h) => ({ ...h,
     stocks: h.stocks.includes(code) ? h.stocks.filter((c) => c !== code) : [...h.stocks, code] }));
 
-  // 排除隱藏項目後的「有效資料」；revealHidden 開啟或沒有任何隱藏時等同原始資料。
-  const effFlows = React.useMemo(() => revealHidden || !hiddenAcctSet.size ? savedFlows :
-  savedFlows.filter((f) => !(f.account && hiddenAcctSet.has(f.account)) &&
-  !(f.fromAccount && hiddenAcctSet.has(f.fromAccount)) && !(f.toAccount && hiddenAcctSet.has(f.toAccount))),
-  [savedFlows, hiddenAcctSet, revealHidden]);
-  const effTrades = React.useMemo(() => revealHidden || !hiddenStockSet.size && !hiddenAcctSet.size ? savedTrades :
-  savedTrades.filter((t) => !hiddenStockSet.has(t.code) &&
-  !(t.settleAccount && hiddenAcctSet.has(t.settleAccount)) && !(t.broker && hiddenAcctSet.has(t.broker))),
-  [savedTrades, hiddenStockSet, hiddenAcctSet, revealHidden]);
-  const effAccounts = React.useMemo(() => revealHidden || !hiddenAcctSet.size ? masterData?.accounts || [] :
-  (masterData?.accounts || []).filter((a) => !hiddenAcctSet.has(a.name)), [masterData, hiddenAcctSet, revealHidden]);
-  const effSettle = React.useMemo(() => revealHidden || !hiddenAcctSet.size ? masterData?.settle || [] :
-  (masterData?.settle || []).filter((s) => !hiddenAcctSet.has(s.name)), [masterData, hiddenAcctSet, revealHidden]);
+  // revealHidden 開啟時等同「沒有任何隱藏」，下游一律看這兩個集合。
+  const EMPTY_SET = React.useMemo(() => new Set(), []);
+  const displayHiddenAccts = revealHidden ? EMPTY_SET : hiddenAcctSet;
+  const displayHiddenStocks = revealHidden ? EMPTY_SET : hiddenStockSet;
+
+  // 只給「清單顯示」用的流水／交易：命中隱藏帳戶（或隱藏個股）的紀錄不列在紀錄清單、
+  // 也不進收支統計。注意這裡刻意不看 t.settleAccount——隱藏一個銀行交割戶不該讓該戶
+  // 結算的股票交易從紀錄與投資頁消失（餘額與持倉都是用完整資料算的，見下方）。
+  const visibleFlows = React.useMemo(() => !displayHiddenAccts.size ? savedFlows :
+  savedFlows.filter((f) => !(f.account && displayHiddenAccts.has(f.account)) &&
+  !(f.fromAccount && displayHiddenAccts.has(f.fromAccount)) && !(f.toAccount && displayHiddenAccts.has(f.toAccount))),
+  [savedFlows, displayHiddenAccts]);
+  const visibleTrades = React.useMemo(() => !displayHiddenStocks.size && !displayHiddenAccts.size ? savedTrades :
+  savedTrades.filter((t) => !displayHiddenStocks.has(t.code) &&
+  !(t.broker && displayHiddenAccts.has(t.broker))),
+  [savedTrades, displayHiddenStocks, displayHiddenAccts]);
 
   // 動態計算：帳戶餘額與投資持倉（必須在所有 state 宣告後）
+  // 計算一律吃「完整資料」（未過濾的帳戶／流水／交易），算完才用 excludeHidden* 把隱藏
+  // 項目從清單與加總摘掉。順序反過來的話，隱藏帳戶的轉帳會讓對手帳戶餘額少一筆、隱藏
+  // 交割戶／個股也會讓持倉與扣款一起算錯。
+  const computedAcctGroupsAll = useMemoApp(() =>
+  computeAccounts(masterData?.accounts || [], masterData?.settle || [], savedFlows, savedTrades, initialBalances),
+  [masterData, savedFlows, savedTrades, initialBalances]
+  );
+  const computedHoldingsAll = useMemoApp(() =>
+  computeHoldings(savedTrades, masterData, livePrices),
+  [savedTrades, masterData, livePrices]
+  );
   const computedAcctGroups = useMemoApp(() =>
-  computeAccounts(effAccounts, effSettle, effFlows, effTrades, initialBalances),
-  [effAccounts, effSettle, effFlows, effTrades, initialBalances]
+  excludeHiddenAccounts(computedAcctGroupsAll, displayHiddenAccts),
+  [computedAcctGroupsAll, displayHiddenAccts]
   );
   const computedHoldings = useMemoApp(() =>
-  computeHoldings(effTrades, masterData, livePrices),
-  [effTrades, masterData, livePrices]
+  excludeHiddenHoldings(computedHoldingsAll, displayHiddenStocks, displayHiddenAccts),
+  [computedHoldingsAll, displayHiddenStocks, displayHiddenAccts]
   );
   // 由 {group, item} 快照解析出最新的帳戶詳情資料。
   // 一般帳戶直接從 computedAcctGroups 取最新餘額；證券戶（brokerage）的 items
@@ -1174,7 +1189,7 @@ function App() {
           computedAcctGroups={computedAcctGroups}
           computedHoldings={computedHoldings}
           masterData={masterData}
-          savedFlows={effFlows}
+          savedFlows={visibleFlows}
           hideAmounts={hideAmounts}
           onRecord={(draft) => { setRecordReturnTab('advisor'); setRecordDraft(draft); setRecordOpen(true); }} />
         </div> :
@@ -1184,22 +1199,24 @@ function App() {
         overflowY: 'auto', overflowX: 'hidden',
         paddingBottom: SP(130)
       }}>
-          {tab === 'dashboard' && <DashboardScreen hideAmounts={hideAmounts} setHideAmounts={setHideAmounts} savedFlows={effFlows} savedTrades={effTrades} dashWidget={dashWidget} recordEdits={recordEdits} recordDeletes={recordDeletes} onEditRecord={(d) => {setRecordReturnTab('dashboard');setRecordDraft(d);setRecordOpen(true);}} computedAcctGroups={computedAcctGroups} computedHoldings={computedHoldings} masterData={masterData} onOpenStats={() => setStatsOpen(true)} onDateChange={(d) => { dashDateRef.current = d; }} />}
+          {tab === 'dashboard' && <DashboardScreen hideAmounts={hideAmounts} setHideAmounts={setHideAmounts} savedFlows={visibleFlows} savedTrades={visibleTrades} dashWidget={dashWidget} recordEdits={recordEdits} recordDeletes={recordDeletes} onEditRecord={(d) => {setRecordReturnTab('dashboard');setRecordDraft(d);setRecordOpen(true);}} computedAcctGroups={computedAcctGroups} computedHoldings={computedHoldings} masterData={masterData} onOpenStats={() => setStatsOpen(true)} onDateChange={(d) => { dashDateRef.current = d; }} />}
           {tab === 'accounts' && <AccountsScreen hideAmounts={hideAmounts}
         computedAcctGroups={computedAcctGroups}
         computedHoldings={computedHoldings}
-        savedFlows={effFlows}
+        savedFlows={visibleFlows}
         masterData={masterData}
+        hiddenAccts={displayHiddenAccts}
         onOpenNetWorth={() => setNetWorthOpen(true)}
         onOpenDetail={setAcctDetail} />}
           {tab === 'invest' && <InvestScreen hideAmounts={hideAmounts}
         computedHoldings={computedHoldings}
-        savedTrades={effTrades}
+        savedTrades={visibleTrades}
         masterData={masterData}
+        hiddenAccts={displayHiddenAccts}
         pricesFetchedAt={pricesFetchedAt}
         onRefreshPrices={fetchLivePrices}
         onOpenBreakdown={() => setInvestBreakdownOpen(true)}
-        onOpenDetail={(d) => setInvestDetail({ ...d, mask: appMask, savedTrades: effTrades })} />}
+        onOpenDetail={(d) => setInvestDetail({ ...d, mask: appMask, savedTrades: visibleTrades })} />}
         </div>
       }
 
@@ -1250,7 +1267,7 @@ function App() {
       {(() => {
         const StatsSheet = window.MonthlyStatsSheet;
         return StatsSheet ? <StatsSheet open={statsOpen} onClose={() => setStatsOpen(false)}
-        savedFlows={effFlows} masterData={masterData} hideAmounts={hideAmounts}
+        savedFlows={visibleFlows} masterData={masterData} hideAmounts={hideAmounts}
         nowDate={window.TODAY_DATE || new Date()} mask={appMask} /> : null;
       })()}
       {(() => {
@@ -1269,7 +1286,7 @@ function App() {
         const IBSheet = window.InvestBreakdownSheet;
         return IBSheet ? <IBSheet open={investBreakdownOpen} onClose={() => setInvestBreakdownOpen(false)}
           computedHoldings={computedHoldings} masterData={masterData} mask={appMask}
-          savedTrades={effTrades} savedFlows={effFlows} /> : null;
+          savedTrades={visibleTrades} savedFlows={visibleFlows} /> : null;
       })()}
 
       {/* ── Detail sheets at phone-frame root (避免被 overflow 容器截切) ── */}
@@ -1280,7 +1297,7 @@ function App() {
           <>
             {AcctSheet && acctDetail &&
             <AcctSheet data={acctDetail} mask={appMask}
-            savedFlows={effFlows} savedTrades={effTrades}
+            savedFlows={visibleFlows} savedTrades={visibleTrades}
             computedHoldings={computedHoldings}
             onClose={() => setAcctDetail(null)}
             onSaveItem={handleSaveAcctItem}
@@ -1303,7 +1320,7 @@ function App() {
             {InvSheet && investDetail &&
             <InvSheet data={investDetail.item}
             mask={investDetail.mask || appMask}
-            savedTrades={effTrades}
+            savedTrades={visibleTrades}
             onClose={() => setInvestDetail(null)}
             hideAmounts={hideAmounts} revealHidden={revealHidden}
             isHidden={hiddenStockSet.has(investDetail.item.code)}

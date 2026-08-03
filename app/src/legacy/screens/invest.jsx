@@ -303,7 +303,7 @@ function InvestDetailSheet({ data, mask, onClose, savedTrades = [], onEditRecord
 
 /* ─── Main InvestScreen ──────────────────────────────────────────────── */
 
-function InvestScreen({ hideAmounts, onOpenDetail, savedTrades = [], computedHoldings = [], masterData = {}, pricesFetchedAt, onRefreshPrices, onOpenBreakdown }) {
+function InvestScreen({ hideAmounts, onOpenDetail, savedTrades = [], computedHoldings = [], masterData = {}, hiddenAccts, pricesFetchedAt, onRefreshPrices, onOpenBreakdown }) {
   const [activeTab, setActiveTab] = useStateInv('stock');
   const [refreshing, setRefreshing] = useStateInv(false);
   const [priceNote, setPriceNote] = useStateInv(''); // 報價更新失敗／部分缺價的提示，數秒後自動消失
@@ -372,7 +372,9 @@ function InvestScreen({ hideAmounts, onOpenDetail, savedTrades = [], computedHol
   catClasses.forEach((c, i) => {catColorMap[c] = TAB_COLORS_INV[i % TAB_COLORS_INV.length];});
 
   // ── Tabs: 依券商分類 ──
-  const settingsBrokers = (md.brokers || []).map((b) => b.name);
+  // 被隱藏的證券戶不開分頁（md 是完整資料，持倉那側的 computedHoldings 已濾過）
+  const settingsBrokers = (md.brokers || []).map((b) => b.name).
+  filter((n) => !(hiddenAccts && hiddenAccts.has(n)));
   const holdingBrokers = [...new Set(allItems.map((it) => it.broker).filter(Boolean))];
   const allBrokers = [...new Set([...settingsBrokers, ...holdingBrokers])];
   const dynTabs = allBrokers.length > 0 ?

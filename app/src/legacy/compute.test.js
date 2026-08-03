@@ -1,5 +1,6 @@
 import { describe, it, expect, beforeEach } from 'vitest';
-import { computeAccounts, computeHoldings, computeStockTrade, defaultTaxRate, mergeHoldingsByCode } from './compute.js';
+import { computeAccounts, computeHoldings, computeStockTrade, defaultTaxRate, mergeHoldingsByCode,
+  excludeHiddenAccounts, excludeHiddenHoldings } from './compute.js';
 
 describe('computeAccounts', () => {
   beforeEach(() => {
@@ -252,5 +253,72 @@ describe('computeStockTrade', () => {
     });
     expect(t.taxRate).toBe(0);
     expect(t.tax).toBe(0);
+  });
+});
+
+describe('開發者隱藏：只從清單與加總排除，不動計算', () => {
+  beforeEach(() => {
+    window.TODAY_DATE = new Date('2024-06-15');
+  });
+
+  const accounts = [
+    { name: '台新銀行', kind: '銀行' },
+    { name: '國泰銀行', kind: '銀行' },
+  ];
+  const initialBalances = { 台新銀行: 50000, 國泰銀行: 1000 };
+  const emptyMaster = { accounts: [], settle: [], brokers: [] };
+
+  it('隱藏帳戶的轉帳不會讓對手帳戶的錢憑空消失', () => {
+    const flows = [
+      { kind: 'xfer', fromAccount: '台新銀行', toAccount: '國泰銀行', amount: 10000, date: '2024-06-01' },
+    ];
+    // 計算吃完整流水，算完才摘掉隱藏帳戶
+    const visible = excludeHiddenAccounts(
+      computeAccounts(accounts, [], flows, [], initialBalances), new Set(['台新銀行']));
+    const bank = visible.find((g) => g.id === 'bank');
+
+    expect(bank.items.map((i) => i.name)).toEqual(['國泰銀行']);
+    expect(bank.items[0].amount).toBe(11000); // 收到的 10000 還在
+  });
+
+  it('隱藏個股的買進仍從交割戶扣款', () => {
+    const trades = [
+      { code: '2330', side: 'buy', shares: 10, price: 10, fee: 20, date: '2024-06-01', settleAccount: '國泰銀行' },
+    ];
+    const groups = computeAccounts(accounts, [], [], trades, initialBalances);
+    const bank = groups.find((g) => g.id === 'bank');
+
+    expect(bank.items.find((i) => i.name === '國泰銀行').amount).toBe(880); // 1000 - (100 + 20)
+  });
+
+  it('隱藏併進銀行群組的交割戶也會從清單消失', () => {
+    const settle = [{ name: '永豐交割戶', sub: '交割戶' }];
+    const visible = excludeHiddenAccounts(
+      computeAccounts(accounts, settle, [], [], initialBalances), new Set(['永豐交割戶']));
+
+    expect(visible.find((g) => g.id === 'bank').items.map((i) => i.name)).toEqual(['台新銀行', '國泰銀行']);
+  });
+
+  it('沒有隱藏項目時原樣回傳', () => {
+    const groups = computeAccounts(accounts, [], [], [], initialBalances);
+    expect(excludeHiddenAccounts(groups, new Set())).toBe(groups);
+    expect(excludeHiddenHoldings(groups, new Set(), new Set())).toBe(groups);
+  });
+
+  it('持倉只依代號與券商排除——隱藏銀行交割戶不會弄掉持倉', () => {
+    const trades = [
+      { code: '2330', name: '台積電', side: 'buy', shares: 1000, price: 500, date: '2024-01-01',
+        assetClass: '股票', broker: '凱基證券', settleAccount: '國泰銀行' },
+      { code: '0050', name: '元大台灣50', side: 'buy', shares: 1000, price: 100, date: '2024-01-01',
+        assetClass: 'ETF', broker: '元大證券', settleAccount: '國泰銀行' },
+    ];
+    const groups = computeHoldings(trades, emptyMaster, {});
+
+    // 隱藏的是銀行交割戶（不是券商）→ 持倉全數保留
+    expect(excludeHiddenHoldings(groups, new Set(), new Set(['國泰銀行']))).toEqual(groups);
+    // 隱藏券商 → 該券商持倉退出，空掉的資產類別群組也不留
+    expect(excludeHiddenHoldings(groups, new Set(), new Set(['元大證券'])).map((g) => g.id)).toEqual(['股票']);
+    // 隱藏個股 → 只有該檔退出
+    expect(excludeHiddenHoldings(groups, new Set(['2330']), new Set()).map((g) => g.id)).toEqual(['ETF']);
   });
 });

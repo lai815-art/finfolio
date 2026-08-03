@@ -83,6 +83,28 @@ export function computeAccounts(accounts, settleList, flows, trades, initialBala
   return GID_ORDER.map((gid) => groups[gid]);
 }
 
+// ── 開發者隱藏：只從「清單與加總」摘掉，不影響計算 ─────────────────
+// 餘額與 FIFO 一律用完整資料算完，這裡才把隱藏項目從結果中拿掉。若反過來在計算前
+// 先濾掉原始流水／交易，隱藏帳戶的轉帳會讓「未隱藏的對手帳戶」餘額少一筆（錢憑空
+// 消失），隱藏交割戶也會把該戶結算的持倉一起弄不見。
+// 群組小計、帳戶數、總資產淨額都是從 items 現算的，摘掉 items 就等於退出所有加總。
+export function excludeHiddenAccounts(groups, hiddenNames) {
+  if (!hiddenNames || !hiddenNames.size) return groups;
+  return (groups || []).map((g) => ({ ...g, items: g.items.filter((it) => !hiddenNames.has(it.name)) }));
+}
+
+// 持倉：隱藏個股（依代號）或隱藏證券戶（依券商）都退出持倉清單與市值／損益加總。
+// 過濾後空掉的資產類別群組要一併移除，否則投資頁會出現空的類別區塊。
+export function excludeHiddenHoldings(groups, hiddenCodes, hiddenBrokers) {
+  const hc = hiddenCodes && hiddenCodes.size ? hiddenCodes : null;
+  const hb = hiddenBrokers && hiddenBrokers.size ? hiddenBrokers : null;
+  if (!hc && !hb) return groups;
+  return (groups || []).
+  map((g) => ({ ...g, items: g.items.filter((it) =>
+    !(hc && hc.has(it.code)) && !(hb && it.broker && hb.has(it.broker))) })).
+  filter((g) => g.items.length > 0);
+}
+
 // 交易依時間序排序（日期→建立時間），FIFO 計算用
 export const tradeChrono = (a, b) => {
   const da = new Date(a.date) - new Date(b.date);
