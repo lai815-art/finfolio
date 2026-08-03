@@ -103,6 +103,25 @@ describe('migrateSchema', () => {
     expect(md.inc_groups.map((g) => g.name)).toEqual(['主動', '被動', '投資收入', '其他']);
   });
 
+  // 歷史匯入以前是照檔案原樣寫入代號的，帶字母尾碼的債券 ETF 可能存成小寫（00720b）。
+  // 小寫代號抓不到收盤價，同一檔混用大小寫還會在持股頁被拆成兩列。
+  it('upper-cases stock codes in existing trades, leaving already-upper-case ones untouched', () => {
+    localStorage.setItem(
+      'ff_trades',
+      JSON.stringify([
+        { code: '00720b', side: 'buy', shares: 1000 },
+        { code: ' 00751b ', side: 'buy', shares: 500 },
+        { code: '2330', side: 'buy', shares: 100 },
+        { side: 'buy', shares: 10 } // 沒有代號的紀錄不能被動到
+      ])
+    );
+
+    migrateSchema();
+
+    const trades = JSON.parse(localStorage.getItem('ff_trades'));
+    expect(trades.map((t) => t.code)).toEqual(['00720B', '00751B', '2330', undefined]);
+  });
+
   it('does nothing harmful when there is no master data at all', () => {
     expect(() => migrateSchema()).not.toThrow();
     expect(localStorage.getItem('ff_schema_version')).toBe(String(SCHEMA_VERSION));

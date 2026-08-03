@@ -138,6 +138,22 @@ export function migrateSchema() {
         if (bChanged) localStorage.setItem('ff_master_data', JSON.stringify(md3));
       }
     } catch (e) {/* 忽略 */}
+    // 股票代號一律轉大寫（冪等，每次啟動都執行）：手動輸入的欄位會轉大寫，但歷史匯入
+    // 是照檔案原樣寫進去的，於是帶字母尾碼的代號可能存成小寫（債券 ETF 00720b）。
+    // 小寫代號查報價會落空（TWSE MIS 的 ex_ch 區分大小寫），同一檔混用大小寫還會在
+    // 持股頁被拆成兩列，所以既有資料也一起修正，不只修新匯入的。
+    try {
+      var trades = JSON.parse(localStorage.getItem('ff_trades') || 'null');
+      if (Array.isArray(trades)) {
+        var cChanged = false;
+        trades.forEach(function (t) {
+          if (!t || !t.code) return;
+          var up = String(t.code).trim().toUpperCase();
+          if (up !== t.code) {t.code = up;cChanged = true;}
+        });
+        if (cChanged) localStorage.setItem('ff_trades', JSON.stringify(trades));
+      }
+    } catch (e) {/* 忽略 */}
     if (cur < SCHEMA_VERSION) {
       localStorage.setItem('ff_schema_version', String(SCHEMA_VERSION));
     }

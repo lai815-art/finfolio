@@ -26,6 +26,9 @@ const todayStr = () => {
 };
 
 const isTW = (code) => /^\d/.test(String(code || ''));
+// 查上游一律用大寫代號。MIS 的 ex_ch 區分大小寫：tse_00720b.tw 回空值，tse_00720B.tw 才有價，
+// 所以帶字母尾碼的代號（債券 ETF 00720B/00751B/00795B…）只要大小寫不合就整檔查不到。
+const norm = (code) => String(code || '').trim().toUpperCase();
 const num = (s) => {
   const n = parseFloat(String(s == null ? '' : s).replace(/,/g, ''));
   return isNaN(n) ? null : n;
@@ -341,7 +344,17 @@ export default {
     if (url.pathname !== '/quotes') {
       return new Response('FinFolio price service · /quotes?codes=2330,0050 · /stocks', { status: url.pathname === '/' ? 200 : 404, headers: CORS });
     }
-    const codes = (url.searchParams.get('codes') || '').split(',').map((s) => s.trim()).filter(Boolean);
+    // 查詢用大寫、去重；回應時再照「前端問的那個寫法」把價格放回去。
+    // 前端是用 livePrices[trade.code] 直接取值的，只回大寫 key 的話，資料裡存成小寫的
+    // 代號一樣拿不到價（而且是靜默的：UI 只會顯示不到收盤價，不會報錯）。
+    const asked = (url.searchParams.get('codes') || '').split(',').map((s) => s.trim()).filter(Boolean);
+    const askedBy = new Map(); // 大寫代號 → 前端原本的寫法（可能有多種）
+    asked.forEach((c) => {
+      const n = norm(c);
+      if (!askedBy.has(n)) askedBy.set(n, []);
+      askedBy.get(n).push(c);
+    });
+    const codes = [...askedBy.keys()];
     const twCodes = codes.filter(isTW);
     const usCodes = codes.filter((c) => !isTW(c));
 
@@ -391,9 +404,16 @@ export default {
       } catch (e) { partial = true; }
     }
 
+    // 攤回前端問的寫法（大寫問就回大寫，小寫問就同時回小寫），前端才取得到值。
+    const out = {};
+    askedBy.forEach((originals, n) => {
+      if (prices[n] == null) return;
+      originals.forEach((c) => { out[c] = prices[n]; });
+    });
+
     // partial：有某個來源失敗，prices 可能不完整。仍然回 200 帶著已經拿到的價格——
     // 回 500 會讓前端整批丟棄，連查得到的持股都沒有報價。
-    return json({ date: todayStr(), prices, fx, partial,
+    return json({ date: todayStr(), prices: out, fx, partial,
       source: 'twse-mis' + (env && env.FINNHUB_KEY ? '+finnhub' : '') + (usedYahoo ? '+yahoo' : '') });
   },
 };

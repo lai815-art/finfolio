@@ -2858,12 +2858,16 @@ function ImportSheet({ open, onClose, data, setData, savedFlows, savedTrades, se
         }
         balDelta[settleName] = (balDelta[settleName] || 0) + (g.totalCost || 0);
         g.stocks.forEach((s) => {
+          // 代號一律存大寫。手動輸入的欄位本來就會轉大寫，只有匯入檔是照原樣寫進去的；
+          // 同一檔用不同大小寫存會被 computeHoldings 當成兩檔（分組 key 是 code|broker），
+          // 報價也對不上（債券 ETF 的 00720B 這種字母尾碼最常踩到）。
+          const code = String(s.code || '').trim().toUpperCase();
           const assetClass = s.assetClass || '股票';
           if (!nextData.asset_class.includes(assetClass)) nextData.asset_class.push(assetClass);
           s.lots.forEach((lot) => {
             const price = lot.shares > 0 ? lot.cost / lot.shares : 0;
             newTrades.push({
-              side: 'buy', code: s.code, name: s.name, shares: lot.shares, price,
+              side: 'buy', code, name: s.name, shares: lot.shares, price,
               fee: 0, net: lot.cost, broker: brokerName, settleAccount: settleName,
               assetClass, date: lot.date,
               importBatch: parsed.batchId, time: '歷史匯入', _justAdded: stamp() });
