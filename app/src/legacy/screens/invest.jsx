@@ -546,7 +546,8 @@ function InvestBreakdownSheet({ open, onClose, computedHoldings = [], masterData
   // 所有個股持倉（依市值排序）+ 每檔配色
   const holdings = allItems.filter((it) => it.mvT > 0).sort((a, b) => b.mvT - a.mvT)
   .map((h, i) => ({ ...h, color: TAB_COLORS_INV[i % TAB_COLORS_INV.length], pct: portfolioMv > 0 ? h.mvT / portfolioMv * 100 : 0 }));
-  const holdingData = holdings.map((h) => ({ name: h.name || h.code, color: h.color, pct: h.pct }));
+  // 帶上 value（市值）：圓餅圖點選某片時中央要顯示該檔標的的市值。
+  const holdingData = holdings.map((h) => ({ name: h.name || h.code, value: h.mvT, color: h.color, pct: h.pct }));
   const StatDonut = window.StatDonut;
   const assetIconName = window.assetIconName || (() => 'TrendUp');
 

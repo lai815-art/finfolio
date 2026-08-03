@@ -783,26 +783,69 @@ function DashboardScreen({ hideAmounts, setHideAmounts, savedFlows = [], savedTr
 }
 
 /* ── 共用大型甜甜圈（環外標註名稱與 %，中央顯示總額）─────────────── */
+// 遮罩 id 得全域唯一：消費分析／資產配置／投資市值三個圓餅圖可能同時掛在 DOM 上，撞號會互吃遮罩。
+let donutSeq = 0;
 function StatDonut({ data, total, label, color, mask }) {
   const DR = 92,DT = 24,GAP = 66,cx = DR + DT / 2 + GAP,LSIZE = cx * 2,DC = 2 * Math.PI * DR;
+  const wipeRef = useRefDash(null);
+  if (!wipeRef.current) wipeRef.current = 'ffDonutWipe' + ++donutSeq;
+  // 選取狀態存「名稱」而非索引：持股依市值排序，背景報價刷新可能換順序，存索引會指到別人身上。
+  const [activeName, setActiveName] = useStateDash(null);
   let acc = 0;
   const arcs = data.map((c) => { const len = c.pct / 100 * DC,off = acc / 100 * DC;acc += c.pct;return { ...c, len, off, mid: (off + len / 2) / DC }; });
+  const active = activeName ? arcs.find((a) => a.name === activeName) : null;
+  const isOn = (a) => !active || active.name === a.name;
   const labelR = DR + DT / 2 + 28;
+  // 中央：沒選取顯示總額，選了某片就顯示該片。呼叫端沒帶 value 時用占比回推。
+  const sliceValue = (a) => a.value == null ? total * a.pct / 100 : a.value;
   // 中央數字依字數縮放，避免長金額壓到圓環
-  const amtStr = mask(Math.round(total));
+  const amtStr = mask(Math.round(active ? sliceValue(active) : total));
   const aLen = String(amtStr).length;
   const amtFS = aLen <= 6 ? 28 : aLen <= 8 ? 24 : aLen <= 10 ? 20 : aLen <= 12 ? 17 : 15;
+  // 資料驅動的視覺變化（選取加粗／其餘變淡）走 transition + inline style，不用 keyframe：
+  // keyframe 的起訖值被 re-render 改寫會斷掉，transition 本來就是為了「值變了平滑過去」而生。
+  const arcStyle = (a) => ({ strokeWidth: active && active.name === a.name ? DT + 7 : DT,
+    opacity: isOn(a) ? 1 : 0.32, transition: 'stroke-width 180ms ease-out, opacity 180ms ease-out' });
+  const toggle = (name) => setActiveName((prev) => prev === name ? null : name);
   return (
-    <div style={{ position: 'relative', width: '100%', maxWidth: LSIZE, margin: '0 auto' }}>
+    <div style={{ position: 'relative', width: '100%', maxWidth: LSIZE, margin: '0 auto',
+      opacity: 0, animation: 'fadeInStat 420ms ease-out both' }}>
       <svg width="100%" viewBox={`0 0 ${LSIZE} ${LSIZE}`} style={{ display: 'block' }}>
+        <defs>
+          {/* 進場動畫：用一個純幾何、不吃 data 的遮罩環把彩色扇區順時針揭開。遮罩的 dasharray／
+              dashoffset 只跟半徑有關（DR 寫死），是常數，React 永遠不會改寫，動畫跑到一半也不會被
+              背景報價刷新打斷——舊版 fillArc 正是把起訖值綁在資料上才會閃。
+              周長 DC 透過 --donutC 帶給 donutWipe keyframe。 */}
+          <mask id={wipeRef.current} maskUnits="userSpaceOnUse" x="0" y="0" width={LSIZE} height={LSIZE}>
+            {/* 遮罩環刻意不加 transform——跟下面彩色扇區的 rotate(-90) 不同，別「順手」補上去。
+                實測（把遮罩光柵化到 canvas、沿圓環每 5° 取樣）：dasharray = 周長、dashoffset 由
+                +周長 降到 0 時，可見區間恰好是從 12 點鐘往順時針連續長出來（10%→0°~35°、
+                25%→0°~90°、50%→0°~180°、75%→0°~270°）。補上 rotate(-90) 會變成從 12 點鐘
+                往逆時針長，再加水平鏡射則整段會跑到 180°~270°。 */}
+            <circle cx={cx} cy={cx} r={DR} fill="none" stroke="#fff" strokeWidth={DT}
+            strokeDasharray={DC}
+            style={{ '--donutC': DC, animation: 'donutWipe 760ms cubic-bezier(0.32,0.72,0.18,1) both' }} />
+          </mask>
+        </defs>
         <g transform={`rotate(-90 ${cx} ${cx})`}>
-          <circle cx={cx} cy={cx} r={DR} fill="none" stroke="rgba(0,0,0,0.06)" strokeWidth={DT} />
+          {/* 底層灰軌不進遮罩：一開始就在，掃描才像在填滿一個容器。點它可取消選取。 */}
+          <circle cx={cx} cy={cx} r={DR} fill="none" stroke="rgba(0,0,0,0.06)" strokeWidth={DT}
+          onClick={() => setActiveName(null)} />
+          <g mask={`url(#${wipeRef.current})`}>
+            {arcs.map((a, i) =>
+            <circle key={i} cx={cx} cy={cx} r={DR} fill="none"
+            stroke={a.color}
+            strokeDasharray={a.len + ' ' + DC} strokeDashoffset={-a.off}
+            style={arcStyle(a)} />
+            )}
+          </g>
+          {/* 看不見的加寬命中環疊在最上層，讓細小扇區也點得到；dash 區段角度互不重疊，不會搶點擊。 */}
           {arcs.map((a, i) =>
           <circle key={i} cx={cx} cy={cx} r={DR} fill="none"
-          stroke={a.color} strokeWidth={DT}
+          stroke="transparent" strokeWidth={DT + 16}
           strokeDasharray={a.len + ' ' + DC} strokeDashoffset={-a.off}
-          style={{ '--arcFrom': DC, '--arcTo': -a.off,
-            animation: `fillArc 650ms cubic-bezier(0.32,0.72,0.18,1) ${i * 70}ms both` }} />
+          onClick={() => toggle(a.name)}
+          style={{ pointerEvents: 'stroke', cursor: 'pointer' }} />
           )}
         </g>
         {arcs.filter((a) => a.pct >= 4).map((a, i) => {
@@ -810,19 +853,27 @@ function StatDonut({ data, total, label, color, mask }) {
           const x = cx + labelR * Math.sin(ang),y = cx - labelR * Math.cos(ang);
           return (
             <text key={i} x={x} y={y} textAnchor="middle" dominantBaseline="middle" fill="rgba(44,44,50,0.82)"
-            style={{ fontSize: '13px', opacity: 0, animation: `fadeInStat 400ms ease-out ${450 + i * 70}ms forwards` }}>
+            onClick={() => toggle(a.name)}
+            style={{ fontSize: '13px', cursor: 'pointer', opacity: isOn(a) ? 1 : 0.32, transition: 'opacity 180ms ease-out' }}>
               <tspan x={x} dy="-0.35em" style={{ fontWeight: 700, fontSize: '14px' }} fill={a.color}>{a.pct.toFixed(1)}%</tspan>
               <tspan x={x} dy="1.25em">{a.name}</tspan>
             </text>);
         })}
       </svg>
       <div style={{ position: 'absolute', inset: 0, display: 'flex', flexDirection: 'column',
-        alignItems: 'center', justifyContent: 'center', pointerEvents: 'none',
-        opacity: 0, animation: 'fadeInStat 420ms ease-out 200ms forwards' }}>
-        <div style={{ fontSize: FS(15), color: 'rgba(44,44,50,0.55)' }}>{label}</div>
-        <div style={{ fontSize: FS(amtFS), fontWeight: 700, color, fontFamily: TOKENS.fontMono, marginTop: SP(2), letterSpacing: aLen > 8 ? -0.5 : 0, lineHeight: 1 }}>
+        alignItems: 'center', justifyContent: 'center', pointerEvents: 'none' }}>
+        <div style={{ fontSize: FS(15), color: active ? active.color : 'rgba(44,44,50,0.55)',
+          fontWeight: active ? 600 : 400, maxWidth: '62%',
+          overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+          {active ? active.name : label}
+        </div>
+        <div style={{ fontSize: FS(amtFS), fontWeight: 700, color: active ? active.color : color, fontFamily: TOKENS.fontMono, marginTop: SP(2), letterSpacing: aLen > 8 ? -0.5 : 0, lineHeight: 1 }}>
           {amtStr}
         </div>
+        {active &&
+        <div style={{ fontSize: FS(14), color: 'rgba(44,44,50,0.55)', fontFamily: TOKENS.fontMono, marginTop: SP(3) }}>
+          {active.pct.toFixed(1)}%
+        </div>}
       </div>
     </div>);
 }
@@ -1229,7 +1280,8 @@ function NetWorthSheet({ open, onClose, total, computedAcctGroups, computedHoldi
   const assets = cats.filter((c) => c.value > 0);
   const totalAssets = assets.reduce((a, c) => a + c.value, 0);
 
-  const assetData = assets.map((c) => ({ name: c.name, color: c.color, pct: totalAssets > 0 ? c.value / totalAssets * 100 : 0 }));
+  // 帶上 value：圓餅圖點選某片時中央要顯示該類別的金額。
+  const assetData = assets.map((c) => ({ name: c.name, value: c.value, color: c.color, pct: totalAssets > 0 ? c.value / totalAssets * 100 : 0 }));
   const cardStyle = { background: TOKENS.surface, borderRadius: RS(20), border: '1px solid rgba(0,0,0,0.07)', padding: PAD('16px') };
 
   return (

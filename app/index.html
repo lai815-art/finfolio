@@ -67,9 +67,12 @@
     from { transform: translateX(100%); }
     to   { transform: translateX(0); }
   }
-  /* 統計圖表進場動畫：圓餅圖環形填色（fillArc）、折線描繪（drawLine）、長條圖長出（growBar）。 */
-  @keyframes fillArc { from { stroke-dashoffset: var(--arcFrom); } to { stroke-dashoffset: var(--arcTo); } }
+  /* 統計圖表進場動畫：折線描繪（drawLine）、長條圖長出（growBar）、圓餅圖順時針掃描（donutWipe）。 */
   @keyframes drawLine { from { stroke-dashoffset: 1; } to { stroke-dashoffset: 0; } }
+  /* 圓餅圖掃描：--donutC 是圓環周長，由 StatDonut 以常數（半徑寫死）算出後 inline 帶進來，
+     所以動畫的起訖值與資料無關、不會被 re-render 改寫。掃描方向對不對還取決於遮罩環有沒有
+     加 transform（答案是不能加），詳見 StatDonut 裡的註解。 */
+  @keyframes donutWipe { from { stroke-dashoffset: var(--donutC); } to { stroke-dashoffset: 0; } }
   @keyframes growBar { from { transform: scaleY(0); } to { transform: scaleY(1); } }
   @keyframes fadeInStat { from { opacity: 0; } to { opacity: 1; } }
   *::-webkit-scrollbar { width: 0; height: 0; display: none; }
