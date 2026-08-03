@@ -704,17 +704,25 @@ function AccountsScreen({ hideAmounts, onOpenDetail, computedAcctGroups = [], co
   }));
 
   // 證券戶 group = 設定內的證券戶清單 + 證券持倉市值（依證券戶加總）
+  // 單一證券戶的市值用「該戶自己的幣別」顯示（amount），只有群組小計／總資產淨額才換算台幣（amountTWD）。
   const secByBroker = {};
   (masterData && masterData.brokers || []).forEach((b) => {
     // 種類副標題不再顯示，只保留外幣資訊（透過 currency 欄位在金額前顯示幣別）
-    secByBroker[b.name] = { name: b.name, currency: b.currency, amount: 0, badge: b.name.slice(0, 2) };
+    secByBroker[b.name] = { name: b.name, currency: b.currency || 'TWD', amount: 0, amountTWD: 0, badge: b.name.slice(0, 2) };
   });
   computedHoldings.flatMap((g) => g.items).forEach((it) => {
     const b = it.broker || '其他';
-    if (!secByBroker[b]) secByBroker[b] = { name: b, currency: it.currency, amount: 0, badge: b.slice(0, 2) };
-    secByBroker[b].amount += mvTWD(it);
+    if (!secByBroker[b]) secByBroker[b] = { name: b, currency: it.currency || 'TWD', amount: 0, amountTWD: 0, badge: b.slice(0, 2) };
+    const s = secByBroker[b];
+    s.amountTWD += mvTWD(it);
+    // 持倉幣別與券商幣別不一致（多為事後改過設定）就整戶退回台幣顯示，不把不同幣別直接相加。
+    if ((it.currency || 'TWD') === (s.currency || 'TWD')) s.amount += it.mv || 0;else
+    s.mixedCur = true;
   });
-  const secItems = Object.values(secByBroker).sort((a, b) => b.amount - a.amount);
+  Object.values(secByBroker).forEach((s) => {
+    if (s.mixedCur) {s.currency = 'TWD';s.amount = s.amountTWD;}
+  });
+  const secItems = Object.values(secByBroker).sort((a, b) => b.amountTWD - a.amountTWD);
 
   // Decorate groups with Icon; brokerage(證券戶) lists holdings by broker
   const assetGroups = computedAcctGroups.map((g) =>
