@@ -141,6 +141,42 @@ export function computeStockTrade({ side, shares, price, brokerObj, assetClass, 
   return { gross, feeRate, feeDisc, feeMult, autoFee, fee, feeOverridden, taxRate, autoTax, tax, taxOverridden, net };
 }
 
+// 投資配置用：把同一檔股票的多家券商部位合併成一列。
+// computeHoldings 刻意依 code|broker 分開（投資頁要按券商分頁看），但「投資配置」看的是
+// 整體資產配置，同一檔散在兩家券商應該是一列、佔比也要是兩家相加，否則圓餅圖會出現兩片
+// 同名扇區（點選時互相搶，StatDonut 的選取狀態存名稱），列表也會看到兩列一樣的個股。
+// 金額一律取台幣欄位（mvT/costT/pnlT）加總，混幣別（如台股＋複委託同代號）也能正確相加。
+export function mergeHoldingsByCode(items) {
+  const merged = [];
+  const seen = {};
+  (items || []).forEach((it) => {
+    const key = it.code || it.name || '';
+    if (seen[key] === undefined) {
+      seen[key] = merged.length;
+      merged.push({ ...it, qty: it.qty || 0, brokers: it.broker ? [it.broker] : [] });
+      return;
+    }
+    const m = merged[seen[key]];
+    m.qty += it.qty || 0;
+    m.mvT += it.mvT || 0;
+    m.costT += it.costT || 0;
+    m.pnlT += it.pnlT || 0;
+    if (it.broker && !m.brokers.includes(it.broker)) m.brokers.push(it.broker);
+    // 原幣欄位只有在幣別一致時才有意義；不同幣別就改用台幣值，免得下游顯示出錯的數字。
+    if (m.currency === it.currency) {
+      m.mv = (m.mv || 0) + (it.mv || 0);
+      m.cost = (m.cost || 0) + (it.cost || 0);
+      m.pnl = (m.pnl || 0) + (it.pnl || 0);
+    } else {
+      m.currency = null;m.mv = m.mvT;m.cost = m.costT;m.pnl = m.pnlT;
+    }
+    // 均價／報酬率用合併後的成本重算（台幣基礎），不能沿用單一券商的數字。
+    m.avg = m.qty > 0 ? Math.round(m.costT / m.qty * 10) / 10 : m.avg;
+    m.pct = m.costT > 0 ? m.pnlT / m.costT * 100 : 0;
+  });
+  return merged;
+}
+
 export function computeHoldings(trades, masterData, livePrices = {}) {
   if (!trades) return [];
   const curMap = window.buildCurMap(masterData);

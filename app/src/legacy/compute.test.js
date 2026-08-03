@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach } from 'vitest';
-import { computeAccounts, computeHoldings, computeStockTrade, defaultTaxRate } from './compute.js';
+import { computeAccounts, computeHoldings, computeStockTrade, defaultTaxRate, mergeHoldingsByCode } from './compute.js';
 
 describe('computeAccounts', () => {
   beforeEach(() => {
@@ -95,6 +95,72 @@ describe('computeHoldings', () => {
     const yuanta = items.find((i) => i.broker === '元大證券');
     expect(kgi.qty).toBe(200);
     expect(yuanta.qty).toBe(5000);
+  });
+});
+
+describe('mergeHoldingsByCode', () => {
+  // computeHoldings 依 code|broker 拆開（投資頁要分券商看）；投資配置要的是合併後的整體配置。
+  const twdItem = (over) => ({
+    code: '2330', name: '台積電', assetClass: '股票', currency: 'TWD',
+    qty: 0, mv: 0, cost: 0, pnl: 0, mvT: 0, costT: 0, pnlT: 0, ...over,
+  });
+
+  it('merges the same stock held at two brokers into one row', () => {
+    const merged = mergeHoldingsByCode([
+      twdItem({ broker: '凱基證券', qty: 200, mv: 220000, cost: 200000, pnl: 20000, mvT: 220000, costT: 200000, pnlT: 20000 }),
+      twdItem({ broker: '元大證券', qty: 1000, mv: 1100000, cost: 900000, pnl: 200000, mvT: 1100000, costT: 900000, pnlT: 200000 }),
+    ]);
+
+    expect(merged).toHaveLength(1);
+    expect(merged[0].qty).toBe(1200);
+    expect(merged[0].mvT).toBe(1320000);
+    expect(merged[0].costT).toBe(1100000);
+    expect(merged[0].pnlT).toBe(220000);
+    expect(merged[0].brokers).toEqual(['凱基證券', '元大證券']);
+  });
+
+  it('recomputes average cost and return % from the combined position', () => {
+    const merged = mergeHoldingsByCode([
+      twdItem({ broker: 'A', qty: 100, avg: 100, mvT: 12000, costT: 10000, pnlT: 2000, pct: 20 }),
+      twdItem({ broker: 'B', qty: 300, avg: 200, mvT: 66000, costT: 60000, pnlT: 6000, pct: 10 }),
+    ]);
+
+    expect(merged[0].avg).toBe(175); // 70000 / 400
+    expect(merged[0].pct).toBeCloseTo(8000 / 70000 * 100, 6);
+  });
+
+  it('keeps different stocks apart and preserves market-value order input', () => {
+    const merged = mergeHoldingsByCode([
+      twdItem({ broker: 'A', qty: 100, mvT: 1000 }),
+      twdItem({ code: '0050', name: '元大台灣50', broker: 'A', qty: 500, mvT: 90000 }),
+      twdItem({ broker: 'B', qty: 100, mvT: 1000 }),
+    ]);
+
+    expect(merged.map((m) => m.code)).toEqual(['2330', '0050']);
+    expect(merged[0].qty).toBe(200);
+    expect(merged[1].qty).toBe(500);
+  });
+
+  it('falls back to TWD figures when the same code is held in two currencies', () => {
+    const merged = mergeHoldingsByCode([
+      twdItem({ code: 'VT', broker: '台股複委託', currency: 'TWD', qty: 10, mv: 32500, cost: 30000, pnl: 2500, mvT: 32500, costT: 30000, pnlT: 2500 }),
+      twdItem({ code: 'VT', broker: '海外券商', currency: 'USD', qty: 10, mv: 1000, cost: 900, pnl: 100, mvT: 32500, costT: 29250, pnlT: 3250 }),
+    ]);
+
+    expect(merged).toHaveLength(1);
+    expect(merged[0].currency).toBeNull(); // 幣別不一致 → 不再標示單一幣別
+    expect(merged[0].mv).toBe(merged[0].mvT); // 原幣欄位改用台幣值，不會把 1000 美元當 1000 元加進去
+    expect(merged[0].mvT).toBe(65000);
+  });
+
+  it('leaves a single-broker holding untouched apart from the brokers list', () => {
+    const merged = mergeHoldingsByCode([
+      twdItem({ broker: '凱基證券', qty: 200, avg: 1000, mvT: 220000, costT: 200000, pnlT: 20000, pct: 10 }),
+    ]);
+
+    expect(merged[0].avg).toBe(1000);
+    expect(merged[0].pct).toBe(10);
+    expect(merged[0].brokers).toEqual(['凱基證券']);
   });
 });
 

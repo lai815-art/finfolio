@@ -1,4 +1,6 @@
 // Investment Portfolio / 投資組合（依投資類型分頁）
+import { mergeHoldingsByCode } from '../compute.js';
+
 const { useState: useStateInv, useMemo: useMemoInv } = React;
 
 function fmtInv(n) {return Math.round(n).toLocaleString();}
@@ -558,8 +560,9 @@ function InvestBreakdownSheet({ open, onClose, computedHoldings = [], masterData
   const portPct = portCost > 0 ? portPnl / portCost * 100 : 0;
 
   const catData = catTotals.map((c) => ({ name: c.name, color: c.color, pct: portfolioMv > 0 ? c.mv / portfolioMv * 100 : 0 }));
-  // 所有個股持倉（依市值排序）+ 每檔配色
-  const holdings = allItems.filter((it) => it.mvT > 0).sort((a, b) => b.mvT - a.mvT)
+  // 所有個股持倉（依市值排序）+ 每檔配色。
+  // 先按代號合併多券商部位——投資配置看的是整體配置，同一檔不該因為分散在兩家券商就拆成兩列。
+  const holdings = mergeHoldingsByCode(allItems).filter((it) => it.mvT > 0).sort((a, b) => b.mvT - a.mvT)
   .map((h, i) => ({ ...h, color: TAB_COLORS_INV[i % TAB_COLORS_INV.length], pct: portfolioMv > 0 ? h.mvT / portfolioMv * 100 : 0 }));
   // 帶上 value（市值）：圓餅圖點選某片時中央要顯示該檔標的的市值。
   const holdingData = holdings.map((h) => ({ name: h.name || h.code, value: h.mvT, color: h.color, pct: h.pct }));
@@ -626,7 +629,10 @@ function InvestBreakdownSheet({ open, onClose, computedHoldings = [], masterData
                     <div style={{ flex: 1, minWidth: 0 }}>
                       <div style={{ fontSize: FS(19), fontWeight: 500, color: TOKENS.ink,
                         overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{h.name || h.code}</div>
-                      <div style={{ fontSize: FS(14), color: 'rgba(44,44,50,0.5)', marginTop: SP(1), fontFamily: TOKENS.fontMono }}>{h.code} · {h.pct.toFixed(1)}%</div>
+                      {/* 合併了多家券商時把券商數標出來，才看得出這一列是兩家相加的 */}
+                      <div style={{ fontSize: FS(14), color: 'rgba(44,44,50,0.5)', marginTop: SP(1), fontFamily: TOKENS.fontMono }}>
+                        {h.code} · {h.pct.toFixed(1)}%{(h.brokers || []).length > 1 ? ` · ${h.brokers.length} 家券商` : ''}
+                      </div>
                     </div>
                     <div style={{ textAlign: 'right', flexShrink: 0 }}>
                       <div style={{ fontFamily: TOKENS.fontMono, fontSize: FS(19), fontWeight: 600, color: TOKENS.ink }}>{mask(h.mvT)}</div>
