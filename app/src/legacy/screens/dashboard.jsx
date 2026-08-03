@@ -822,9 +822,11 @@ function StatDonut({ data, total, label, color, mask }) {
                 +周長 降到 0 時，可見區間恰好是從 12 點鐘往順時針連續長出來（10%→0°~35°、
                 25%→0°~90°、50%→0°~180°、75%→0°~270°）。補上 rotate(-90) 會變成從 12 點鐘
                 往逆時針長，再加水平鏡射則整段會跑到 180°~270°。 */}
+            {/* 用 linear 而非專案其他動畫那支 cubic-bezier(0.32,0.72,0.18,1)：那條曲線很前傾，
+                套在掃描上會在一半時間內就揭露九成、尾段收得很急。掃描要的是等速掠過的手感。 */}
             <circle cx={cx} cy={cx} r={DR} fill="none" stroke="#fff" strokeWidth={DT}
             strokeDasharray={DC}
-            style={{ '--donutC': DC, animation: 'donutWipe 760ms cubic-bezier(0.32,0.72,0.18,1) both' }} />
+            style={{ '--donutC': DC, animation: 'donutWipe 760ms linear both' }} />
           </mask>
         </defs>
         <g transform={`rotate(-90 ${cx} ${cx})`}>
