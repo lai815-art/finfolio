@@ -33,44 +33,77 @@ const num = (s) => {
 
 // Taiwan latest price via TWSE MIS (server-side — no browser CORS limit).
 // `z` = last traded price (after close = today's close); `y` = prev close.
+// 一次請求帶的代號數。每個代號會展開成 tse_/otc_ 兩筆 ex_ch，50 檔 = 100 筆，
+// 是實測仍穩定的量；超過的代號改分批送，不要靜默丟掉（以前是 slice(0,50) 直接截斷，
+// 匯入長歷史後現有持股會被早年已賣光的代號擠出視窗，永遠拿不到報價）。
+const MIS_CHUNK = 50;
+const MIS_MAX_CHUNKS = 6; // 上限 300 檔，避免子請求數失控
+
 async function getMIS(codes) {
   const out = {};
   if (!codes.length) return out;
-  try {
-    const exCh = codes.slice(0, 50)
-      .flatMap((c) => [`tse_${c}.tw`, `otc_${c}.tw`])
-      .join('|');
-    const url = `https://mis.twse.com.tw/stock/api/getStockInfo.jsp?ex_ch=${exCh}&json=1&delay=0&_=${Date.now()}`;
-    const r = await fetch(url, {
-      headers: {
-        'User-Agent': 'Mozilla/5.0',
-        'Referer': 'https://mis.twse.com.tw/stock/index.jsp',
-        'Accept': 'application/json',
-      },
-      cf: { cacheTtl: 120 },
-    });
-    if (r.ok) {
-      const d = await r.json();
-      (d.msgArray || []).forEach((item) => {
-        const code = item.c;
-        if (!code) return;
-        let p = item.z && item.z !== '-' ? num(item.z) : null;
-        if (p == null) p = num(item.y); // fallback: previous close
-        if (p && p > 0) out[code] = p;
+  const chunks = [];
+  for (let i = 0; i < codes.length && chunks.length < MIS_MAX_CHUNKS; i += MIS_CHUNK) {
+    chunks.push(codes.slice(i, i + MIS_CHUNK));
+  }
+  await Promise.all(chunks.map(async (chunk) => {
+    try {
+      const exCh = chunk.flatMap((c) => [`tse_${c}.tw`, `otc_${c}.tw`]).join('|');
+      const url = `https://mis.twse.com.tw/stock/api/getStockInfo.jsp?ex_ch=${exCh}&json=1&delay=0&_=${Date.now()}`;
+      const r = await fetch(url, {
+        headers: {
+          'User-Agent': 'Mozilla/5.0',
+          'Referer': 'https://mis.twse.com.tw/stock/index.jsp',
+          'Accept': 'application/json',
+        },
+        cf: { cacheTtl: 120 },
       });
-    }
-  } catch (e) { /* ignore — daily-close fallback covers it */ }
+      if (r.ok) {
+        const d = await r.json();
+        (d.msgArray || []).forEach((item) => {
+          const code = item.c;
+          if (!code) return;
+          let p = item.z && item.z !== '-' ? num(item.z) : null;
+          if (p == null) p = num(item.y); // fallback: previous close
+          if (p && p > 0) out[code] = p;
+        });
+      }
+    } catch (e) { /* ignore — daily-close fallback covers it */ }
+  }));
   return out;
 }
 
 // Fallback: full TW daily-close map (TWSE 上市 + TPEX 上櫃), cached ~30 min.
-async function getDailyAll(ctx) {
+// `need` = 呼叫端真正缺價的代號。只有在這些代號連上市/上櫃都查不到時，才去打最貴的
+// 興櫃那幾份大檔——冷路徑一次抓解析五份全市場資料太吃 CPU，實測會讓整包請求被執行環境
+// 中斷（Cloudflare 1101）。
+async function getDailyAll(ctx, need = []) {
   const cache = caches.default;
   const key = new Request(`https://ff-cache.local/tw/v2/${todayStr()}`);
-  const hit = await cache.match(key);
-  if (hit) return hit.json();
+  let map = null;
+  try {
+    const hit = await cache.match(key);
+    if (hit) map = await hit.json();
+  } catch (e) { /* 快取讀失敗就當沒有 */ }
+  const fromCache = !!map;
+  if (fromCache) {
+    // 快取已涵蓋需要的代號就直接用；還有缺的才往下走興櫃補價。
+    if (!need.some((c) => map[c] == null)) return map;
+  } else {
+    map = {};
+    await fillListedDailyClose(map);
+  }
+  await fillEmergingDailyClose(map, need);
+  if (Object.keys(map).length > 50) {
+    ctx.waitUntil(cache.put(key, new Response(JSON.stringify(map), {
+      headers: { 'Content-Type': 'application/json', 'Cache-Control': 'public, max-age=1800' },
+    })));
+  }
+  return map;
+}
 
-  const map = {};
+// 上市（TWSE）+ 上櫃（TPEx）當日收盤。
+async function fillListedDailyClose(map) {
   try {
     const r = await fetch('https://openapi.twse.com.tw/v1/exchangeReport/STOCK_DAY_ALL', { cf: { cacheTtl: 600 } });
     if (r.ok) {
@@ -92,35 +125,34 @@ async function getDailyAll(ctx) {
       });
     }
   } catch (e) { /* ignore */ }
+}
 
-  // 興櫃（emerging board）daily close. TPEx's exact OpenAPI dataset name for
-  // emerging stocks is not certain from here, so try a few candidates and parse
-  // defensively (any object with a 4–6 digit code + a positive price field).
-  // Harmless if an endpoint 404s or its shape differs — nothing gets written.
-  const ESB_ENDPOINTS = [
-    'https://www.tpex.org.tw/openapi/v1/tpex_esb_daily_close_quotes',
-    'https://www.tpex.org.tw/openapi/v1/tpex_esb_latest_statistics',
-    'https://www.tpex.org.tw/openapi/v1/tpex_esbtr_daily_close_quotes',
-  ];
+// 興櫃（emerging board）daily close. TPEx's exact OpenAPI dataset name for
+// emerging stocks is not certain from here, so try a few candidates and parse
+// defensively (any object with a 4–6 digit code + a positive price field).
+// Harmless if an endpoint 404s or its shape differs — nothing gets written.
+// 只在 need 還有缺價時才跑，且第一個有資料的 endpoint 就收工——三份全打是冷路徑爆掉的主因。
+const ESB_ENDPOINTS = [
+  'https://www.tpex.org.tw/openapi/v1/tpex_esb_daily_close_quotes',
+  'https://www.tpex.org.tw/openapi/v1/tpex_esb_latest_statistics',
+  'https://www.tpex.org.tw/openapi/v1/tpex_esbtr_daily_close_quotes',
+];
+async function fillEmergingDailyClose(map, need) {
+  if (!need.length || !need.some((c) => map[c] == null)) return;
   for (const ep of ESB_ENDPOINTS) {
     try {
       const r = await fetch(ep, { cf: { cacheTtl: 600 } });
       if (!r.ok) continue;
       const arr = await r.json();
+      let got = 0;
       (Array.isArray(arr) ? arr : []).forEach((s) => {
         const code = String(s.SecuritiesCompanyCode || s.Code || s.CompanyCode || s.code || '').trim();
         const p = num(s.LastPrice || s.Close || s.ClosingPrice || s.WeightedAvgPrice || s.Deal || s.LatestPrice || s.LatestDealPrice);
-        if (/^\d{4,6}[A-Z]?$/.test(code) && p && p > 0 && map[code] == null) map[code] = p;
+        if (/^\d{4,6}[A-Z]?$/.test(code) && p && p > 0 && map[code] == null) { map[code] = p;got++; }
       });
+      if (got) return; // 這份有資料就夠，不必再打其他候選
     } catch (e) { /* ignore — 興櫃 price is best-effort */ }
   }
-
-  if (Object.keys(map).length > 50) {
-    ctx.waitUntil(cache.put(key, new Response(JSON.stringify(map), {
-      headers: { 'Content-Type': 'application/json', 'Cache-Control': 'public, max-age=1800' },
-    })));
-  }
-  return map;
 }
 
 // USD→TWD from a free, keyless source, cached ~12h.
@@ -291,31 +323,48 @@ export default {
     const usCodes = codes.filter((c) => !isTW(c));
 
     const prices = {};
+    let partial = false;
 
     // Taiwan: MIS latest first, daily-close as fallback for anything missing.
     if (twCodes.length) {
-      const mis = await getMIS(twCodes);
-      Object.assign(prices, mis);
+      try {
+        const mis = await getMIS(twCodes);
+        Object.assign(prices, mis);
+      } catch (e) { partial = true; }
       const need = twCodes.filter((c) => prices[c] == null);
       if (need.length) {
-        const all = await getDailyAll(ctx);
-        need.forEach((c) => { if (all[c] != null) prices[c] = all[c]; });
+        // 補價是「有就好」，絕不能拖垮整包回應。匯入歷史後一定會有下市／已賣光的代號查不到，
+        // 而這條冷路徑一失敗以前會讓整個請求 500，連 MIS 已經查到的持股也一起沒有報價，
+        // 前端的 `if (!res.ok) return` 又是靜默的，症狀就是「收盤價永遠不更新」。
+        try {
+          const all = await getDailyAll(ctx, need);
+          need.forEach((c) => { if (all[c] != null) prices[c] = all[c]; });
+        } catch (e) { partial = true; }
       }
     }
 
-    const [fx, usMap] = await Promise.all([getFX(ctx), getUS(usCodes, env)]);
-    Object.keys(usMap).forEach((c) => { prices[c] = usMap[c]; });
+    let fx = {};
+    try {
+      const [fxRes, usMap] = await Promise.all([getFX(ctx), getUS(usCodes, env)]);
+      fx = fxRes;
+      Object.keys(usMap).forEach((c) => { prices[c] = usMap[c]; });
+    } catch (e) { partial = true; }
 
     // Yahoo fallback for US codes Finnhub didn't cover (e.g. SPCX / pre-IPO),
     // and for all US codes when no Finnhub key is set. Also carries 盤後價.
     const usMiss = usCodes.filter((c) => prices[c] == null);
     let usedYahoo = false;
     if (usMiss.length) {
-      const yh = await getYahoo(usMiss);
-      Object.keys(yh).forEach((c) => { prices[c] = yh[c]; });
-      usedYahoo = Object.keys(yh).length > 0;
+      try {
+        const yh = await getYahoo(usMiss);
+        Object.keys(yh).forEach((c) => { prices[c] = yh[c]; });
+        usedYahoo = Object.keys(yh).length > 0;
+      } catch (e) { partial = true; }
     }
 
-    return json({ date: todayStr(), prices, fx, source: 'twse-mis' + (env && env.FINNHUB_KEY ? '+finnhub' : '') + (usedYahoo ? '+yahoo' : '') });
+    // partial：有某個來源失敗，prices 可能不完整。仍然回 200 帶著已經拿到的價格——
+    // 回 500 會讓前端整批丟棄，連查得到的持股都沒有報價。
+    return json({ date: todayStr(), prices, fx, partial,
+      source: 'twse-mis' + (env && env.FINNHUB_KEY ? '+finnhub' : '') + (usedYahoo ? '+yahoo' : '') });
   },
 };

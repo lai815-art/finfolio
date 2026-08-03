@@ -304,6 +304,7 @@ function InvestDetailSheet({ data, mask, onClose, savedTrades = [], onEditRecord
 function InvestScreen({ hideAmounts, onOpenDetail, savedTrades = [], computedHoldings = [], masterData = {}, pricesFetchedAt, onRefreshPrices, onOpenBreakdown }) {
   const [activeTab, setActiveTab] = useStateInv('stock');
   const [refreshing, setRefreshing] = useStateInv(false);
+  const [priceNote, setPriceNote] = useStateInv(''); // 報價更新失敗／部分缺價的提示，數秒後自動消失
   const { RefreshCw } = window.Icons;
 
   // Drag-to-scroll for broker tab bar
@@ -327,11 +328,20 @@ function InvestScreen({ hideAmounts, onOpenDetail, savedTrades = [], computedHol
     if (el) {el.style.cursor = 'grab';el.style.userSelect = '';}
   };
 
-  const doRefresh = () => {
+  // 等真正的結果再收起轉圈，並把失敗說出來。以前是固定轉 1200ms 就結束、完全不看回傳，
+  // 所以報價服務掛掉跟成功長得一模一樣，只能靠使用者自己察覺價格沒動。
+  const doRefresh = async () => {
     if (refreshing) return;
     setRefreshing(true);
-    if (onRefreshPrices) onRefreshPrices();
-    setTimeout(() => setRefreshing(false), 1200);
+    setPriceNote('');
+    let note = '';
+    try {
+      const r = onRefreshPrices ? await onRefreshPrices() : null;
+      if (r && !r.ok) note = r.reason || '報價更新失敗';
+      else if (r && r.missing > 0) note = `${r.missing} 檔查無報價，沿用成交價`;
+    } catch (e) { note = '報價更新失敗'; }
+    setRefreshing(false);
+    if (note) { setPriceNote(note);setTimeout(() => setPriceNote(''), 4000); }
   };
 
   const mask = (v) => fmtInv(v); // 一般數字不再受眼睛遮蔽；只遮最上層總額（總市值/未實現損益）
@@ -457,6 +467,11 @@ function InvestScreen({ hideAmounts, onOpenDetail, savedTrades = [], computedHol
                 <span style={{ opacity: 0.7, fontWeight: 400 }}>({portPnl < 0 ? '' : '+'}{portPct.toFixed(1)}%)</span>
               </span>
             </div>
+          }
+          {priceNote &&
+          <div style={{ marginTop: SP(6), fontSize: FS(14), color: 'rgba(255,255,255,0.72)' }}>
+            {priceNote}
+          </div>
           }
         </div>
       </div>

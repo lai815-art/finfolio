@@ -748,26 +748,39 @@ function App() {
   // If the service is unset or unreachable, holdings fall back to the
   // transaction price (see computeHoldings).
   const fetchLivePrices = React.useCallback(async () => {
-    const codes = [...new Set(
-      savedTradesRef.current.filter((t) => t.code).map((t) => t.code)
-    )];
-    if (!codes.length) return;
+    // 只問「目前還持有」的代號（買進減賣出後仍為正）。以前是把歷史上交易過的每個代號都送出去，
+    // 匯入歷史後會夾帶大量已賣光／下市的標的：那些不但佔掉報價服務單次可查的額度，還會逼它走
+    // 最貴的補價路徑（下市代號本來就永遠查不到），結果整批請求失敗、所有持股都拿不到報價。
+    const qty = {};
+    savedTradesRef.current.forEach((t) => {
+      if (!t.code) return;
+      const sh = parseFloat(t.shares) || 0;
+      qty[t.code] = (qty[t.code] || 0) + (t.side === 'buy' ? sh : -sh);
+    });
+    const codes = Object.keys(qty).filter((c) => qty[c] > 0);
+    if (!codes.length) return { ok: true, updated: 0, missing: 0 };
     const base = window.FF_PRICE_API;
-    if (!base) return; // price service not configured yet
+    if (!base) return { ok: false, reason: '未設定報價服務' };
     try {
       const res = await fetch(base + '/quotes?codes=' + encodeURIComponent(codes.join(',')));
-      if (!res.ok) return;
+      if (!res.ok) return { ok: false, reason: '報價服務錯誤 ' + res.status };
       const data = await res.json();
       if (data && data.fx && data.fx.USD) window.FX_RATES.USD = data.fx.USD;
-      if (data && data.prices && Object.keys(data.prices).length > 0) {
+      const got = data && data.prices ? data.prices : {};
+      if (Object.keys(got).length > 0) {
         setLivePrices((prev) => {
-          const merged = { ...prev, ...data.prices };
+          const merged = { ...prev, ...got };
           try { localStorage.setItem('ff_prices', JSON.stringify({ prices: merged, fx: data.fx || {}, date: data.date || null })); } catch (e) {}
           return merged;
         });
         setPricesFetchedAt(data.date ? new Date(data.date) : new Date());
       }
-    } catch (e) { /* offline / blocked — keep cached prices */ }
+      // 少數代號查無報價是正常的（下市、興櫃），回報缺幾檔讓 UI 能誠實顯示，而不是假裝成功。
+      const missing = codes.filter((c) => got[c] == null);
+      return { ok: true, updated: Object.keys(got).length, missing: missing.length, missingCodes: missing };
+    } catch (e) {
+      return { ok: false, reason: '連線失敗' }; // offline / blocked — keep cached prices
+    }
   }, []);
 
   const [recordOpen, setRecordOpen] = useStateApp(false);
