@@ -2898,16 +2898,21 @@ function ImportSheet({ open, onClose, data, setData, savedFlows, savedTrades, se
       });
 
       // 一般收支（檔案2 收支彙總）：直接帶 kind/cat/account，不套投資專用的分類推斷。
-      // ensureCats 先把要用到但還沒有的收入/支出分類（含新增大類）補進主檔；flows 用到的
-      // 帳戶不存在就自動建立。這樣薪資/餐飲/旅遊…等一般記帳也能正確匯入並歸到對的大類。
+      // ensureCats 把要用到的收入/支出分類補進主檔（不存在就新增，已存在但大類不同就校正
+      // 成匯入檔指定的大類，否則消費分析圓餅圖會把舊大類殘留下來、分類看起來像沒被記錄）；
+      // flows 用到的帳戶不存在就自動建立。這樣薪資/餐飲/旅遊…等一般記帳也能正確匯入並歸到對的大類。
       const L = parsed.ledger || {};
       const catName = (c) => typeof c === 'string' ? c : c && c.name;
       if (L.ensureCats) {
         (L.ensureCats.inc || []).forEach((it) => {
-          if (!nextData.cat_inc.some((c) => catName(c) === it.name)) nextData.cat_inc.push(it);
+          const idx = nextData.cat_inc.findIndex((c) => catName(c) === it.name);
+          if (idx === -1) nextData.cat_inc.push(it);
+          else if (it.group && nextData.cat_inc[idx].group !== it.group) nextData.cat_inc[idx] = { ...nextData.cat_inc[idx], group: it.group };
         });
         (L.ensureCats.exp || []).forEach((it) => {
-          if (!nextData.cat_exp.some((c) => catName(c) === it.name)) nextData.cat_exp.push(it);
+          const idx = nextData.cat_exp.findIndex((c) => catName(c) === it.name);
+          if (idx === -1) nextData.cat_exp.push(it);
+          else if (it.group && nextData.cat_exp[idx].group !== it.group) nextData.cat_exp[idx] = { ...nextData.cat_exp[idx], group: it.group };
         });
       }
       (L.flows || []).forEach((x) => {
@@ -2919,12 +2924,12 @@ function ImportSheet({ open, onClose, data, setData, savedFlows, savedTrades, se
           icon: x.kind === 'inc' ? '💰' : '📝', importBatch: parsed.batchId, time: '歷史匯入', _justAdded: stamp() });
       });
 
-      // 重匯 = 取代：先移除「上一次歷史匯入」的紀錄並回退它對交割戶初始餘額的調整，
-      // 才不會每匯一次就重複累加（例如修正檔重匯時交割戶餘額翻倍）。
+      // 重匯 = 取代：先移除「所有歷史匯入」的紀錄（不只上一批），並回退上一批對交割戶
+      // 初始餘額的調整，才不會每匯一次就重複累加，也才能讓新檔案裡已經不存在的標的
+      // （例如已經賣光的股票）在重匯後正確消失，而不是永遠殘留在帳上。
       let prevMeta = null;try {prevMeta = JSON.parse(localStorage.getItem('ff_import_meta') || 'null');} catch {}
-      const prevBatch = prevMeta && prevMeta.batchId;
-      const nextTrades = [...(savedTrades || []).filter((t) => !prevBatch || t.importBatch !== prevBatch), ...newTrades];
-      const nextFlows = [...newFlows, ...(savedFlows || []).filter((f) => !prevBatch || f.importBatch !== prevBatch)];
+      const nextTrades = [...(savedTrades || []).filter((t) => t.time !== '歷史匯入'), ...newTrades];
+      const nextFlows = [...newFlows, ...(savedFlows || []).filter((f) => f.time !== '歷史匯入')];
 
       // 匯入資料量大：背景的持久化 effect 遇到空間不足會「靜默失敗」——畫面顯示成功、
       // 重開 App 資料卻消失。所以這裡先清掉可自動重建的快取釋放空間，再「同步」寫入；
