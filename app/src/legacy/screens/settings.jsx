@@ -1,4 +1,6 @@
 // Settings / 系統設定（含 AI 金鑰、主檔管理：記帳分類 / 記帳帳戶（一般帳戶、證券戶、交割戶））
+import { ffRecurringDay, ffInitialLastRun } from '../recurring.js';
+
 const { useState: useStateSet } = React;
 
 // AI 相關設定暫時隱藏（AI 顧問功能尚未上線）。改回 true 即可重新顯示。
@@ -2533,7 +2535,7 @@ function RecurringSheet({ open, onClose, data }) {
   const saveForm = () => {
     const f = form;
     if (!f) return;
-    const day = Math.min(Math.max(parseInt(f.dayOfMonth, 10) || 1, 1), 28);
+    const day = ffRecurringDay(f);
     if (f.type === 'expense') {
       if (!(parseFloat(f.amount) > 0)) {setErr('請輸入大於 0 的金額');return;}
       if (!f.category) {setErr('請選擇分類');return;}
@@ -2545,7 +2547,8 @@ function RecurringSheet({ open, onClose, data }) {
       if (!(parseFloat(f.amount) > 0)) {setErr('請輸入大於 0 的金額');return;}
     }
     const rule = { ...f, dayOfMonth: day };
-    if (!rule.lastRun) rule.lastRun = window.ffInitialLastRun ? window.ffInitialLastRun(day, new Date()) : '';
+    // 新規則先把 lastRun 設在「本月/上月」，讓扣款日還沒到的月份不會在儲存當下就被扣款。
+    if (!rule.lastRun) rule.lastRun = ffInitialLastRun(day, new Date());
     const idx = rules.findIndex((r) => r.id === rule.id);
     persist(idx >= 0 ? rules.map((r) => r.id === rule.id ? rule : r) : [...rules, rule]);
     setForm(null);setErr('');

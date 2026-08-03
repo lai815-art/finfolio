@@ -1,4 +1,6 @@
 // Dashboard / 資產整合看板
+import { ffRecurringDay } from '../recurring.js';
+
 const { useState: useStateDash, useEffect: useEffectDash, useRef: useRefDash, useMemo: useMemoDash } = React;
 
 function PieDonut({ data, size = 168, thickness = 22 }) {
@@ -47,8 +49,8 @@ function mulberry(seed) {
 
 const TODAY = new Date(); // 開啟 App 時的當前日期
 
-// 自動轉帳/定期支出規則的扣款日（1–28，與 settings.jsx 儲存時的夾限規則一致）
-function recurringDayOf(r) {return Math.min(Math.max(parseInt(r.dayOfMonth, 10) || 1, 1), 28);}
+// 自動轉帳/定期支出規則的扣款日（1–28）；夾限規則與規則儲存端共用同一份實作。
+const recurringDayOf = ffRecurringDay;
 // 只比較日期（忽略時分秒），用來判斷 selectedDate 是否為「今天以後」的未來日期
 function dateOnly(d) {return new Date(d.getFullYear(), d.getMonth(), d.getDate());}
 

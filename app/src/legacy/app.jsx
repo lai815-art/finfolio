@@ -56,73 +56,8 @@ function ffFindDupNames(md) {
 }
 if (typeof window !== 'undefined') window.ffFindDupNames = ffFindDupNames;
 
-/* ── 自動轉帳 / 定期支出 ─────────────────────────────────────────────
-   規則存於 localStorage ff_recurring：
-   { id, type:'expense'|'transfer', name, enabled, dayOfMonth(1..28), lastRun:'YYYY-MM',
-     // expense:  amount, category, account
-     // transfer: fromAccount, toAccount, amount }
-   每次開 App 時把「上次產生之後、到本月為止且已過扣款日」的月份補記入帳。 */
-function ffYM(d) {return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0');}
-function ffPrevYM(ym) {const a = ym.split('-').map(Number);return ffYM(new Date(a[0], a[1] - 2, 1));}
-function ffInitialLastRun(day, now) {
-  const cm = ffYM(now);
-  return now.getDate() >= day ? cm : ffPrevYM(cm); // 扣款日已過→下月才跑；未到→本月仍會跑
-}
-function ffMonthsAfter(lastRun, now) {
-  const res = [];const cy = now.getFullYear(),cm = now.getMonth() + 1;
-  const a = (lastRun || '').split('-').map(Number);
-  let cur = new Date(a[0] || cy, (a[1] || cm) - 1, 1);cur.setMonth(cur.getMonth() + 1);
-  let guard = 0;
-  while ((cur.getFullYear() < cy || cur.getFullYear() === cy && cur.getMonth() + 1 <= cm) && guard < 36) {
-    res.push(ffYM(cur));cur.setMonth(cur.getMonth() + 1);guard++;
-  }
-  return res;
-}
-function ffRunRecurring(ctx) {
-  let rules;
-  try {rules = JSON.parse(localStorage.getItem('ff_recurring') || '[]');} catch {return null;}
-  if (!Array.isArray(rules) || !rules.length) return null;
-  const now = ctx.now || new Date();
-  const cm = ffYM(now);
-  const base = Date.now();let seq = 0;
-  const mkDate = (ym, day) => ym + '-' + String(day).padStart(2, '0');
-  const mkStamp = () => base + seq++;
-  const newFlows = [];
-  let changed = false;
-
-  rules.forEach((r) => {
-    if (!r.enabled) return;
-    const day = Math.min(Math.max(parseInt(r.dayOfMonth, 10) || 1, 1), 28);
-    const due = ffMonthsAfter(r.lastRun || ffPrevYM(cm), now).
-    filter((ym) => ym < cm || ym === cm && now.getDate() >= day);
-    if (!due.length) return;
-
-    const mkExpense = (ym, amt) => ({
-      kind: 'exp', amount: amt, cat: r.category, merchant: '自動 · ' + (r.name || r.category || '定期支出'),
-      account: r.account, date: mkDate(ym, day), icon: '🔁',
-      auto: true, recurringId: r.id, time: '自動', _justAdded: mkStamp() });
-
-    const mkTransfer = (ym, amt) => ({
-      kind: 'xfer', amount: amt, cat: '自動轉帳', merchant: '自動 · ' + (r.name || '自動轉帳'),
-      account: r.fromAccount + ' → ' + r.toAccount, fromAccount: r.fromAccount, toAccount: r.toAccount,
-      xferFee: 0, date: mkDate(ym, day), icon: '↔️',
-      auto: true, recurringId: r.id, time: '自動', _justAdded: mkStamp() });
-
-    if (r.type === 'transfer') {
-      const amt = parseFloat(r.amount) || 0;
-      due.forEach((ym) => {if (amt > 0) newFlows.push(mkTransfer(ym, amt));});
-      r.lastRun = due[due.length - 1];changed = true;
-    } else {
-      const amt = parseFloat(r.amount) || 0;
-      due.forEach((ym) => {if (amt > 0) newFlows.push(mkExpense(ym, amt));});
-      r.lastRun = due[due.length - 1];changed = true;
-    }
-  });
-
-  if (changed) {try {localStorage.setItem('ff_recurring', JSON.stringify(rules));} catch {}}
-  return newFlows.length ? newFlows : null;
-}
-if (typeof window !== 'undefined') window.ffInitialLastRun = ffInitialLastRun;
+// 自動轉帳 / 定期支出的規則邏輯移到 ./recurring.js（見檔案開頭說明），
+// 那裡也負責把 ffInitialLastRun 等掛到 window 供 settings.jsx 使用。
 
 /* ── App 鎖定：進入需輸入密碼，可選生物辨識（Face ID / 指紋）─────────
    密碼以 SHA-256（加 salt）雜湊後存於本機，不存明碼。生物辨識用 WebAuthn
@@ -256,6 +191,7 @@ function LockScreen({ onUnlock }) {
 // file's ReactDOM.createRoot(...) mount call at the bottom.
 import { computeAccounts, computeHoldings, tradeChrono, fifoConsume } from './compute.js';
 import { parseUtterance } from './voice-parse.js';
+import { ffRunRecurring } from './recurring.js';
 
 const TAB_COLORS = [TOKENS.ink2, TOKENS.gray3, TOKENS.gray2, TOKENS.gray4, TOKENS.gray1, TOKENS.ink];
 
