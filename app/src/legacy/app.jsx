@@ -968,8 +968,10 @@ function App() {
   // 而非 computedHoldings，避免被背景報價刷新提前觸發。
   useEffectApp(() => {
     if (!recordReturnInvestDetail) return;
-    const code = recordReturnInvestDetail.code;
-    const item = computedHoldings.flatMap((g) => g.items).find((it) => it.code === code);
+    const { code, broker } = recordReturnInvestDetail;
+    const items = computedHoldings.flatMap((g) => g.items);
+    // 同一檔股票可能分屬不同券商，先找同券商那筆，找不到（例如已賣光）才退回同代號任一筆。
+    const item = items.find((it) => it.code === code && it.broker === broker) || items.find((it) => it.code === code);
     if (item) {
       setInvestDetail({ item, mask: appMask, savedTrades });
       setRecordReturnInvestDetail(null);
@@ -1273,8 +1275,9 @@ function App() {
         }
         if (recordReturnInvestDetail) {
           setTab(recordReturnTab);
-          const code = recordReturnInvestDetail.code;
-          const item = computedHoldings.flatMap((g) => g.items).find((it) => it.code === code);
+          const { code, broker } = recordReturnInvestDetail;
+          const items = computedHoldings.flatMap((g) => g.items);
+          const item = items.find((it) => it.code === code && it.broker === broker) || items.find((it) => it.code === code);
           if (item) setInvestDetail({ item, mask: appMask, savedTrades });
           setRecordReturnInvestDetail(null);
           setRecordReturnTab('dashboard');
@@ -1357,10 +1360,11 @@ function App() {
             }}
             onEditRecord={(d) => {
               // 同帳戶詳情：不卸載個股詳情頁，記一筆疊在上面，關閉後直接露出，避免閃跳。
-              const code = investDetail.item.code;
+              // 帶上 broker：同一檔股票可能分屬不同券商，回復時要認得是哪一筆持股。
+              const { code, broker } = investDetail.item;
               setRecordDraft(d);
               setRecordReturnTab('invest');
-              setRecordReturnInvestDetail({ code });
+              setRecordReturnInvestDetail({ code, broker });
               setRecordOpen(true);
             }} />}
           </>);

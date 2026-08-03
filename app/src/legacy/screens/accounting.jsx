@@ -746,12 +746,14 @@ function StockForm({ state, update, onSaved, onDelete, recordId, masterData, com
   const [showHoldings, setShowHoldings] = useStateAcc(false);
 
   // When switching to sell, show holdings picker if available
+  // 同一檔股票可能分屬不同券商，選了哪一筆持股就帶入哪個券商，避免賣出時券商跟持股股數對不上。
   const pickHolding = (h) => {
     update({
       code: h.code, name: h.name,
       shares: String(h.qty),
       price: String(h.price),
-      assetClass: h.assetClass || '股票'
+      assetClass: h.assetClass || '股票',
+      ...(h.broker ? { broker: h.broker } : {})
     });
   };
 
@@ -906,7 +908,7 @@ function StockForm({ state, update, onSaved, onDelete, recordId, masterData, com
       {state.side === 'sell' && showHoldings && allHoldings.length > 0 && !state.code &&
       <div style={{ marginTop: SP(8), display: 'flex', flexDirection: 'column', gap: SP(6) }}>
           {allHoldings.map((h) =>
-        <button key={h.code} onMouseDown={() => {pickHolding(h);setShowHoldings(false);}} style={{
+        <button key={h.code + '|' + (h.broker || '')} onMouseDown={() => {pickHolding(h);setShowHoldings(false);}} style={{
           display: 'flex', alignItems: 'center', gap: SP(12), padding: PAD('10px 14px'),
           borderRadius: RS(14), textAlign: 'left',
           background: TOKENS.surface, border: '1px solid rgba(168,189,140,0.45)', cursor: 'pointer'
@@ -924,7 +926,7 @@ function StockForm({ state, update, onSaved, onDelete, recordId, masterData, com
                   <span style={{ color: 'rgba(44,44,50,0.88)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{h.name}</span>
                 </div>
                 <div style={{ fontSize: FS(16), color: 'rgba(44,44,50,0.88)', marginTop: SP(1), fontFamily: TOKENS.fontMono }}>
-                  {h.qty.toLocaleString()} 股 · 均價 {h.avg.toLocaleString()}
+                  {h.qty.toLocaleString()} 股 · 均價 {h.avg.toLocaleString()}{h.broker ? ` · ${h.broker}` : ''}
                 </div>
               </div>
               <div style={{ fontSize: FS(17), fontWeight: 600, fontFamily: TOKENS.fontMono,

@@ -144,15 +144,19 @@ export function computeStockTrade({ side, shares, price, brokerObj, assetClass, 
 export function computeHoldings(trades, masterData, livePrices = {}) {
   if (!trades) return [];
   const curMap = window.buildCurMap(masterData);
+  // 同一檔股票在不同券商各自獨立持有，分組 key 要含 broker，否則不同券商的股數/成本
+  // 會被錯誤加總在一起（例如凱基 200 股台積電 + 元大 5000 股台積電 變成 5200 股）。
   const stocks = {};
   trades.slice().sort(tradeChrono).forEach((t) => {
     if (!t.code) return;
-    if (!stocks[t.code]) stocks[t.code] = {
+    const broker = t.broker || t.settleAccount || '';
+    const key = t.code + '|' + broker;
+    if (!stocks[key]) stocks[key] = {
       code: t.code, name: t.name || t.code, qty: 0, lots: [],
-      assetClass: t.assetClass || '股票', broker: t.broker || t.settleAccount || '',
+      assetClass: t.assetClass || '股票', broker,
       lastPrice: parseFloat(t.price) || 0
     };
-    const s = stocks[t.code];
+    const s = stocks[key];
     const sh = parseFloat(t.shares) || 0,pr = parseFloat(t.price) || 0;
     if (t.side === 'buy') {
       const gross = window.floorAmt(sh * pr);

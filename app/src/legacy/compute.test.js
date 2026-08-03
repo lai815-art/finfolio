@@ -81,6 +81,21 @@ describe('computeHoldings', () => {
     const holding = groups.find((g) => g.id === 'ETF').items.find((i) => i.code === '0050');
     expect(holding.price).toBe(100);
   });
+
+  it('keeps the same stock held at different brokers as separate holdings', () => {
+    const trades = [
+      { code: '2330', name: '台積電', side: 'buy', shares: 200, price: 2000, date: '2024-01-01', assetClass: '股票', broker: '凱基證券' },
+      { code: '2330', name: '台積電', side: 'buy', shares: 5000, price: 500, date: '2024-01-01', assetClass: '股票', broker: '元大證券' },
+    ];
+    const groups = computeHoldings(trades, masterData, {});
+    const items = groups.find((g) => g.id === '股票').items.filter((i) => i.code === '2330');
+
+    expect(items).toHaveLength(2);
+    const kgi = items.find((i) => i.broker === '凱基證券');
+    const yuanta = items.find((i) => i.broker === '元大證券');
+    expect(kgi.qty).toBe(200);
+    expect(yuanta.qty).toBe(5000);
+  });
 });
 
 describe('defaultTaxRate', () => {

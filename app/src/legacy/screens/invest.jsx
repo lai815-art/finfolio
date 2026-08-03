@@ -87,8 +87,9 @@ function InvestDetailSheet({ data, mask, onClose, savedTrades = [], onEditRecord
 
   const fmtDate = (d) => {const dt = d instanceof Date ? d : new Date(d);return `${dt.getFullYear()}/${dt.getMonth() + 1}/${dt.getDate()}`;};
 
-  // Filter savedTrades for this stock
-  const stockTrades = savedTrades.filter((t) => t.code === data.code)
+  // Filter savedTrades for this stock — 同一檔股票可能分屬不同券商，data.qty 只算這個券商的，
+  // 交易紀錄也要同券商，否則下面重算的 adjQty 會把其他券商的股數也算進來，跟 data 不一致。
+  const stockTrades = savedTrades.filter((t) => t.code === data.code && (t.broker || t.settleAccount || '') === (data.broker || ''))
     .slice().sort((a, b) => { const d = new Date(b.date) - new Date(a.date); return d !== 0 ? d : (b._justAdded || 0) - (a._justAdded || 0); });
 
   // Compute position purely from recorded trades (FIFO)——data.qty 已含這些交易，不可重複疊加
