@@ -864,8 +864,10 @@ function App() {
   const hiddenCount = hidden.accts.length + hidden.stocks.length;
   const toggleAcctHidden = (name) => setHidden((h) => ({ ...h,
     accts: h.accts.includes(name) ? h.accts.filter((n) => n !== name) : [...h.accts, name] }));
-  const toggleStockHidden = (code) => setHidden((h) => ({ ...h,
-    stocks: h.stocks.includes(code) ? h.stocks.filter((c) => c !== code) : [...h.stocks, code] }));
+  // key 為 code + '|' + broker，跟 computeHoldings() 內部分組 key 一致，讓同一檔股票在
+  // 不同券商可以各自獨立隱藏，不會互相牽連。
+  const toggleStockHidden = (code, broker) => { const key = code + '|' + (broker || ''); setHidden((h) => ({ ...h,
+    stocks: h.stocks.includes(key) ? h.stocks.filter((c) => c !== key) : [...h.stocks, key] })); };
 
   // revealHidden 開啟時等同「沒有任何隱藏」，下游一律看這兩個集合。
   const EMPTY_SET = React.useMemo(() => new Set(), []);
@@ -880,7 +882,7 @@ function App() {
   !(f.fromAccount && displayHiddenAccts.has(f.fromAccount)) && !(f.toAccount && displayHiddenAccts.has(f.toAccount))),
   [savedFlows, displayHiddenAccts]);
   const visibleTrades = React.useMemo(() => !displayHiddenStocks.size && !displayHiddenAccts.size ? savedTrades :
-  savedTrades.filter((t) => !displayHiddenStocks.has(t.code) &&
+  savedTrades.filter((t) => !displayHiddenStocks.has(t.code + '|' + (t.broker || t.settleAccount || '')) &&
   !(t.broker && displayHiddenAccts.has(t.broker))),
   [savedTrades, displayHiddenStocks, displayHiddenAccts]);
 
@@ -1323,10 +1325,10 @@ function App() {
             savedTrades={visibleTrades}
             onClose={() => setInvestDetail(null)}
             hideAmounts={hideAmounts} revealHidden={revealHidden}
-            isHidden={hiddenStockSet.has(investDetail.item.code)}
+            isHidden={hiddenStockSet.has(investDetail.item.code + '|' + (investDetail.item.broker || ''))}
             onToggleHidden={() => {
-              const wasHidden = hiddenStockSet.has(investDetail.item.code);
-              toggleStockHidden(investDetail.item.code);
+              const wasHidden = hiddenStockSet.has(investDetail.item.code + '|' + (investDetail.item.broker || ''));
+              toggleStockHidden(investDetail.item.code, investDetail.item.broker);
               if (!wasHidden) setRevealHidden(false); // 新隱藏 → 立即從清單與統計消失
               setInvestDetail(null);
             }}

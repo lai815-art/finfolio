@@ -128,6 +128,7 @@ App 分四個主要分頁（底部 TabBar）＋一個全螢幕設定頁：
 **核心計算邏輯**
 - `computeAccounts()`：從各帳戶初始餘額出發，依收支/轉帳/股票交易逐筆計算目前餘額；未來日期的紀錄不計入；信用卡類帳戶以「負債」方式顯示餘額。
 - `computeHoldings()`：依交易時間排序，用 **FIFO（先進先出）** 配對買賣成本，算出目前持股數量、均價、市值、未實現損益。
+- 開發者隱藏個股：`excludeHiddenHoldings()` 以「代號+券商」為 key（跟 `computeHoldings()` 內部分組 key 一致），同一檔股票在不同券商可以各自獨立隱藏，互不影響。
 
 **Worker API 合約（`finfolio-prices`）**
 - `GET /quotes?codes=...` → `{date, prices, fx, source}`：台股走 TWSE MIS 即時報價，缺的再補 TWSE/TPEx 收盤價；美股先查 Finnhub（需設定 `FINNHUB_KEY`），沒設定或查不到就 fallback 到 Yahoo Finance（不需金鑰）。
