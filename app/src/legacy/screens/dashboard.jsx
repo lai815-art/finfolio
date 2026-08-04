@@ -1064,37 +1064,6 @@ function MonthlyStatsSheet({ open, onClose, savedFlows, masterData, hideAmounts,
         {data.map((_, i) => <rect key={'h' + i} x={xAt(i) - cw / 2} y={0} width={cw} height={H} fill="transparent" onClick={() => toggleSel(i)} style={{ cursor: 'pointer' }} />)}
       </svg>);
   };
-  // 儲蓄率趨勢：獨立小型 sparkline，跟 ComboChart 分開座標——金額與百分比尺度差太多，不共用 Y 軸。
-  const SavingsRateStrip = ({ data }) => {
-    const rates = data.map((a) => a.inc > 0 ? (a.inc - a.exp) / a.inc * 100 : null);
-    const valid = rates.filter((v) => v != null);
-    if (!valid.length) return null;
-    const W = 340, H = 56, pL = 16, pR = 12, pT = 10, pB = 10, n = rates.length;
-    const chartH = H - pT - pB;
-    const maxV = Math.max(0, ...valid), minV = Math.max(-100, Math.min(0, ...valid));
-    const range = maxV - minV || 1;
-    const xAt = (i) => pL + (W - pL - pR) * (n === 1 ? 0.5 : i / (n - 1));
-    const yAt = (v) => pT + chartH * (1 - (v - minV) / range);
-    const zeroY = yAt(0);
-    const cw = (W - pL - pR) / Math.max(1, n - 1);
-    // 沒有收入的期間（inc=0）讓線斷開，不能畫成假的 0%
-    const segs = []; let cur = [];
-    rates.forEach((v, i) => { if (v == null) { if (cur.length) segs.push(cur); cur = []; return; } cur.push(i); });
-    if (cur.length) segs.push(cur);
-    return (
-      <svg width="100%" viewBox={`0 0 ${W} ${H}`} style={{ display: 'block' }}>
-        <line x1={pL} y1={zeroY} x2={W - pR} y2={zeroY} stroke="rgba(0,0,0,0.14)" strokeDasharray="2 2" />
-        {selIdx != null && selIdx < n &&
-        <line x1={xAt(selIdx)} y1={0} x2={xAt(selIdx)} y2={H} stroke="rgba(0,0,0,0.28)" strokeWidth="1.5" strokeDasharray="3 3" />}
-        {segs.map((seg, si) =>
-        <polyline key={si} pathLength="1" points={seg.map((i) => `${xAt(i).toFixed(1)},${yAt(rates[i]).toFixed(1)}`).join(' ')}
-          fill="none" stroke={TOKENS.teal} strokeWidth="2" strokeDasharray="1" strokeLinejoin="round" strokeLinecap="round"
-          style={{ animation: `drawLine 650ms cubic-bezier(0.32,0.72,0.18,1) ${300 + si * 60}ms both` }} />
-        )}
-        {/* 點擊熱區：跟 ComboChart 共用 selIdx/toggleSel，點哪裡都會開同一個 SelPopup */}
-        {data.map((_, i) => <rect key={'h' + i} x={xAt(i) - cw / 2} y={0} width={cw} height={H} fill="transparent" onClick={() => toggleSel(i)} style={{ cursor: 'pointer' }} />)}
-      </svg>);
-  };
   // 點選後的彈出視窗（取代原本的列展開／圖下小視窗）
   const curData = view === 'month' ? months : decadeYears.map((y) => yearAgg[y]);
   const SelPopup = () => {
@@ -1352,10 +1321,6 @@ function MonthlyStatsSheet({ open, onClose, savedFlows, masterData, hideAmounts,
               <ComboChart key={view + '-' + (view === 'month' ? viewYear : decadeYears[0])}
               data={curData} labels={view === 'month' ? monthLabels : yearLabels} hiddenSeries={hiddenSeries}
               prevData={view === 'month' ? prevYearMonths : undefined} />
-              <div style={{ marginTop: SP(10) }}>
-                <div style={{ fontSize: FS(12), color: 'rgba(44,44,50,0.62)', marginBottom: SP(2), paddingLeft: SP(2) }}>儲蓄率</div>
-                <SavingsRateStrip data={curData} />
-              </div>
               <div style={{ fontSize: FS(12), color: 'rgba(44,44,50,0.55)', marginTop: SP(4), paddingLeft: SP(2) }}>點圖或下方列表可查看該{view === 'month' ? '月' : '年'}明細</div>
             </div>
             <div style={{ ...cardStyle, padding: PAD('14px') }}>
@@ -1394,19 +1359,19 @@ function ffSetSavingsGoals(v) {
 // 目標類型設定：新增目標的類型選單、表單欄位都從這份清單長出來，不用寫一大串 if/else。
 // recurring=true 的三種是週期性目標（本期進度＋歷史達成率，沒有目標年月），且可選固定金額
 // 或跟上一期比的%成長。
-const GOAL_TYPES = [
+export const GOAL_TYPES = [
   { key: 'networth', icon: 'PiggyBank', label: '淨資產目標', desc: '淨資產於指定年月達到目標金額', recurring: false },
   { key: 'account', icon: 'Wallet', label: '單一帳戶餘額', desc: '指定帳戶餘額達到目標金額（無期限）', recurring: false },
   { key: 'passive_income', icon: 'TrendUp', label: '被動收入', desc: '被動收入達到目標，可選以月或以年為單位', recurring: true },
   { key: 'balance', icon: 'Receipt', label: '收支結餘', desc: '收支結餘達到目標，可選以月或以年為單位', recurring: true },
   { key: 'stock_gain', icon: 'LineChart', label: '股票已實現損益', desc: '股票買賣已實現損益達標（不含股息債息），可選以月或以年為單位', recurring: true },
 ];
-const GOAL_TYPE_MAP = Object.fromEntries(GOAL_TYPES.map((t) => [t.key, t]));
+export const GOAL_TYPE_MAP = Object.fromEntries(GOAL_TYPES.map((t) => [t.key, t]));
 
 // 被動收入：複製 MonthlyStatsSheet 的 incGroupOf/amtOf 邏輯——那是該元件的私有 closure、
 // 未對外匯出，這裡刻意重新實作一份小型獨立版本，避免跨元件耦合。年/月兩種版本共用同一套
 // 分類判斷，只差在日期篩選的粒度。
-function ffPassiveIncomeForYear(savedFlows, masterData, year) {
+export function ffPassiveIncomeForYear(savedFlows, masterData, year) {
   const INC_LABEL = { '主動': '主動收入', '被動': '被動收入', '投資收入': '投資收入', '其他': '其他' };
   const catIncGroup = {};
   (masterData.cat_inc || []).forEach((c) => { const o = typeof c === 'string' ? { name: c, group: '其他' } : c; catIncGroup[o.name] = o.group || '其他'; });
@@ -1422,7 +1387,7 @@ function ffPassiveIncomeForYear(savedFlows, masterData, year) {
   });
   return total;
 }
-function ffPassiveIncomeForMonth(savedFlows, masterData, year, month /* 1-12 */) {
+export function ffPassiveIncomeForMonth(savedFlows, masterData, year, month /* 1-12 */) {
   const INC_LABEL = { '主動': '主動收入', '被動': '被動收入', '投資收入': '投資收入', '其他': '其他' };
   const catIncGroup = {};
   (masterData.cat_inc || []).forEach((c) => { const o = typeof c === 'string' ? { name: c, group: '其他' } : c; catIncGroup[o.name] = o.group || '其他'; });
@@ -1441,7 +1406,7 @@ function ffPassiveIncomeForMonth(savedFlows, masterData, year, month /* 1-12 */)
 }
 
 // 結餘：指定期間的 inc - exp，年/月兩種版本只差日期篩選粒度。
-function ffMonthlyBalance(savedFlows, masterData, year, month /* 1-12 */) {
+export function ffMonthlyBalance(savedFlows, masterData, year, month /* 1-12 */) {
   const curMap = window.buildCurMap(masterData);
   const amtOf = (f) => window.fxToTWD(f.amount, curMap[f.account]);
   let inc = 0, exp = 0;
@@ -1454,7 +1419,7 @@ function ffMonthlyBalance(savedFlows, masterData, year, month /* 1-12 */) {
   });
   return inc - exp;
 }
-function ffYearlyBalance(savedFlows, masterData, year) {
+export function ffYearlyBalance(savedFlows, masterData, year) {
   const curMap = window.buildCurMap(masterData);
   const amtOf = (f) => window.fxToTWD(f.amount, curMap[f.account]);
   let inc = 0, exp = 0;
@@ -1470,7 +1435,7 @@ function ffYearlyBalance(savedFlows, masterData, year) {
 // 已實現股票損益：只算買賣操作損益，複製 invest.jsx InvestBreakdownSheet 判斷式裡的 pnl
 // 分支（merchant 精確比對 → 舊資料 regex fallback），故意跳過股息/債息分支——那兩者算被動
 // 收入，不算「操作」。年/月兩種版本只差日期篩選粒度。
-function ffRealizedPnlForYear(savedFlows, masterData, year) {
+export function ffRealizedPnlForYear(savedFlows, masterData, year) {
   const curMap = window.buildCurMap(masterData);
   const amtOf = (f) => window.fxToTWD(f.amount, curMap[f.account]);
   let total = 0;
@@ -1487,7 +1452,7 @@ function ffRealizedPnlForYear(savedFlows, masterData, year) {
   });
   return total;
 }
-function ffRealizedPnlForMonth(savedFlows, masterData, year, month /* 1-12 */) {
+export function ffRealizedPnlForMonth(savedFlows, masterData, year, month /* 1-12 */) {
   const curMap = window.buildCurMap(masterData);
   const amtOf = (f) => window.fxToTWD(f.amount, curMap[f.account]);
   let total = 0;
@@ -1508,7 +1473,7 @@ function ffRealizedPnlForMonth(savedFlows, masterData, year, month /* 1-12 */) {
 
 // 三種週期性目標的月/年聚合函式對照表，computeGoalProgress 依 goal.periodUnit 查表，
 // 不用為月/年各寫一次六路判斷。
-const PERIOD_METRIC_GETTERS = {
+export const PERIOD_METRIC_GETTERS = {
   passive_income: { year: ffPassiveIncomeForYear, month: ffPassiveIncomeForMonth },
   balance: { year: ffYearlyBalance, month: ffMonthlyBalance },
   stock_gain: { year: ffRealizedPnlForYear, month: ffRealizedPnlForMonth },
@@ -1516,7 +1481,7 @@ const PERIOD_METRIC_GETTERS = {
 
 // 週期性目標的目標值：固定金額直接用 amount；%成長模式要跟「上一期實際值」比，上一期沒
 // 資料（或非正值，無法算成長）就回傳 null——卡片顯示「尚無上一期資料可比較」，不算百分比。
-function ffResolvePeriodTarget(goal, prevPeriodValue) {
+export function ffResolvePeriodTarget(goal, prevPeriodValue) {
   if (goal.targetMode === 'percent') {
     if (prevPeriodValue == null || prevPeriodValue <= 0) return null;
     return prevPeriodValue * (1 + (goal.percentValue || 0) / 100);
@@ -1527,7 +1492,7 @@ function ffResolvePeriodTarget(goal, prevPeriodValue) {
 // 週期性目標的歷史達成率：對每個「有資料的過去期間」重新解析目標值（%模式一樣滾動跟該期
 // 的上一期比），回傳每期達成與否＋達成次數，畫成小圓點列。periods 由呼叫端算好，newest-first
 // （[上一期, 上上期, ...]），最後一筆只用來當倒數第二筆的「上一期」，不會自己變成一個圓點。
-function ffAchievementHistory(goal, periods) {
+export function ffAchievementHistory(goal, periods) {
   const dots = [];
   for (let i = 0; i < periods.length - 1; i++) {
     const { label, value } = periods[i];
@@ -1541,7 +1506,7 @@ function ffAchievementHistory(goal, periods) {
 
 // savedFlows 裡最早一筆的日期（沒有資料回傳 null）——用來裁剪歷史圓點，避免對還沒有任何
 // 記帳資料的期間生出假的「未達成」圓點。
-function ffEarliestFlowPeriod(savedFlows) {
+export function ffEarliestFlowPeriod(savedFlows) {
   let min = null;
   (savedFlows || []).forEach((f) => {
     if (!f.date) return;
@@ -1550,7 +1515,7 @@ function ffEarliestFlowPeriod(savedFlows) {
   });
   return min;
 }
-function ffYearSeries(getter, startYear, maxCount, earliestYear) {
+export function ffYearSeries(getter, startYear, maxCount, earliestYear) {
   const out = [];
   for (let i = 0; i < maxCount; i++) {
     const y = startYear - i;
@@ -1559,7 +1524,7 @@ function ffYearSeries(getter, startYear, maxCount, earliestYear) {
   }
   return out;
 }
-function ffMonthSeries(getter, startYear, startMonth, maxCount, earliest) {
+export function ffMonthSeries(getter, startYear, startMonth, maxCount, earliest) {
   const out = []; let y = startYear, m = startMonth;
   for (let i = 0; i < maxCount; i++) {
     if (earliest && (y < earliest.getFullYear() || (y === earliest.getFullYear() && m < earliest.getMonth() + 1))) break;
@@ -1571,9 +1536,9 @@ function ffMonthSeries(getter, startYear, startMonth, maxCount, earliest) {
 
 // 統一算出目標卡片要顯示的所有資訊，六種類型的分支都在這裡，卡片 JSX 只有一份、吃這個
 // 回傳值渲染；也是達成動畫判斷（見 NetWorthSheet）跟卡片渲染共用的計算，避免六路分支寫兩次。
-function computeGoalProgress(goal, ctx) {
+export function computeGoalProgress(goal, ctx) {
   const { totalAssets, computedAcctGroups, computedHoldings, savedFlows, masterData } = ctx;
-  const nowD = new Date();
+  const nowD = window.TODAY_DATE || new Date();
   const thisYear = nowD.getFullYear(), thisMonth = nowD.getMonth() + 1;
   let current = 0, target = goal.amount, subtitle = '', remainingText = null, historyDots = null, noBaseline = false;
 
@@ -1666,6 +1631,126 @@ function ConfettiBurst() {
 }
 
 /* ── NetWorthSheet: 資產淨額明細 bottom sheet ─────────────────────── */
+const GOAL_INPUT_STYLE = { flex: 1, height: 36, padding: PAD('0 10px'), borderRadius: RS(8), background: 'rgba(0,0,0,0.06)',
+  border: '1px solid rgba(0,0,0,0.12)', fontSize: FS(16), color: TOKENS.ink, outline: 'none' };
+const GOAL_NUM_INPUT_STYLE = { ...GOAL_INPUT_STYLE, fontFamily: TOKENS.fontMono, fontSize: FS(17) };
+const GOAL_FIELD_LABEL_STYLE = { fontSize: FS(15), color: 'rgba(44,44,50,0.7)', width: 64, flexShrink: 0 };
+
+// 跟整個 App 既有的分段選擇器（segBtn，見 MonthlyStatsSheet/NetWorthSheet 的頁籤切換）同一套
+// 視覺——白底+陰影表示選中、透明+淡字表示未選——而不是另外發明一種純黑底的樣式。
+function goalSegToggle(value, current, onPick, label) {
+  const on = current === value;
+  return (
+    <button key={value} onClick={() => onPick(value)} style={{ flex: 1, height: 38, borderRadius: RS(12), border: 'none',
+      background: on ? TOKENS.surface : 'transparent', boxShadow: on ? SH('0 2px 8px rgba(0,0,0,0.12)') : 'none',
+      color: on ? TOKENS.ink : 'rgba(44,44,50,0.65)', fontSize: FS(14), fontWeight: on ? 700 : 500, cursor: 'pointer' }}>{label}</button>);
+}
+
+// 選類型（新增流程第一步）。模組層級元件（不是定義在 NetWorthSheet 裡面）——如果在元件內部
+// 用 const X = () => {...} 定義子元件，每次父層 render 都會產生新的函式參考，React 會判定成
+//「不同的元件類型」整個卸載重掛，輸入框在手機上會直接把鍵盤收起來、打不了字。
+function GoalTypePicker({ onPick, onCancel }) {
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: SP(8) }}>
+      <div style={{ fontSize: FS(17), fontWeight: 600, color: TOKENS.ink, marginBottom: SP(2) }}>選擇目標類型</div>
+      {GOAL_TYPES.map((t) => {
+        const Ico = window.Icons[t.icon] || window.Icons.Wallet;
+        return (
+          <button key={t.key} onClick={() => onPick(t.key)} style={{
+            display: 'flex', alignItems: 'center', gap: SP(12), padding: PAD('12px'), borderRadius: RS(12),
+            background: 'rgba(0,0,0,0.03)', border: 'none', cursor: 'pointer', textAlign: 'left' }}>
+            <div style={{ width: 36, height: 36, borderRadius: RS(10), flexShrink: 0, background: 'rgba(0,0,0,0.06)',
+              display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+              <Ico size={18} style={{ color: TOKENS.ink }} />
+            </div>
+            <div style={{ flex: 1, minWidth: 0 }}>
+              <div style={{ fontSize: FS(15), fontWeight: 600, color: TOKENS.ink }}>{t.label}</div>
+              <div style={{ fontSize: FS(12), color: 'rgba(44,44,50,0.55)', marginTop: SP(1) }}>{t.desc}</div>
+            </div>
+          </button>);
+      })}
+      <button onClick={onCancel} style={{ width: '100%', height: 40, borderRadius: RS(12), background: 'transparent',
+        border: '1px solid rgba(0,0,0,0.12)', color: 'rgba(44,44,50,0.7)', fontSize: FS(15), cursor: 'pointer', marginTop: SP(4) }}>取消</button>
+    </div>);
+}
+
+// 新增/編輯儲蓄目標共用的表單。同樣是模組層級元件，draft 狀態透過 props 傳入（而不是閉包），
+// 理由同上——draft/setDraftField 每次 render 的「值」變了沒關係，只要 GoalEditForm 這個函式
+// 本身的參考不變，React 就會當成同一個元件更新，輸入框不會被卸載、focus 不會掉。
+function GoalEditForm({ editingId, draftType, draft, setDraftField, accountList, onCancel, onSave }) {
+  const { Check, X } = window.Icons;
+  const cfg = GOAL_TYPE_MAP[draftType] || GOAL_TYPE_MAP.networth;
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: SP(10) }}>
+      <div style={{ fontSize: FS(17), fontWeight: 600, color: TOKENS.ink }}>{editingId === 'new' ? '新增' : '編輯'}{cfg.label}</div>
+      <div style={{ display: 'flex', alignItems: 'center', gap: SP(8) }}>
+        <span style={GOAL_FIELD_LABEL_STYLE}>目標名稱</span>
+        <input value={draft.name} onChange={(e) => setDraftField('name', e.target.value)} placeholder="例如：緊急預備金" style={GOAL_INPUT_STYLE} />
+      </div>
+
+      {cfg.key === 'networth' && <>
+        <div style={{ display: 'flex', alignItems: 'center', gap: SP(8) }}>
+          <span style={GOAL_FIELD_LABEL_STYLE}>目標金額</span>
+          <input value={draft.amount} onChange={(e) => setDraftField('amount', e.target.value)} inputMode="decimal" placeholder="0" style={GOAL_NUM_INPUT_STYLE} />
+        </div>
+        <div style={{ display: 'flex', alignItems: 'center', gap: SP(8) }}>
+          <span style={GOAL_FIELD_LABEL_STYLE}>目標年月</span>
+          <input value={draft.year} onChange={(e) => setDraftField('year', e.target.value)} inputMode="numeric" placeholder="年" maxLength={4} style={{ ...GOAL_NUM_INPUT_STYLE, flex: 'none', width: 72 }} />
+          <span style={{ fontSize: FS(15), color: 'rgba(44,44,50,0.68)' }}>年</span>
+          <input value={draft.month} onChange={(e) => setDraftField('month', e.target.value)} inputMode="numeric" placeholder="月" maxLength={2} style={{ ...GOAL_NUM_INPUT_STYLE, flex: 'none', width: 56 }} />
+          <span style={{ fontSize: FS(15), color: 'rgba(44,44,50,0.68)' }}>月</span>
+        </div>
+      </>}
+
+      {cfg.key === 'account' && <>
+        <div style={{ display: 'flex', alignItems: 'center', gap: SP(8) }}>
+          <span style={GOAL_FIELD_LABEL_STYLE}>目標金額</span>
+          <input value={draft.amount} onChange={(e) => setDraftField('amount', e.target.value)} inputMode="decimal" placeholder="0" style={GOAL_NUM_INPUT_STYLE} />
+        </div>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: SP(6) }}>
+          <span style={{ fontSize: FS(15), color: 'rgba(44,44,50,0.7)' }}>選擇帳戶</span>
+          <div style={{ display: 'flex', flexDirection: 'column', maxHeight: 160, overflowY: 'auto', borderRadius: RS(10), border: '1px solid rgba(0,0,0,0.1)' }}>
+            {accountList.map((a) =>
+            <button key={a.name} onClick={() => setDraftField('accountName', a.name)} style={{
+              display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: PAD('10px 12px'),
+              background: draft.accountName === a.name ? 'rgba(0,0,0,0.06)' : 'transparent', border: 'none',
+              borderBottom: '1px solid rgba(0,0,0,0.06)', cursor: 'pointer', textAlign: 'left' }}>
+              <span style={{ fontSize: FS(15), color: TOKENS.ink }}>{a.name}<span style={{ color: 'rgba(44,44,50,0.5)', marginLeft: SP(6) }}>{a.groupName}</span></span>
+              {draft.accountName === a.name && <Check size={14} style={{ color: TOKENS.ink }} />}
+            </button>
+            )}
+          </div>
+        </div>
+      </>}
+
+      {cfg.recurring && <>
+        <div style={{ display: 'flex', gap: SP(4), padding: SP(4), borderRadius: RS(16), background: 'rgba(0,0,0,0.06)' }}>
+          {goalSegToggle('month', draft.periodUnit, (v) => setDraftField('periodUnit', v), '以月為單位')}
+          {goalSegToggle('year', draft.periodUnit, (v) => setDraftField('periodUnit', v), '以年為單位')}
+        </div>
+        <div style={{ display: 'flex', gap: SP(4), padding: SP(4), borderRadius: RS(16), background: 'rgba(0,0,0,0.06)' }}>
+          {goalSegToggle('amount', draft.targetMode, (v) => setDraftField('targetMode', v), '固定金額')}
+          {goalSegToggle('percent', draft.targetMode, (v) => setDraftField('targetMode', v), draft.periodUnit === 'month' ? '跟上個月比成長%' : '跟去年比成長%')}
+        </div>
+        {draft.targetMode === 'amount' ?
+        <div style={{ display: 'flex', alignItems: 'center', gap: SP(8) }}>
+          <span style={GOAL_FIELD_LABEL_STYLE}>目標金額</span>
+          <input value={draft.amount} onChange={(e) => setDraftField('amount', e.target.value)} inputMode="decimal" placeholder="0" style={GOAL_NUM_INPUT_STYLE} />
+        </div> :
+        <div style={{ display: 'flex', alignItems: 'center', gap: SP(8) }}>
+          <span style={GOAL_FIELD_LABEL_STYLE}>成長幅度</span>
+          <input value={draft.percentValue} onChange={(e) => setDraftField('percentValue', e.target.value)} inputMode="decimal" placeholder="例如 4" style={GOAL_NUM_INPUT_STYLE} />
+          <span style={{ fontSize: FS(15), color: 'rgba(44,44,50,0.68)' }}>%</span>
+        </div>}
+      </>}
+
+      <div style={{ display: 'flex', gap: SP(8), justifyContent: 'flex-end', marginTop: SP(4) }}>
+        <button onClick={onCancel} style={{ width: 36, height: 36, borderRadius: RS(18), background: 'rgba(0,0,0,0.07)', border: 'none', color: 'rgba(44,44,50,0.7)', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer' }}><X size={16} /></button>
+        <button onClick={onSave} style={{ width: 36, height: 36, borderRadius: RS(18), background: TOKENS.ink, border: 'none', color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer' }}><Check size={16} /></button>
+      </div>
+    </div>);
+}
+
 function NetWorthSheet({ open, onClose, total, computedAcctGroups, computedHoldings, mask, hideAmounts, savedFlows, masterData }) {
   const { ChevronRight, Pencil, Check, X, Plus, Trash } = window.Icons;
   // NetWorthSheet 是永遠掛載、只靠 open prop 顯示/隱藏（app.jsx），hook 必須在下面的
@@ -1798,117 +1883,21 @@ function NetWorthSheet({ open, onClose, total, computedAcctGroups, computedHoldi
   const cardStyle = { background: TOKENS.surface, borderRadius: RS(20), border: '1px solid rgba(0,0,0,0.07)', padding: PAD('16px') };
   const segBtn = (id, lbl) => { const on = view === id; return <button key={id} onClick={() => { setView(id); setEditingId(null); }} style={{ flex: 1, height: 44, borderRadius: RS(14), border: 'none', background: on ? TOKENS.surface : 'transparent', boxShadow: on ? SH('0 2px 8px rgba(0,0,0,0.12)') : 'none', color: on ? TOKENS.ink : 'rgba(44,44,50,0.65)', fontSize: FS(16), fontWeight: on ? 700 : 500, cursor: 'pointer' }}>{lbl}</button>; };
   // 新增/編輯儲蓄目標共用的表單（editingId 決定是新增還是編輯哪一筆）
-  const fieldLabelStyle = { fontSize: FS(15), color: 'rgba(44,44,50,0.7)', width: 64, flexShrink: 0 };
-  const inputStyle = { flex: 1, height: 36, padding: PAD('0 10px'), borderRadius: RS(8), background: 'rgba(0,0,0,0.06)',
-    border: '1px solid rgba(0,0,0,0.12)', fontSize: FS(16), color: TOKENS.ink, outline: 'none' };
-  const numInputStyle = { ...inputStyle, fontFamily: TOKENS.fontMono, fontSize: FS(17) };
   // 信用卡是負債，拿來當「餘額目標」語意怪，選單裡不提供。
   const accountList = computedAcctGroups.filter((g) => g.id !== 'credit').flatMap((g) => g.items.map((it) => ({ name: it.name, groupName: g.name })));
-
-  // 選類型（新增流程第一步）
-  const GoalTypePicker = () =>
-  <div style={{ display: 'flex', flexDirection: 'column', gap: SP(8) }}>
-    <div style={{ fontSize: FS(17), fontWeight: 600, color: TOKENS.ink, marginBottom: SP(2) }}>選擇目標類型</div>
-    {GOAL_TYPES.map((t) => {
-      const Ico = window.Icons[t.icon] || window.Icons.Wallet;
-      return (
-        <button key={t.key} onClick={() => startEditWithType(t.key)} style={{
-          display: 'flex', alignItems: 'center', gap: SP(12), padding: PAD('12px'), borderRadius: RS(12),
-          background: 'rgba(0,0,0,0.03)', border: 'none', cursor: 'pointer', textAlign: 'left' }}>
-          <div style={{ width: 36, height: 36, borderRadius: RS(10), flexShrink: 0, background: 'rgba(0,0,0,0.06)',
-            display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-            <Ico size={18} style={{ color: TOKENS.ink }} />
-          </div>
-          <div style={{ flex: 1, minWidth: 0 }}>
-            <div style={{ fontSize: FS(15), fontWeight: 600, color: TOKENS.ink }}>{t.label}</div>
-            <div style={{ fontSize: FS(12), color: 'rgba(44,44,50,0.55)', marginTop: SP(1) }}>{t.desc}</div>
-          </div>
-        </button>);
-    })}
-    <button onClick={() => setEditingId(null)} style={{ width: '100%', height: 40, borderRadius: RS(12), background: 'transparent',
-      border: '1px solid rgba(0,0,0,0.12)', color: 'rgba(44,44,50,0.7)', fontSize: FS(15), cursor: 'pointer', marginTop: SP(4) }}>取消</button>
-  </div>;
-
-  // 新增/編輯儲蓄目標共用的表單（editingId 決定是新增還是編輯哪一筆，draftType 決定欄位組合）
-  const GoalEditForm = () => {
-    const cfg = GOAL_TYPE_MAP[draftType] || GOAL_TYPE_MAP.networth;
-    return (
-      <div style={{ display: 'flex', flexDirection: 'column', gap: SP(10) }}>
-        <div style={{ fontSize: FS(17), fontWeight: 600, color: TOKENS.ink }}>{editingId === 'new' ? '新增' : '編輯'}{cfg.label}</div>
-        <div style={{ display: 'flex', alignItems: 'center', gap: SP(8) }}>
-          <span style={fieldLabelStyle}>目標名稱</span>
-          <input value={draftName} onChange={(e) => setDraftName(e.target.value)} placeholder="例如：緊急預備金" style={inputStyle} />
-        </div>
-
-        {cfg.key === 'networth' && <>
-          <div style={{ display: 'flex', alignItems: 'center', gap: SP(8) }}>
-            <span style={fieldLabelStyle}>目標金額</span>
-            <input value={draftAmount} onChange={(e) => setDraftAmount(e.target.value)} inputMode="decimal" placeholder="0" style={numInputStyle} />
-          </div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: SP(8) }}>
-            <span style={fieldLabelStyle}>目標年月</span>
-            <input value={draftYear} onChange={(e) => setDraftYear(e.target.value)} inputMode="numeric" placeholder="年" maxLength={4} style={{ ...numInputStyle, flex: 'none', width: 72 }} />
-            <span style={{ fontSize: FS(15), color: 'rgba(44,44,50,0.68)' }}>年</span>
-            <input value={draftMonth} onChange={(e) => setDraftMonth(e.target.value)} inputMode="numeric" placeholder="月" maxLength={2} style={{ ...numInputStyle, flex: 'none', width: 56 }} />
-            <span style={{ fontSize: FS(15), color: 'rgba(44,44,50,0.68)' }}>月</span>
-          </div>
-        </>}
-
-        {cfg.key === 'account' && <>
-          <div style={{ display: 'flex', alignItems: 'center', gap: SP(8) }}>
-            <span style={fieldLabelStyle}>目標金額</span>
-            <input value={draftAmount} onChange={(e) => setDraftAmount(e.target.value)} inputMode="decimal" placeholder="0" style={numInputStyle} />
-          </div>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: SP(6) }}>
-            <span style={{ fontSize: FS(15), color: 'rgba(44,44,50,0.7)' }}>選擇帳戶</span>
-            <div style={{ display: 'flex', flexDirection: 'column', maxHeight: 160, overflowY: 'auto', borderRadius: RS(10), border: '1px solid rgba(0,0,0,0.1)' }}>
-              {accountList.map((a) =>
-              <button key={a.name} onClick={() => setDraftAccountName(a.name)} style={{
-                display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: PAD('10px 12px'),
-                background: draftAccountName === a.name ? 'rgba(0,0,0,0.06)' : 'transparent', border: 'none',
-                borderBottom: '1px solid rgba(0,0,0,0.06)', cursor: 'pointer', textAlign: 'left' }}>
-                <span style={{ fontSize: FS(15), color: TOKENS.ink }}>{a.name}<span style={{ color: 'rgba(44,44,50,0.5)', marginLeft: SP(6) }}>{a.groupName}</span></span>
-                {draftAccountName === a.name && <Check size={14} style={{ color: TOKENS.ink }} />}
-              </button>
-              )}
-            </div>
-          </div>
-        </>}
-
-        {cfg.recurring && <>
-          <div style={{ display: 'flex', gap: SP(8) }}>
-            <button onClick={() => setDraftPeriodUnit('month')} style={{ flex: 1, height: 36, borderRadius: RS(8), border: 'none',
-              background: draftPeriodUnit === 'month' ? TOKENS.ink : 'rgba(0,0,0,0.06)', color: draftPeriodUnit === 'month' ? '#fff' : 'rgba(44,44,50,0.7)',
-              fontSize: FS(14), fontWeight: 600, cursor: 'pointer' }}>以月為單位</button>
-            <button onClick={() => setDraftPeriodUnit('year')} style={{ flex: 1, height: 36, borderRadius: RS(8), border: 'none',
-              background: draftPeriodUnit === 'year' ? TOKENS.ink : 'rgba(0,0,0,0.06)', color: draftPeriodUnit === 'year' ? '#fff' : 'rgba(44,44,50,0.7)',
-              fontSize: FS(14), fontWeight: 600, cursor: 'pointer' }}>以年為單位</button>
-          </div>
-          <div style={{ display: 'flex', gap: SP(8) }}>
-            <button onClick={() => setDraftTargetMode('amount')} style={{ flex: 1, height: 36, borderRadius: RS(8), border: 'none',
-              background: draftTargetMode === 'amount' ? TOKENS.ink : 'rgba(0,0,0,0.06)', color: draftTargetMode === 'amount' ? '#fff' : 'rgba(44,44,50,0.7)',
-              fontSize: FS(14), fontWeight: 600, cursor: 'pointer' }}>固定金額</button>
-            <button onClick={() => setDraftTargetMode('percent')} style={{ flex: 1, height: 36, borderRadius: RS(8), border: 'none',
-              background: draftTargetMode === 'percent' ? TOKENS.ink : 'rgba(0,0,0,0.06)', color: draftTargetMode === 'percent' ? '#fff' : 'rgba(44,44,50,0.7)',
-              fontSize: FS(14), fontWeight: 600, cursor: 'pointer' }}>{draftPeriodUnit === 'month' ? '跟上個月比成長%' : '跟去年比成長%'}</button>
-          </div>
-          {draftTargetMode === 'amount' ?
-          <div style={{ display: 'flex', alignItems: 'center', gap: SP(8) }}>
-            <span style={fieldLabelStyle}>目標金額</span>
-            <input value={draftAmount} onChange={(e) => setDraftAmount(e.target.value)} inputMode="decimal" placeholder="0" style={numInputStyle} />
-          </div> :
-          <div style={{ display: 'flex', alignItems: 'center', gap: SP(8) }}>
-            <span style={fieldLabelStyle}>成長幅度</span>
-            <input value={draftPercentValue} onChange={(e) => setDraftPercentValue(e.target.value)} inputMode="decimal" placeholder="例如 4" style={numInputStyle} />
-            <span style={{ fontSize: FS(15), color: 'rgba(44,44,50,0.68)' }}>%</span>
-          </div>}
-        </>}
-
-        <div style={{ display: 'flex', gap: SP(8), justifyContent: 'flex-end', marginTop: SP(4) }}>
-          <button onClick={() => setEditingId(null)} style={{ width: 36, height: 36, borderRadius: RS(18), background: 'rgba(0,0,0,0.07)', border: 'none', color: 'rgba(44,44,50,0.7)', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer' }}><X size={16} /></button>
-          <button onClick={saveGoal} style={{ width: 36, height: 36, borderRadius: RS(18), background: TOKENS.ink, border: 'none', color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer' }}><Check size={16} /></button>
-        </div>
-      </div>);
+  // GoalEditForm/GoalTypePicker 是模組層級元件（見上方定義），draft 狀態透過這兩個東西傳入，
+  // 而不是讓它們直接閉包捕捉一堆 draftXxx state。
+  const draft = { name: draftName, amount: draftAmount, year: draftYear, month: draftMonth,
+    accountName: draftAccountName, targetMode: draftTargetMode, percentValue: draftPercentValue, periodUnit: draftPeriodUnit };
+  const setDraftField = (field, value) => {
+    if (field === 'name') setDraftName(value);
+    else if (field === 'amount') setDraftAmount(value);
+    else if (field === 'year') setDraftYear(value);
+    else if (field === 'month') setDraftMonth(value);
+    else if (field === 'accountName') setDraftAccountName(value);
+    else if (field === 'targetMode') setDraftTargetMode(value);
+    else if (field === 'percentValue') setDraftPercentValue(value);
+    else if (field === 'periodUnit') setDraftPeriodUnit(value);
   };
 
   return (
@@ -1953,7 +1942,8 @@ function NetWorthSheet({ open, onClose, total, computedAcctGroups, computedHoldi
                   animation: showBurst ? 'goalGoldGlow 900ms ease-out both' : 'none' }}>
                   {showBurst && <ConfettiBurst />}
                   {editingId === g.id ?
-                  <GoalEditForm /> :
+                  <GoalEditForm editingId={editingId} draftType={draftType} draft={draft} setDraftField={setDraftField}
+                    accountList={accountList} onCancel={() => setEditingId(null)} onSave={saveGoal} /> :
                   <div>
                     <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
                       <div style={{ display: 'flex', alignItems: 'center', gap: SP(6), minWidth: 0 }}>
@@ -1987,9 +1977,10 @@ function NetWorthSheet({ open, onClose, total, computedAcctGroups, computedHoldi
             })}
             <div style={{ ...cardStyle, padding: PAD('18px 16px') }}>
               {editingId === 'new' ?
-              <GoalEditForm /> :
+              <GoalEditForm editingId={editingId} draftType={draftType} draft={draft} setDraftField={setDraftField}
+                accountList={accountList} onCancel={() => setEditingId(null)} onSave={saveGoal} /> :
               editingId === 'picking' ?
-              <GoalTypePicker /> :
+              <GoalTypePicker onPick={startEditWithType} onCancel={() => setEditingId(null)} /> :
               <button onClick={startPicker} style={{ width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: SP(6), height: 44, background: 'transparent', border: '1px dashed rgba(0,0,0,0.2)', borderRadius: RS(12), color: 'rgba(44,44,50,0.7)', fontSize: FS(16), cursor: 'pointer' }}>
                 <Plus size={16} />{goals.length === 0 ? '設定目標' : '新增目標'}
               </button>}
