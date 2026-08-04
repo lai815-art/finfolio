@@ -1282,7 +1282,7 @@ function App() {
         const nwInvest = computedHoldings.flatMap((g) => g.items).reduce((a, it) => a + (it.mvTWD != null ? it.mvTWD : it.mv || 0), 0);
         return <NWSheet open={netWorthOpen} onClose={() => setNetWorthOpen(false)}
           total={nwAcct + nwInvest} computedAcctGroups={computedAcctGroups} computedHoldings={computedHoldings}
-          mask={appMask} hideAmounts={hideAmounts} />;
+          mask={appMask} hideAmounts={hideAmounts} savedFlows={visibleFlows} masterData={masterData} />;
       })()}
       {(() => {
         const IBSheet = window.InvestBreakdownSheet;

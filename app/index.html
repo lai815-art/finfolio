@@ -75,6 +75,17 @@
   @keyframes donutWipe { from { stroke-dashoffset: var(--donutC); } to { stroke-dashoffset: 0; } }
   @keyframes growBar { from { transform: scaleY(0); } to { transform: scaleY(1); } }
   @keyframes fadeInStat { from { opacity: 0; } to { opacity: 1; } }
+  /* 儲蓄目標達成慶祝：卡片邊框轉金並發光（播一次），同時噴出彩紙粒子。只在剛偵測到達成的
+     那個 render 觸發，靠 dashboard.jsx 的 goal.celebrated 旗標＋ animatedRef 避免每次重繪都重播。 */
+  @keyframes goalGoldGlow {
+    0% { box-shadow: 0 0 0 rgba(191,161,118,0); }
+    50% { box-shadow: 0 0 24px rgba(191,161,118,0.55); }
+    100% { box-shadow: 0 0 0 rgba(191,161,118,0); }
+  }
+  @keyframes confettiBurst {
+    0% { transform: translate(0,0) rotate(0deg) scale(1); opacity: 1; }
+    100% { transform: translate(var(--cx), var(--cy)) rotate(var(--cr)) scale(0.4); opacity: 0; }
+  }
   *::-webkit-scrollbar { width: 0; height: 0; display: none; }
   * { scrollbar-width: none; }
   button { font-family: inherit; cursor: pointer; }

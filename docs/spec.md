@@ -20,7 +20,7 @@ FinFolio 是一個純前端的 PWA 風格 App（React 18 + Vite），所有資�
 App 分四個主要分頁（底部 TabBar）＋一個全螢幕設定頁：
 
 - **看板（Dashboard）**：月度收支摘要、消費分類圓餅圖、12個月/多年收支走勢、逐日交易記錄
-- **資產（Accounts）**：淨資產總覽、7 大帳戶分類、帳戶明細
+- **資產（Accounts）**：淨資產總覽、7 大帳戶分類、帳戶明細；點淨資產可開「資產配置與目標」明細頁（資產配置圓餅圖＋負債明細／財務目標追蹤兩個頁籤）
 - **記帳（Accounting）**：收支/轉帳/股票買賣表單，含語音輸入
 - **投資（Invest）**：依證券戶分頁的持倉列表、FIFO 損益計算、投資組合明細
 - **設定（Settings）**：主檔管理、AI 金鑰（BYOK）、初始餘額、加密備份匯出入
@@ -89,6 +89,11 @@ App 分四個主要分頁（底部 TabBar）＋一個全螢幕設定頁：
 45. As a 使用者, I want to App 發生未預期錯誤時顯示可重試的錯誤畫面而不是白屏, so that 我不會因為一個小 bug 就完全用不了 App
 46. As a 使用者, I want to 資料結構升級時自動做 migration, so that 舊版本存的資料在新版 App 上不會壞掉
 
+**財務目標（資產配置與目標頁面的「財務目標」頁籤）**
+47. As a 使用者, I want to 設定多種類型的財務目標（淨資產於指定年月達標／單一帳戶餘額達標／被動收入／收支結餘／股票已實現損益），後三種可選以月或以年為單位、固定金額或跟上一期比成長%, so that 我能同時追蹤不同面向的財務計劃
+48. As a 使用者, I want to 目標達成時卡片出現金色邊框＋彩紙動畫慶祝（只播一次，之後常駐金色邊框與勳章）, so that 我能清楚感受到達成的成就感
+49. As a 使用者, I want to 週期性目標（被動收入/結餘/股票損益）顯示近幾期的達成率小圓點, so that 我能看出自己是不是穩定達標
+
 ## Implementation Decisions
 
 **資料層（全部存在 localStorage，`ff_` 前綴）**
@@ -103,6 +108,7 @@ App 分四個主要分頁（底部 TabBar）＋一個全螢幕設定頁：
 | `ff_ai_keys` / `ff_default_model` | BYOK AI 金鑰與預設模型 |
 | `ff_lock_pin` / `ff_lock_salt` / `ff_lock_bio` / `ff_lock_cred` | App 鎖 PIN（雜湊存放，不存明碼）與生物辨識憑證 |
 | `ff_auto_snapshot` / `ff_last_auto_backup` | 未加密的本機自動快照 |
+| `ff_savings_goals` | 財務目標陣列，每筆依 `type` 有不同欄位（見下方「財務目標」章節）；舊版單一目標 `ff_savings_goal` 讀取時自動遷移進來 |
 | `ff_schema_version` | schema migration 版本號（目前 `SCHEMA_VERSION=4`） |
 
 備份/還原、自動快照、清除功能都是**掃描所有 `ff_*` 開頭的 key**來運作，之後新增任何 `ff_*` key 會自動被納入，不需要額外改動備份邏輯。
@@ -123,7 +129,18 @@ App 分四個主要分頁（底部 TabBar）＋一個全螢幕設定頁：
 - 純 CSS `@keyframes`（`fillArc`/`drawLine`/`growBar`/`fadeInStat`，定義在 index.html），沒有用任何動畫函式庫。
 - 折線用 SVG `pathLength="1"` 技巧：把整條線正規化成 0–1，`stroke-dashoffset` 從 1 動畫到 0 做「畫出來」效果；虛線（消費支出，本身已有 dash 花紋）改用單純淡入，避免兩種 dasharray 互相干擾。
 - 圓餅圖用 CSS 自訂屬性（`--arcFrom`/`--arcTo`）讓每段弧線各自動畫到自己的 `stroke-dashoffset` 終點。
-- 折線圖圖例可點擊：`MonthlyStatsSheet` 用 `hiddenSeries`（Set）記錄被隱藏的線，`ComboChart` 依可見的線重新計算 Y 軸範圍（隱藏掉大數值的線後，其餘線會自動放大顯示）；圖表容器加了 `key`（依所在月/年年份），切換月份/年份時整組圖表會重新掛載、動畫重播一次。
+- 折線圖圖例可點擊：`MonthlyStatsSheet` 用 `hiddenSeries`（Set）記錄被隱藏的線，`ComboChart` 依可見的線重新計算 Y 軸範圍（隱藏掉大數值的線後，其餘線會自動放大顯示）；圖表容器加了 `key`（依所在月/年年份），切換月份/年份時整組圖表會重新掛載、動畫重播一次。「餘額」柱狀與（僅月檢視）「去年同期」參考線雖然不在 `CHART_SERIES` 裡，一樣是 `hiddenSeries` 的成員、也一起納入 Y 軸重算。
+- 儲蓄率趨勢（`SavingsRateStrip`）是獨立於 `ComboChart` 的小型 sparkline，自己算 Y 軸範圍——金額與百分比尺度差太多，不跟收支圖共用刻度；沒有收入的期間線段會斷開，不畫成假的 0%。
+- 消費分析支援子分類下鑽：點大類列會用 `expanded` state（原本宣告但沒渲染用途的死 state）切到該大類底下依實際 `cat` 名稱彙總的第二層圓餅圖，切換月份會自動退出下鑽畫面。月對月比較（總額與各類別）直接拿上個月同一份聚合邏輯來對照，無資料時不顯示避免出現 `Infinity%`。
+
+**財務目標**（`NetWorthSheet` 的「財務目標」頁籤，dashboard.jsx）
+- `GOAL_TYPES` 設定陣列驅動類型選單與表單欄位：`networth`（淨資產於指定年月達標）、`account`（單一帳戶餘額達標，無期限）、`passive_income`／`balance`／`stock_gain`（被動收入／收支結餘／股票已實現損益，皆為週期性目標）。新增目標先選類型、再依類型顯示對應欄位；類型建立後不可更改，要換類型只能刪除重建。
+- 週期性目標（`recurring: true` 的三種）沒有目標年月欄位，改成 `periodUnit: 'month'|'year'` 讓使用者自選，以及 `targetMode: 'amount'|'percent'`：固定金額直接比 `amount`；%成長模式比對象是「上一期實際值」（`percentValue`，例如 4 代表比上一期成長 4%），基準每期自動滾動往前推進，上一期沒資料時顯示「尚無上一期資料可比較」。三種類型的月/年聚合函式（`ffPassiveIncomeForYear/Month`、`ffMonthlyBalance`/`ffYearlyBalance`、`ffRealizedPnlForYear/Month`）透過 `PERIOD_METRIC_GETTERS` 對照表查表呼叫，不用為月/年各寫一次判斷。
+- 歷史達成率（週期性目標專屬）：對每個「有資料的過去期間」重新解析當期目標值（%模式一樣滾動跟上一期比），畫成小圓點列＋「近N期達成X次」文字；不需要另外儲存歷史快照，全部即時從 `savedFlows` 現算，向前推算的期數受 `savedFlows` 最早一筆記錄裁剪，避免對沒有資料的期間生出假的「未達成」圓點。
+- `account` 類型的進度計算：一般帳戶直接用 `computedAcctGroups` 裡的 `amountTWD`；若選到的是證券戶（比對 `masterData.brokers`），要額外加上 `computedHoldings` 裡 `broker` 相符的持倉市值加總，否則只會看到交割戶現金、少算股票市值。帳戶選單排除信用卡群組（負債，拿來當餘額目標語意不合）。
+- 股票已實現損益只算買賣操作損益（`merchant==='投資獲利'/'投資損失'`，故意不含股息/債息——那兩者算被動收入）。
+- 達成慶祝：目標 `done` 時卡片邊框恆常變金色＋掛勳章；`celebrated` 旗標（存在目標紀錄裡）記錄是否已經播過一次彩紙噴發動畫（CSS keyframe `confettiBurst`/`goalGoldGlow`，定義在 index.html），確保只在第一次偵測到達成時播放，重開 App/sheet 不會重播。
+- 舊資料相容：更早版本的目標紀錄沒有 `type`/`celebrated` 欄位，`ffGetSavingsGoals()` 讀取時一律補上預設值（`type:'networth'`），不用另外寫遷移程式。
 
 **核心計算邏輯**
 - `computeAccounts()`：從各帳戶初始餘額出發，依收支/轉帳/股票交易逐筆計算目前餘額；未來日期的紀錄不計入；信用卡類帳戶以「負債」方式顯示餘額。
@@ -156,11 +173,11 @@ App 分四個主要分頁（底部 TabBar）＋一個全螢幕設定頁：
 
 ## Testing Decisions
 
-目前 `app/` 與 `worker/` **完全沒有任何自動化測試**，所有驗證都靠手動操作畫面。
+> 本節先前記錄為「完全沒有任何自動化測試」，已過期——`app/` 目前已有 vitest 單元測試（`compute.test.js`／`voice-parse.test.js`／`recurring.test.js`／`schema-migration.test.js`／`settings.backup.test.js`）與 Playwright e2e（`e2e/*.spec.js`）。`dashboard.jsx` 的圖表/UI 邏輯目前仍未涵蓋在內，沿用「只測純計算函式」的既有慣例，驗證靠手動操作畫面。
 
-之後如果要補測試，建議優先從純計算函式開始（風險最低、報酬最高）：
-- `computeAccounts()` / `computeHoldings()`（app.jsx）——輸入輸出明確，最適合寫單元測試
-- `parseUtterance()`（app.jsx 的語音解析）——規則多、邊界案例多，最容易回歸壞掉
+已涵蓋的純計算函式：
+- `computeAccounts()` / `computeHoldings()`（compute.js）——輸入輸出明確，已有單元測試
+- `parseUtterance()`（voice-parse.js 的語音解析）——規則多、邊界案例多，已有單元測試
 
 完整的測試涵蓋範圍與優先順序，另外開一份 `docs/test.md` 規劃，不在本文件展開。
 
