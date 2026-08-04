@@ -901,7 +901,7 @@ const ASSET_CAT_NOTE = {};
 
 /* ── MonthlyStatsSheet ─────────────────────────────────────────────── */
 function MonthlyStatsSheet({ open, onClose, savedFlows, masterData, hideAmounts, nowDate, mask }) {
-  const { X, ChevronRight, ChevronDown } = window.Icons;
+  const { X, ChevronRight, ChevronDown, TrendUp, TrendDown } = window.Icons;
   const StatDonut = window.StatDonut;
   const [shown, setShown] = useStateDash(false);
   const [view, setView] = useStateDash('spend'); // spend | month | year
@@ -952,16 +952,37 @@ function MonthlyStatsSheet({ open, onClose, savedFlows, masterData, hideAmounts,
   const viewDate = new Date(now.getFullYear(), now.getMonth() + monthOffset, 1);
   const spY = viewDate.getFullYear(), spM = viewDate.getMonth();
   const EXP_COLORS = [TOKENS.red, TOKENS.orange, TOKENS.gold, TOKENS.red2, TOKENS.gold2, '#A85638', '#D9A05B', TOKENS.indigo, TOKENS.teal, TOKENS.gray4];
-  const spendMap = {};
   // 消費分析改以「大類」彙總（餐飲/交通/日常/娛樂/醫療/教育/金融保險/其他），排除投資損失。
-  savedFlows.forEach((f) => { if (f.kind !== 'exp') return; const d = dOf(f); if (d.getFullYear() !== spY || d.getMonth() !== spM) return; if (isInvestExp(f.cat)) return; const k = catExpGroup[f.cat] || '其他'; spendMap[k] = (spendMap[k] || 0) + amtOf(f); });
+  const aggSpend = (y, m) => {
+    const map = {};
+    savedFlows.forEach((f) => { if (f.kind !== 'exp') return; const d = dOf(f); if (d.getFullYear() !== y || d.getMonth() !== m) return; if (isInvestExp(f.cat)) return; const k = catExpGroup[f.cat] || '其他'; map[k] = (map[k] || 0) + amtOf(f); });
+    return map;
+  };
+  // 子分類明細（下鑽用）：同一大類底下依實際 cat 名稱彙總
+  const aggSubSpend = (y, m, group) => {
+    const map = {};
+    savedFlows.forEach((f) => { if (f.kind !== 'exp') return; const d = dOf(f); if (d.getFullYear() !== y || d.getMonth() !== m) return; if (isInvestExp(f.cat)) return; if ((catExpGroup[f.cat] || '其他') !== group) return; map[f.cat] = (map[f.cat] || 0) + amtOf(f); });
+    return map;
+  };
+  const spendMap = aggSpend(spY, spM);
   const spendTotal = Object.values(spendMap).reduce((a, v) => a + v, 0);
   const spendCats = Object.entries(spendMap).sort((a, b) => b[1] - a[1]).map(([k, v], i) => ({ name: k, value: v, color: EXP_COLORS[i % EXP_COLORS.length], pct: spendTotal > 0 ? v / spendTotal * 100 : 0 }));
+  // 月對月比較：跟上個月同一份聚合邏輯比較
+  const prevSpDate = new Date(spY, spM - 1, 1);
+  const prevSpendMap = aggSpend(prevSpDate.getFullYear(), prevSpDate.getMonth());
+  const prevSpendTotal = Object.values(prevSpendMap).reduce((a, v) => a + v, 0);
+  // 子分類下鑽：expanded = 目前展開檢視的大類名稱（null = 未展開）
+  const subMap = expanded ? aggSubSpend(spY, spM, expanded) : null;
+  const subTotal = subMap ? Object.values(subMap).reduce((a, v) => a + v, 0) : 0;
+  const subCats = subMap ? Object.entries(subMap).sort((a, b) => b[1] - a[1]).map(([k, v], i) => ({ name: k, value: v, color: EXP_COLORS[i % EXP_COLORS.length], pct: subTotal > 0 ? v / subTotal * 100 : 0 })) : [];
 
   // ── 每月收支（年）──
   const viewYear = now.getFullYear() + yearOffset;
   const months = Array.from({ length: 12 }, emptyAgg);
   savedFlows.forEach((f) => { const d = dOf(f); if (d.getFullYear() !== viewYear) return; addFlow(months[d.getMonth()], f); });
+  // 去年同期疊加（僅月檢視用）：同一份聚合邏輯，年份改成上一年
+  const prevYearMonths = Array.from({ length: 12 }, emptyAgg);
+  savedFlows.forEach((f) => { const d = dOf(f); if (d.getFullYear() !== viewYear - 1) return; addFlow(prevYearMonths[d.getMonth()], f); });
 
   // ── 年度收支（十年）──
   const decadeEnd = now.getFullYear() + decadeOffset * 10;
@@ -986,16 +1007,19 @@ function MonthlyStatsSheet({ open, onClose, savedFlows, masterData, hideAmounts,
   }),
   { k: '消費支出', c: TOKENS.red, dashed: true, val: (a) => (a.exp || 0) - (a.investLoss || 0) }];
   // 整合圖：收支餘額柱狀（背景）＋ 上述折線（前景），共用同一數值刻度。
-  const ComboChart = ({ data, labels, hiddenSeries }) => {
+  const spendSeries = CHART_SERIES.find((s) => s.k === '消費支出');
+  const ComboChart = ({ data, labels, hiddenSeries, prevData }) => {
     const visibleSeries = CHART_SERIES.filter((s) => !hiddenSeries.has(s.k));
+    const hideNet = hiddenSeries.has('餘額');
+    const showYoY = !!prevData && !hiddenSeries.has('去年同期');
     const W = 340, H = 172, pL = 16, pR = 12, pT = 14, pB = 22, n = data.length;
     const chartH = H - pT - pB;
     const nets = data.map((a) => a.inc - a.exp);
     let maxPos = 0, maxNeg = 0;
     data.forEach((a, i) => {
       visibleSeries.forEach((s) => { const v = s.val(a); maxPos = Math.max(maxPos, v); maxNeg = Math.max(maxNeg, -v); });
-      maxPos = Math.max(maxPos, nets[i]);
-      maxNeg = Math.max(maxNeg, -nets[i]);
+      if (!hideNet) { maxPos = Math.max(maxPos, nets[i]); maxNeg = Math.max(maxNeg, -nets[i]); }
+      if (showYoY) { const v = spendSeries.val(prevData[i]); maxPos = Math.max(maxPos, v); maxNeg = Math.max(maxNeg, -v); }
     });
     maxPos = maxPos || 1;
     const range = maxPos + maxNeg || 1;
@@ -1008,7 +1032,7 @@ function MonthlyStatsSheet({ open, onClose, savedFlows, masterData, hideAmounts,
     return (
       <svg width="100%" viewBox={`0 0 ${W} ${H}`} style={{ display: 'block' }}>
         {/* 餘額柱（背景、半透明），折線在上方；長條圖進場時由 0 長高（growBar），以基準線為軸心。 */}
-        {nets.map((v, i) => { const h = Math.abs(v) / range * chartH, pos = v >= 0; const on = selIdx == null || selIdx === i;
+        {!hideNet && nets.map((v, i) => { const h = Math.abs(v) / range * chartH, pos = v >= 0; const on = selIdx == null || selIdx === i;
           return <rect key={'b' + i} x={xAt(i) - bw / 2} y={pos ? zeroY - h : zeroY} width={bw} height={h} rx="2"
             fill={pos ? NET_POS : NET_NEG} opacity={on ? 0.15 : 0.06}
             style={{ transformOrigin: `${xAt(i)}px ${zeroY}px`, animation: `growBar 520ms cubic-bezier(0.32,0.72,0.18,1) ${i * 18}ms both` }} />; })}
@@ -1017,6 +1041,12 @@ function MonthlyStatsSheet({ open, onClose, savedFlows, masterData, hideAmounts,
         {/* 選取虛線 */}
         {selIdx != null && selIdx < n &&
         <line x1={xAt(selIdx)} y1={pT} x2={xAt(selIdx)} y2={H - pB} stroke="rgba(0,0,0,0.28)" strokeWidth="1.5" strokeDasharray="3 3" />}
+        {/* 去年同期參考線（僅月檢視）：淡灰色虛線，疊在消費支出線同一份數值，只做淡入不畫線，
+            避免跟真正的消費支出線搶視覺。 */}
+        {showYoY &&
+        <polyline points={prevData.map((a, i) => `${xAt(i).toFixed(1)},${yAt(spendSeries.val(a)).toFixed(1)}`).join(' ')}
+          fill="none" stroke={TOKENS.gray4} strokeWidth="1.5" strokeDasharray="2 3" strokeLinejoin="round" strokeLinecap="round"
+          style={{ opacity: 0, animation: 'fadeInStat 400ms ease-out 120ms forwards' }} />}
         {/* 折線：依圖例勾選顯示，圖例切換顯示時（重新掛載）動畫都會重播一次。
             實線用 pathLength=1 + drawLine 做「畫出來」效果；虛線（消費支出）本身已有 dash 花紋，
             兩種 dasharray 疊在一起會互相干擾，改用單純淡入。 */}
@@ -1029,8 +1059,39 @@ function MonthlyStatsSheet({ open, onClose, savedFlows, masterData, hideAmounts,
           fill="none" stroke={s.c} strokeWidth="2" strokeDasharray="1" strokeLinejoin="round" strokeLinecap="round"
           style={{ animation: `drawLine 650ms cubic-bezier(0.32,0.72,0.18,1) ${180 + si * 90}ms both` }} />
         )}
-        {data.map((_, i) => i % step === 0 ? <text key={'t' + i} x={xAt(i)} y={H - 6} textAnchor="middle" fill="rgba(44,44,50,0.5)" style={{ fontSize: '14px' }}>{labels[i]}</text> : null)}
+        {data.map((_, i) => i % step === 0 ? <text key={'t' + i} x={xAt(i)} y={H - 6} textAnchor="middle" fill="rgba(44,44,50,0.62)" style={{ fontSize: '14px' }}>{labels[i]}</text> : null)}
         {/* 點擊熱區：每欄一條 → 開啟彈出視窗 */}
+        {data.map((_, i) => <rect key={'h' + i} x={xAt(i) - cw / 2} y={0} width={cw} height={H} fill="transparent" onClick={() => toggleSel(i)} style={{ cursor: 'pointer' }} />)}
+      </svg>);
+  };
+  // 儲蓄率趨勢：獨立小型 sparkline，跟 ComboChart 分開座標——金額與百分比尺度差太多，不共用 Y 軸。
+  const SavingsRateStrip = ({ data }) => {
+    const rates = data.map((a) => a.inc > 0 ? (a.inc - a.exp) / a.inc * 100 : null);
+    const valid = rates.filter((v) => v != null);
+    if (!valid.length) return null;
+    const W = 340, H = 56, pL = 16, pR = 12, pT = 10, pB = 10, n = rates.length;
+    const chartH = H - pT - pB;
+    const maxV = Math.max(0, ...valid), minV = Math.max(-100, Math.min(0, ...valid));
+    const range = maxV - minV || 1;
+    const xAt = (i) => pL + (W - pL - pR) * (n === 1 ? 0.5 : i / (n - 1));
+    const yAt = (v) => pT + chartH * (1 - (v - minV) / range);
+    const zeroY = yAt(0);
+    const cw = (W - pL - pR) / Math.max(1, n - 1);
+    // 沒有收入的期間（inc=0）讓線斷開，不能畫成假的 0%
+    const segs = []; let cur = [];
+    rates.forEach((v, i) => { if (v == null) { if (cur.length) segs.push(cur); cur = []; return; } cur.push(i); });
+    if (cur.length) segs.push(cur);
+    return (
+      <svg width="100%" viewBox={`0 0 ${W} ${H}`} style={{ display: 'block' }}>
+        <line x1={pL} y1={zeroY} x2={W - pR} y2={zeroY} stroke="rgba(0,0,0,0.14)" strokeDasharray="2 2" />
+        {selIdx != null && selIdx < n &&
+        <line x1={xAt(selIdx)} y1={0} x2={xAt(selIdx)} y2={H} stroke="rgba(0,0,0,0.28)" strokeWidth="1.5" strokeDasharray="3 3" />}
+        {segs.map((seg, si) =>
+        <polyline key={si} pathLength="1" points={seg.map((i) => `${xAt(i).toFixed(1)},${yAt(rates[i]).toFixed(1)}`).join(' ')}
+          fill="none" stroke={TOKENS.teal} strokeWidth="2" strokeDasharray="1" strokeLinejoin="round" strokeLinecap="round"
+          style={{ animation: `drawLine 650ms cubic-bezier(0.32,0.72,0.18,1) ${300 + si * 60}ms both` }} />
+        )}
+        {/* 點擊熱區：跟 ComboChart 共用 selIdx/toggleSel，點哪裡都會開同一個 SelPopup */}
         {data.map((_, i) => <rect key={'h' + i} x={xAt(i) - cw / 2} y={0} width={cw} height={H} fill="transparent" onClick={() => toggleSel(i)} style={{ cursor: 'pointer' }} />)}
       </svg>);
   };
@@ -1045,7 +1106,7 @@ function MonthlyStatsSheet({ open, onClose, savedFlows, masterData, hideAmounts,
     <div style={{ display: 'flex', alignItems: 'center', gap: SP(8), padding: PAD('6px 0') }}>
       {dot ? <span style={{ width: 8, height: 8, borderRadius: 4, flexShrink: 0, background: color }} /> : <span style={{ width: 8, flexShrink: 0 }} />}
       <span style={{ flex: 1, fontSize: FS(17), color: 'rgba(44,44,50,0.82)' }}>{lbl}</span>
-      <span style={{ fontFamily: TOKENS.fontMono, fontSize: FS(17), fontWeight: 600, color: v === 0 ? 'rgba(60,60,67,0.35)' : color }}>{v === 0 ? '—' : (sign || '') + mask(Math.abs(v))}</span>
+      <span style={{ fontFamily: TOKENS.fontMono, fontSize: FS(17), fontWeight: 600, color: v === 0 ? 'rgba(60,60,67,0.5)' : color }}>{v === 0 ? '—' : (sign || '') + mask(Math.abs(v))}</span>
     </div>;
     const hasInc = INC_GROUPS.some((g) => (a.groups[g.k] || 0) > 0);
     return (
@@ -1061,13 +1122,25 @@ function MonthlyStatsSheet({ open, onClose, savedFlows, masterData, hideAmounts,
           <div style={{ borderTop: '1px solid rgba(0,0,0,0.08)', paddingTop: SP(4) }}>
             {hasInc ? INC_GROUPS.map((g) => (a.groups[g.k] || 0) > 0 ?
             <React.Fragment key={g.k}>{row(g.k === '其他' ? '其他收入' : g.k, a.groups[g.k], g.c, '', true)}</React.Fragment> : null) :
-            <div style={{ fontSize: FS(16), color: 'rgba(44,44,50,0.4)', padding: PAD('6px 0') }}>此期間無收入</div>}
+            <div style={{ fontSize: FS(16), color: 'rgba(44,44,50,0.55)', padding: PAD('6px 0') }}>此期間無收入</div>}
           </div>
           <div style={{ borderTop: '1px solid rgba(0,0,0,0.12)', marginTop: SP(6), paddingTop: SP(4) }}>
             {row('總收入', a.inc, TOKENS.incBlue)}
             {row('消費支出', spend, TOKENS.red, spend > 0 ? '-' : '')}
             {row('投資損失', invLoss, TOKENS.ink2, invLoss > 0 ? '-' : '')}
             {row('餘額', net, net < 0 ? TOKENS.red : TOKENS.ink, net < 0 ? '-' : '')}
+            {(() => {
+              const rate = a.inc > 0 ? net / a.inc * 100 : null;
+              const rateColor = rate == null ? 'rgba(60,60,67,0.5)' : rate >= 0 ? TOKENS.teal : TOKENS.red;
+              return (
+                <div style={{ display: 'flex', alignItems: 'center', gap: SP(8), padding: PAD('6px 0') }}>
+                  <span style={{ width: 8, flexShrink: 0 }} />
+                  <span style={{ flex: 1, fontSize: FS(17), color: 'rgba(44,44,50,0.82)' }}>儲蓄率</span>
+                  <span style={{ fontFamily: TOKENS.fontMono, fontSize: FS(17), fontWeight: 600, color: rateColor }}>
+                    {rate == null ? '—' : `${rate.toFixed(1)}%（${rate >= 0 ? '+' : '-'}${mask(Math.abs(Math.round(net)))}）`}
+                  </span>
+                </div>);
+            })()}
           </div>
         </div>
       </div>);
@@ -1076,15 +1149,15 @@ function MonthlyStatsSheet({ open, onClose, savedFlows, masterData, hideAmounts,
   const StatTable = ({ rows, unitLabel, onRowTap }) => {
     const tot = rows.reduce((a, r) => ({ inc: a.inc + r.inc, exp: a.exp + r.exp }), { inc: 0, exp: 0 });
     const shown = rows.filter((r) => r.inc > 0 || r.exp > 0);
-    if (!shown.length) return <div style={{ fontSize: FS(16), color: 'rgba(44,44,50,0.4)', textAlign: 'center', padding: PAD('16px 0') }}>尚無紀錄</div>;
-    const cell = (v, color, bold) => <div style={{ flex: 1, textAlign: 'right', fontFamily: TOKENS.fontMono, fontSize: FS(14), fontWeight: bold ? 700 : 400, color: v > 0 ? color : 'rgba(44,44,50,0.3)' }}>{v > 0 ? mask(v) : '—'}</div>;
+    if (!shown.length) return <div style={{ fontSize: FS(16), color: 'rgba(44,44,50,0.55)', textAlign: 'center', padding: PAD('16px 0') }}>尚無紀錄</div>;
+    const cell = (v, color, bold) => <div style={{ flex: 1, textAlign: 'right', fontFamily: TOKENS.fontMono, fontSize: FS(14), fontWeight: bold ? 700 : 400, color: v > 0 ? color : 'rgba(44,44,50,0.5)' }}>{v > 0 ? mask(v) : '—'}</div>;
     return (
       <>
         <div style={{ display: 'flex', alignItems: 'center', paddingBottom: SP(8), borderBottom: '1px solid rgba(0,0,0,0.10)' }}>
-          <div style={{ width: 54, fontSize: FS(13), color: 'rgba(44,44,50,0.5)', fontWeight: 700 }}>{unitLabel}</div>
-          <div style={{ flex: 1, textAlign: 'right', fontSize: FS(13), color: 'rgba(44,44,50,0.5)', fontWeight: 700 }}>總收入</div>
-          <div style={{ flex: 1, textAlign: 'right', fontSize: FS(13), color: 'rgba(44,44,50,0.5)', fontWeight: 700 }}>總支出</div>
-          <div style={{ flex: 1, textAlign: 'right', fontSize: FS(13), color: 'rgba(44,44,50,0.5)', fontWeight: 700 }}>餘額</div>
+          <div style={{ width: 54, fontSize: FS(13), color: 'rgba(44,44,50,0.62)', fontWeight: 700 }}>{unitLabel}</div>
+          <div style={{ flex: 1, textAlign: 'right', fontSize: FS(13), color: 'rgba(44,44,50,0.62)', fontWeight: 700 }}>總收入</div>
+          <div style={{ flex: 1, textAlign: 'right', fontSize: FS(13), color: 'rgba(44,44,50,0.62)', fontWeight: 700 }}>總支出</div>
+          <div style={{ flex: 1, textAlign: 'right', fontSize: FS(13), color: 'rgba(44,44,50,0.62)', fontWeight: 700 }}>餘額</div>
           <div style={{ width: 22 }} />
         </div>
         {shown.map((r) => {
@@ -1116,7 +1189,7 @@ function MonthlyStatsSheet({ open, onClose, savedFlows, masterData, hideAmounts,
 
   const cardStyle = { background: TOKENS.surface, borderRadius: RS(20), border: '1px solid rgba(0,0,0,0.07)', padding: PAD('16px 12px') };
   const secTitle = (t) => <span style={{ fontSize: FS(14), color: 'rgba(0,0,0,0.62)', fontWeight: 700, letterSpacing: 1 }}>{t}</span>;
-  const segBtn = (id, lbl) => { const on = view === id; return <button key={id} onClick={() => { setView(id); setExpanded(null); setSelIdx(null); }} style={{ flex: 1, height: 44, borderRadius: RS(14), border: 'none', background: on ? TOKENS.surface : 'transparent', boxShadow: on ? SH('0 2px 8px rgba(0,0,0,0.12)') : 'none', color: on ? TOKENS.ink : 'rgba(44,44,50,0.55)', fontSize: FS(16), fontWeight: on ? 700 : 500, cursor: 'pointer' }}>{lbl}</button>; };
+  const segBtn = (id, lbl) => { const on = view === id; return <button key={id} onClick={() => { setView(id); setExpanded(null); setSelIdx(null); }} style={{ flex: 1, height: 44, borderRadius: RS(14), border: 'none', background: on ? TOKENS.surface : 'transparent', boxShadow: on ? SH('0 2px 8px rgba(0,0,0,0.12)') : 'none', color: on ? TOKENS.ink : 'rgba(44,44,50,0.65)', fontSize: FS(16), fontWeight: on ? 700 : 500, cursor: 'pointer' }}>{lbl}</button>; };
   const stepper = (onClick, enabled, flip) => <button onClick={onClick} disabled={!enabled} style={{ width: 38, height: 38, borderRadius: RS(12), flexShrink: 0, background: TOKENS.surface, border: '1px solid rgba(0,0,0,0.12)', color: TOKENS.ink, opacity: enabled ? 1 : 0.35, cursor: enabled ? 'pointer' : 'default', display: 'flex', alignItems: 'center', justifyContent: 'center' }}><ChevronRight size={18} style={flip ? { transform: 'rotate(180deg)' } : undefined} /></button>;
 
   const periodLabel = view === 'spend' ? `${spY} 年 ${spM + 1} 月` : view === 'month' ? `${viewYear} 年` : `${decadeYears[0]}–${decadeYears[9]}`;
@@ -1168,23 +1241,68 @@ function MonthlyStatsSheet({ open, onClose, savedFlows, masterData, hideAmounts,
           <div style={{ ...cardStyle, padding: PAD('20px 16px') }}
             onTouchStart={onSwipeStart} onTouchEnd={onSwipeEnd}
             onMouseDown={onSwipeStart} onMouseUp={onSwipeEnd}>
-            {spendCats.length === 0 ?
-            <div style={{ fontSize: FS(17), color: 'rgba(44,44,50,0.4)', textAlign: 'center', padding: PAD('24px 0') }}>本月尚無消費紀錄</div> :
+            {expanded ?
+            <>
+              <button onClick={() => setExpanded(null)} style={{ display: 'flex', alignItems: 'center', gap: SP(4), background: 'transparent', border: 'none', padding: 0, marginBottom: SP(12), cursor: 'pointer', color: 'rgba(44,44,50,0.7)', fontSize: FS(16), fontWeight: 600 }}>
+                <ChevronRight size={16} style={{ transform: 'rotate(180deg)' }} />{expanded}
+              </button>
+              {subCats.length === 0 ?
+              <div style={{ fontSize: FS(17), color: 'rgba(44,44,50,0.55)', textAlign: 'center', padding: PAD('24px 0') }}>本月此大類尚無消費紀錄</div> :
+              <>
+                {StatDonut && <StatDonut key={`${spY}-${spM}-${expanded}`} data={subCats} total={subTotal} label={expanded} color={TOKENS.red} mask={mask} />}
+                <div style={{ marginTop: SP(18), display: 'flex', flexDirection: 'column' }}>
+                  {subCats.map((c, i) =>
+                  <div key={c.name} style={{ display: 'flex', alignItems: 'center', gap: SP(12), padding: PAD('12px 2px'), borderTop: i === 0 ? '1px solid rgba(0,0,0,0.07)' : 'none', borderBottom: '1px solid rgba(0,0,0,0.07)' }}>
+                    <div style={{ width: 40, height: 40, borderRadius: RS(12), flexShrink: 0, background: `${c.color}22`, border: `1px solid ${c.color}55`, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                      {(() => {const Ico = window.Icons[flowIconName({ cat: c.name, kind: 'exp' })] || window.Icons.Receipt;return <Ico size={20} style={{ color: c.color }} />;})()}
+                    </div>
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div style={{ fontSize: FS(19), fontWeight: 500, color: TOKENS.ink, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{c.name}</div>
+                      <div style={{ fontSize: FS(14), color: 'rgba(44,44,50,0.62)', marginTop: SP(1) }}>{c.pct.toFixed(1)}%</div>
+                    </div>
+                    <div style={{ fontFamily: TOKENS.fontMono, fontSize: FS(19), fontWeight: 600, flexShrink: 0, color: TOKENS.red }}>-{mask(c.value)}</div>
+                  </div>
+                  )}
+                </div>
+              </>
+              }
+            </> :
+            spendCats.length === 0 ?
+            <div style={{ fontSize: FS(17), color: 'rgba(44,44,50,0.55)', textAlign: 'center', padding: PAD('24px 0') }}>本月尚無消費紀錄</div> :
             <>
               {StatDonut && <StatDonut key={`${spY}-${spM}`} data={spendCats} total={spendTotal} label="總支出" color={TOKENS.red} mask={mask} />}
+              {prevSpendTotal > 0 && (() => {
+                const delta = spendTotal - prevSpendTotal, pct = delta / prevSpendTotal * 100, up = delta > 0;
+                const color = up ? TOKENS.red : TOKENS.green; // 消費增加=紅(壞)，減少=綠(好)——跟收入線紅綠語意相反
+                const Ico = up ? TrendUp : TrendDown;
+                return (
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: SP(4), marginTop: SP(10), fontSize: FS(14), color }}>
+                    <Ico size={14} />較上月{up ? '+' : ''}{pct.toFixed(1)}%（{up ? '+' : '-'}{mask(Math.abs(delta))}）
+                  </div>);
+              })()}
               <div style={{ marginTop: SP(18), display: 'flex', flexDirection: 'column' }}>
-                {spendCats.map((c, i) =>
-                <div key={c.name} style={{ display: 'flex', alignItems: 'center', gap: SP(12), padding: PAD('12px 2px'), borderTop: i === 0 ? '1px solid rgba(0,0,0,0.07)' : 'none', borderBottom: '1px solid rgba(0,0,0,0.07)' }}>
-                  <div style={{ width: 40, height: 40, borderRadius: RS(12), flexShrink: 0, background: `${c.color}22`, border: `1px solid ${c.color}55`, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                    {(() => {const Ico = window.Icons[flowIconName({ cat: c.name, kind: 'exp' })] || window.Icons.Receipt;return <Ico size={20} style={{ color: c.color }} />;})()}
-                  </div>
-                  <div style={{ flex: 1, minWidth: 0 }}>
-                    <div style={{ fontSize: FS(19), fontWeight: 500, color: TOKENS.ink, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{c.name}</div>
-                    <div style={{ fontSize: FS(14), color: 'rgba(44,44,50,0.5)', marginTop: SP(1) }}>{c.pct.toFixed(1)}%</div>
-                  </div>
-                  <div style={{ fontFamily: TOKENS.fontMono, fontSize: FS(19), fontWeight: 600, flexShrink: 0, color: TOKENS.red }}>-{mask(c.value)}</div>
-                </div>
-                )}
+                {spendCats.map((c, i) => {
+                  const prevV = prevSpendMap[c.name] || 0;
+                  const chg = prevV > 0 ? (c.value - prevV) / prevV * 100 : null;
+                  return (
+                  <button key={c.name} onClick={() => setExpanded(c.name)} style={{ width: '100%', display: 'flex', alignItems: 'center', gap: SP(12), padding: PAD('12px 2px'), borderTop: i === 0 ? '1px solid rgba(0,0,0,0.07)' : 'none', borderBottom: '1px solid rgba(0,0,0,0.07)', borderLeft: 'none', borderRight: 'none', background: 'transparent', textAlign: 'left', cursor: 'pointer' }}>
+                    <div style={{ width: 40, height: 40, borderRadius: RS(12), flexShrink: 0, background: `${c.color}22`, border: `1px solid ${c.color}55`, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                      {(() => {const Ico = window.Icons[flowIconName({ cat: c.name, kind: 'exp' })] || window.Icons.Receipt;return <Ico size={20} style={{ color: c.color }} />;})()}
+                    </div>
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div style={{ fontSize: FS(19), fontWeight: 500, color: TOKENS.ink, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{c.name}</div>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: SP(6), marginTop: SP(1) }}>
+                        <span style={{ fontSize: FS(14), color: 'rgba(44,44,50,0.62)' }}>{c.pct.toFixed(1)}%</span>
+                        {prevV === 0 ?
+                        <span style={{ fontSize: FS(12), color: TOKENS.gold }}>新增</span> :
+                        Math.abs(chg) >= 0.5 &&
+                        <span style={{ fontSize: FS(12), color: chg > 0 ? TOKENS.red : TOKENS.green }}>{chg > 0 ? '▲' : '▼'}{Math.abs(chg).toFixed(1)}%</span>}
+                      </div>
+                    </div>
+                    <div style={{ fontFamily: TOKENS.fontMono, fontSize: FS(19), fontWeight: 600, flexShrink: 0, color: TOKENS.red }}>-{mask(c.value)}</div>
+                    <ChevronRight size={16} style={{ flexShrink: 0, color: 'rgba(44,44,50,0.3)' }} />
+                  </button>);
+                })}
               </div>
             </>
             }
@@ -1205,7 +1323,7 @@ function MonthlyStatsSheet({ open, onClose, savedFlows, masterData, hideAmounts,
                   return (
                     <button key={s.k} onClick={() => toggleSeries(s.k)} style={{
                       display: 'flex', alignItems: 'center', gap: SP(4), fontSize: FS(13),
-                      color: off ? 'rgba(44,44,50,0.32)' : 'rgba(44,44,50,0.6)',
+                      color: off ? 'rgba(44,44,50,0.32)' : 'rgba(44,44,50,0.68)',
                       background: 'transparent', border: 'none', padding: 0, cursor: 'pointer',
                       textDecoration: off ? 'line-through' : 'none', transition: 'color 160ms' }}>
                       <span style={{ width: 12, height: 3, borderRadius: RS(2),
@@ -1214,11 +1332,31 @@ function MonthlyStatsSheet({ open, onClose, savedFlows, masterData, hideAmounts,
                       {s.k}
                     </button>);
                 })}
-                <span style={{ display: 'flex', alignItems: 'center', gap: SP(4), fontSize: FS(13), color: 'rgba(44,44,50,0.6)' }}><span style={{ width: 10, height: 10, borderRadius: RS(2), background: NET_POS, opacity: 0.45 }} />餘額</span>
+                {(() => { const off = hiddenSeries.has('餘額'); return (
+                  <button onClick={() => toggleSeries('餘額')} style={{
+                    display: 'flex', alignItems: 'center', gap: SP(4), fontSize: FS(13),
+                    color: off ? 'rgba(44,44,50,0.32)' : 'rgba(44,44,50,0.68)',
+                    background: 'transparent', border: 'none', padding: 0, cursor: 'pointer',
+                    textDecoration: off ? 'line-through' : 'none', transition: 'color 160ms' }}>
+                    <span style={{ width: 10, height: 10, borderRadius: RS(2), background: off ? 'rgba(0,0,0,0.18)' : NET_POS, opacity: off ? 1 : 0.45, transition: 'background 160ms' }} />餘額
+                  </button>); })()}
+                {view === 'month' && (() => { const off = hiddenSeries.has('去年同期'); return (
+                  <button onClick={() => toggleSeries('去年同期')} style={{
+                    display: 'flex', alignItems: 'center', gap: SP(4), fontSize: FS(13),
+                    color: off ? 'rgba(44,44,50,0.32)' : 'rgba(44,44,50,0.68)',
+                    background: 'transparent', border: 'none', padding: 0, cursor: 'pointer',
+                    textDecoration: off ? 'line-through' : 'none', transition: 'color 160ms' }}>
+                    <span style={{ width: 12, height: 3, borderRadius: RS(2), background: off ? 'rgba(0,0,0,0.18)' : TOKENS.gray4, opacity: off ? 1 : 0.7, transition: 'background 160ms' }} />去年同期
+                  </button>); })()}
               </div>
               <ComboChart key={view + '-' + (view === 'month' ? viewYear : decadeYears[0])}
-              data={curData} labels={view === 'month' ? monthLabels : yearLabels} hiddenSeries={hiddenSeries} />
-              <div style={{ fontSize: FS(12), color: 'rgba(44,44,50,0.4)', marginTop: SP(4), paddingLeft: SP(2) }}>點圖或下方列表可查看該{view === 'month' ? '月' : '年'}明細</div>
+              data={curData} labels={view === 'month' ? monthLabels : yearLabels} hiddenSeries={hiddenSeries}
+              prevData={view === 'month' ? prevYearMonths : undefined} />
+              <div style={{ marginTop: SP(10) }}>
+                <div style={{ fontSize: FS(12), color: 'rgba(44,44,50,0.62)', marginBottom: SP(2), paddingLeft: SP(2) }}>儲蓄率</div>
+                <SavingsRateStrip data={curData} />
+              </div>
+              <div style={{ fontSize: FS(12), color: 'rgba(44,44,50,0.55)', marginTop: SP(4), paddingLeft: SP(2) }}>點圖或下方列表可查看該{view === 'month' ? '月' : '年'}明細</div>
             </div>
             <div style={{ ...cardStyle, padding: PAD('14px') }}>
               <StatTable rows={view === 'month' ? monthRows : yearRows} unitLabel={view === 'month' ? '月' : '年'} onRowTap={(idx) => setSelIdx(idx)} />
@@ -1231,12 +1369,308 @@ function MonthlyStatsSheet({ open, onClose, savedFlows, masterData, hideAmounts,
     </div>);
 }
 
+/* ── 儲蓄目標：陣列，每筆依 type 而定有不同欄位，支援同時追蹤多種長期計劃。
+   新增/刪除/清除/備份還原都靠掃描所有 ff_* key 自動處理，這裡不用額外接其他檔案。
+   舊版只存單一目標於 ff_savings_goal，這裡讀取時一次性遷移成陣列並寫回新 key；
+   更早版本沒有 type/celebrated 欄位，讀取時一律補上預設值，不影響既有資料/其他欄位。 */
+function ffGetSavingsGoals() {
+  const normalize = (g) => ({ type: 'networth', celebrated: false, ...g });
+  try {
+    const arr = JSON.parse(localStorage.getItem('ff_savings_goals') || 'null');
+    if (Array.isArray(arr)) return arr.map(normalize);
+    const legacy = JSON.parse(localStorage.getItem('ff_savings_goal') || 'null');
+    if (legacy && legacy.targetYear) {
+      const migrated = [normalize({ id: 'g' + Date.now(), name: '儲蓄目標', amount: legacy.amount, targetYear: legacy.targetYear, targetMonth: legacy.targetMonth })];
+      ffSetSavingsGoals(migrated);
+      return migrated;
+    }
+    return [];
+  } catch { return []; }
+}
+function ffSetSavingsGoals(v) {
+  try { localStorage.setItem('ff_savings_goals', JSON.stringify(v)); } catch {}
+}
+
+// 目標類型設定：新增目標的類型選單、表單欄位都從這份清單長出來，不用寫一大串 if/else。
+// recurring=true 的三種是週期性目標（本期進度＋歷史達成率，沒有目標年月），且可選固定金額
+// 或跟上一期比的%成長。
+const GOAL_TYPES = [
+  { key: 'networth', icon: 'PiggyBank', label: '淨資產目標', desc: '淨資產於指定年月達到目標金額', recurring: false },
+  { key: 'account', icon: 'Wallet', label: '單一帳戶餘額', desc: '指定帳戶餘額達到目標金額（無期限）', recurring: false },
+  { key: 'passive_income', icon: 'TrendUp', label: '被動收入', desc: '被動收入達到目標，可選以月或以年為單位', recurring: true },
+  { key: 'balance', icon: 'Receipt', label: '收支結餘', desc: '收支結餘達到目標，可選以月或以年為單位', recurring: true },
+  { key: 'stock_gain', icon: 'LineChart', label: '股票已實現損益', desc: '股票買賣已實現損益達標（不含股息債息），可選以月或以年為單位', recurring: true },
+];
+const GOAL_TYPE_MAP = Object.fromEntries(GOAL_TYPES.map((t) => [t.key, t]));
+
+// 被動收入：複製 MonthlyStatsSheet 的 incGroupOf/amtOf 邏輯——那是該元件的私有 closure、
+// 未對外匯出，這裡刻意重新實作一份小型獨立版本，避免跨元件耦合。年/月兩種版本共用同一套
+// 分類判斷，只差在日期篩選的粒度。
+function ffPassiveIncomeForYear(savedFlows, masterData, year) {
+  const INC_LABEL = { '主動': '主動收入', '被動': '被動收入', '投資收入': '投資收入', '其他': '其他' };
+  const catIncGroup = {};
+  (masterData.cat_inc || []).forEach((c) => { const o = typeof c === 'string' ? { name: c, group: '其他' } : c; catIncGroup[o.name] = o.group || '其他'; });
+  const incGroupOf = (cat) => INC_LABEL[catIncGroup[cat] || '其他'] || (catIncGroup[cat] || '其他');
+  const curMap = window.buildCurMap(masterData);
+  const amtOf = (f) => window.fxToTWD(f.amount, curMap[f.account]);
+  let total = 0;
+  (savedFlows || []).forEach((f) => {
+    if (f.kind !== 'inc' || !f.date) return;
+    if (new Date(f.date).getFullYear() !== year) return;
+    if (incGroupOf(f.cat) !== '被動收入') return;
+    total += amtOf(f);
+  });
+  return total;
+}
+function ffPassiveIncomeForMonth(savedFlows, masterData, year, month /* 1-12 */) {
+  const INC_LABEL = { '主動': '主動收入', '被動': '被動收入', '投資收入': '投資收入', '其他': '其他' };
+  const catIncGroup = {};
+  (masterData.cat_inc || []).forEach((c) => { const o = typeof c === 'string' ? { name: c, group: '其他' } : c; catIncGroup[o.name] = o.group || '其他'; });
+  const incGroupOf = (cat) => INC_LABEL[catIncGroup[cat] || '其他'] || (catIncGroup[cat] || '其他');
+  const curMap = window.buildCurMap(masterData);
+  const amtOf = (f) => window.fxToTWD(f.amount, curMap[f.account]);
+  let total = 0;
+  (savedFlows || []).forEach((f) => {
+    if (f.kind !== 'inc' || !f.date) return;
+    const d = f.date instanceof Date ? f.date : new Date(f.date);
+    if (d.getFullYear() !== year || d.getMonth() + 1 !== month) return;
+    if (incGroupOf(f.cat) !== '被動收入') return;
+    total += amtOf(f);
+  });
+  return total;
+}
+
+// 結餘：指定期間的 inc - exp，年/月兩種版本只差日期篩選粒度。
+function ffMonthlyBalance(savedFlows, masterData, year, month /* 1-12 */) {
+  const curMap = window.buildCurMap(masterData);
+  const amtOf = (f) => window.fxToTWD(f.amount, curMap[f.account]);
+  let inc = 0, exp = 0;
+  (savedFlows || []).forEach((f) => {
+    if (!f.date) return;
+    const d = f.date instanceof Date ? f.date : new Date(f.date);
+    if (d.getFullYear() !== year || d.getMonth() + 1 !== month) return;
+    if (f.kind === 'inc') inc += amtOf(f);
+    else if (f.kind === 'exp') exp += amtOf(f);
+  });
+  return inc - exp;
+}
+function ffYearlyBalance(savedFlows, masterData, year) {
+  const curMap = window.buildCurMap(masterData);
+  const amtOf = (f) => window.fxToTWD(f.amount, curMap[f.account]);
+  let inc = 0, exp = 0;
+  (savedFlows || []).forEach((f) => {
+    if (!f.date) return;
+    if (new Date(f.date).getFullYear() !== year) return;
+    if (f.kind === 'inc') inc += amtOf(f);
+    else if (f.kind === 'exp') exp += amtOf(f);
+  });
+  return inc - exp;
+}
+
+// 已實現股票損益：只算買賣操作損益，複製 invest.jsx InvestBreakdownSheet 判斷式裡的 pnl
+// 分支（merchant 精確比對 → 舊資料 regex fallback），故意跳過股息/債息分支——那兩者算被動
+// 收入，不算「操作」。年/月兩種版本只差日期篩選粒度。
+function ffRealizedPnlForYear(savedFlows, masterData, year) {
+  const curMap = window.buildCurMap(masterData);
+  const amtOf = (f) => window.fxToTWD(f.amount, curMap[f.account]);
+  let total = 0;
+  (savedFlows || []).forEach((f) => {
+    if (!f.date) return;
+    if (new Date(f.date).getFullYear() !== year) return;
+    const mer = f.merchant || '';
+    const note = f.note || '';
+    const sign = f.kind === 'inc' ? 1 : -1;
+    const amt = amtOf(f);
+    if (mer === '投資獲利') total += amt;
+    else if (mer === '投資損失') total -= amt;
+    else if (/已實現損益/.test(mer + note)) total += sign * amt;
+  });
+  return total;
+}
+function ffRealizedPnlForMonth(savedFlows, masterData, year, month /* 1-12 */) {
+  const curMap = window.buildCurMap(masterData);
+  const amtOf = (f) => window.fxToTWD(f.amount, curMap[f.account]);
+  let total = 0;
+  (savedFlows || []).forEach((f) => {
+    if (!f.date) return;
+    const d = f.date instanceof Date ? f.date : new Date(f.date);
+    if (d.getFullYear() !== year || d.getMonth() + 1 !== month) return;
+    const mer = f.merchant || '';
+    const note = f.note || '';
+    const sign = f.kind === 'inc' ? 1 : -1;
+    const amt = amtOf(f);
+    if (mer === '投資獲利') total += amt;
+    else if (mer === '投資損失') total -= amt;
+    else if (/已實現損益/.test(mer + note)) total += sign * amt;
+  });
+  return total;
+}
+
+// 三種週期性目標的月/年聚合函式對照表，computeGoalProgress 依 goal.periodUnit 查表，
+// 不用為月/年各寫一次六路判斷。
+const PERIOD_METRIC_GETTERS = {
+  passive_income: { year: ffPassiveIncomeForYear, month: ffPassiveIncomeForMonth },
+  balance: { year: ffYearlyBalance, month: ffMonthlyBalance },
+  stock_gain: { year: ffRealizedPnlForYear, month: ffRealizedPnlForMonth },
+};
+
+// 週期性目標的目標值：固定金額直接用 amount；%成長模式要跟「上一期實際值」比，上一期沒
+// 資料（或非正值，無法算成長）就回傳 null——卡片顯示「尚無上一期資料可比較」，不算百分比。
+function ffResolvePeriodTarget(goal, prevPeriodValue) {
+  if (goal.targetMode === 'percent') {
+    if (prevPeriodValue == null || prevPeriodValue <= 0) return null;
+    return prevPeriodValue * (1 + (goal.percentValue || 0) / 100);
+  }
+  return goal.amount;
+}
+
+// 週期性目標的歷史達成率：對每個「有資料的過去期間」重新解析目標值（%模式一樣滾動跟該期
+// 的上一期比），回傳每期達成與否＋達成次數，畫成小圓點列。periods 由呼叫端算好，newest-first
+// （[上一期, 上上期, ...]），最後一筆只用來當倒數第二筆的「上一期」，不會自己變成一個圓點。
+function ffAchievementHistory(goal, periods) {
+  const dots = [];
+  for (let i = 0; i < periods.length - 1; i++) {
+    const { label, value } = periods[i];
+    const target = ffResolvePeriodTarget(goal, periods[i + 1].value);
+    if (target == null) break; // 再往前也不會有基準，提前停止
+    dots.push({ label, achieved: value >= target });
+  }
+  dots.reverse(); // 畫面上舊→新，由左到右
+  return { dots, achievedCount: dots.filter((d) => d.achieved).length, total: dots.length };
+}
+
+// savedFlows 裡最早一筆的日期（沒有資料回傳 null）——用來裁剪歷史圓點，避免對還沒有任何
+// 記帳資料的期間生出假的「未達成」圓點。
+function ffEarliestFlowPeriod(savedFlows) {
+  let min = null;
+  (savedFlows || []).forEach((f) => {
+    if (!f.date) return;
+    const d = f.date instanceof Date ? f.date : new Date(f.date);
+    if (!min || d < min) min = d;
+  });
+  return min;
+}
+function ffYearSeries(getter, startYear, maxCount, earliestYear) {
+  const out = [];
+  for (let i = 0; i < maxCount; i++) {
+    const y = startYear - i;
+    if (earliestYear != null && y < earliestYear) break;
+    out.push({ label: String(y), value: getter(y) });
+  }
+  return out;
+}
+function ffMonthSeries(getter, startYear, startMonth, maxCount, earliest) {
+  const out = []; let y = startYear, m = startMonth;
+  for (let i = 0; i < maxCount; i++) {
+    if (earliest && (y < earliest.getFullYear() || (y === earliest.getFullYear() && m < earliest.getMonth() + 1))) break;
+    out.push({ label: `${y}/${m}`, value: getter(y, m) });
+    m--; if (m < 1) { m = 12; y--; }
+  }
+  return out;
+}
+
+// 統一算出目標卡片要顯示的所有資訊，六種類型的分支都在這裡，卡片 JSX 只有一份、吃這個
+// 回傳值渲染；也是達成動畫判斷（見 NetWorthSheet）跟卡片渲染共用的計算，避免六路分支寫兩次。
+function computeGoalProgress(goal, ctx) {
+  const { totalAssets, computedAcctGroups, computedHoldings, savedFlows, masterData } = ctx;
+  const nowD = new Date();
+  const thisYear = nowD.getFullYear(), thisMonth = nowD.getMonth() + 1;
+  let current = 0, target = goal.amount, subtitle = '', remainingText = null, historyDots = null, noBaseline = false;
+
+  if (goal.type === 'account') {
+    const items = computedAcctGroups.flatMap((g) => g.items);
+    const acctItem = items.find((it) => it.name === goal.accountName);
+    if (!acctItem) {
+      current = 0; subtitle = '帳戶找不到';
+    } else {
+      let val = acctItem.amountTWD != null ? acctItem.amountTWD : acctItem.amount;
+      if ((masterData.brokers || []).some((b) => b.name === goal.accountName)) {
+        val += computedHoldings.flatMap((g) => g.items)
+          .filter((it) => it.broker === goal.accountName)
+          .reduce((a, it) => a + (it.mvTWD != null ? it.mvTWD : it.mv || 0), 0);
+      }
+      current = val;
+      subtitle = goal.accountName;
+    }
+  } else if (PERIOD_METRIC_GETTERS[goal.type]) {
+    // 被動收入／結餘／股票已實現損益：三種都可選以月或以年為單位，共用同一套「本期 vs
+    // 上一期」與歷史圓點邏輯，只是查表換算法函式跟窗口大小不同。
+    const unit = goal.periodUnit === 'month' ? 'month' : 'year';
+    const getters = PERIOD_METRIC_GETTERS[goal.type];
+    const earliest = ffEarliestFlowPeriod(savedFlows);
+    let series;
+    if (unit === 'month') {
+      const getterM = (y, m) => getters.month(savedFlows, masterData, y, m);
+      current = getterM(thisYear, thisMonth);
+      subtitle = '本月進度';
+      const [py, pm] = thisMonth === 1 ? [thisYear - 1, 12] : [thisYear, thisMonth - 1];
+      series = ffMonthSeries(getterM, py, pm, 13, earliest);
+    } else {
+      const getterY = (y) => getters.year(savedFlows, masterData, y);
+      current = getterY(thisYear);
+      subtitle = `${thisYear} 年度進度`;
+      series = ffYearSeries(getterY, thisYear - 1, 6, earliest ? earliest.getFullYear() : null);
+    }
+    target = ffResolvePeriodTarget(goal, series[0] ? series[0].value : null);
+    if (target == null) noBaseline = true;
+    historyDots = ffAchievementHistory(goal, series);
+  } else {
+    // networth（預設/回退——包含所有沒有 type 欄位、或 type 未知的舊資料）
+    current = totalAssets;
+    subtitle = `${goal.targetYear} 年 ${goal.targetMonth} 月`;
+    const monthsLeft = (goal.targetYear - nowD.getFullYear()) * 12 + (goal.targetMonth - (nowD.getMonth() + 1));
+    remainingText = monthsLeft > 0 ? `剩 ${monthsLeft} 個月` : null;
+  }
+
+  const pct = (!noBaseline && target > 0) ? Math.min(100, Math.max(0, current / target * 100)) : 0;
+  const done = !noBaseline && target > 0 && current >= target;
+  return { current, target, pct, done, subtitle, remainingText, historyDots, noBaseline };
+}
+
+// 週期性目標的歷史達成率小圓點列（見 computeGoalProgress 回傳的 historyDots）。
+function GoalHistoryDots({ dots, achievedCount, total, periodLabel }) {
+  if (!total) return null;
+  return (
+    <div style={{ display: 'flex', alignItems: 'center', gap: SP(8), marginTop: SP(8) }}>
+      <div style={{ display: 'flex', gap: SP(4) }}>
+        {dots.map((d, i) =>
+        <div key={i} title={d.label} style={{ width: 8, height: 8, borderRadius: RS(4),
+          background: d.achieved ? TOKENS.green : 'rgba(0,0,0,0.15)' }} />
+        )}
+      </div>
+      <div style={{ fontSize: FS(12), color: 'rgba(44,44,50,0.62)' }}>近{total}{periodLabel}達成 {achievedCount} 次</div>
+    </div>);
+}
+
+// 達成目標時的一次性彩紙噴發，配合 index.html 的 confettiBurst keyframe；純 CSS，
+// 每個粒子往外飛散淡出，播完後就是空的透明層，不需要額外卸載邏輯。
+function ConfettiBurst() {
+  const colors = [TOKENS.gold, TOKENS.red, TOKENS.teal, TOKENS.indigo, TOKENS.orange, TOKENS.green];
+  const n = 12;
+  return (
+    <div style={{ position: 'absolute', inset: 0, pointerEvents: 'none', overflow: 'visible' }}>
+      {Array.from({ length: n }, (_, i) => {
+        const angle = (i / n) * 360 + (i % 2 ? 15 : -15);
+        const dist = 70 + (i % 3) * 20;
+        const rad = angle * Math.PI / 180;
+        const cx = Math.cos(rad) * dist, cy = Math.sin(rad) * dist;
+        return (
+          <div key={i} style={{
+            position: 'absolute', left: '50%', top: '50%', width: 6, height: 6, borderRadius: RS(2),
+            background: colors[i % colors.length],
+            '--cx': `${cx}px`, '--cy': `${cy}px`, '--cr': `${i * 47 % 360}deg`,
+            animation: `confettiBurst 700ms ease-out forwards ${i % 4 * 40}ms`,
+          }} />);
+      })}
+    </div>);
+}
+
 /* ── NetWorthSheet: 資產淨額明細 bottom sheet ─────────────────────── */
-function NetWorthSheet({ open, onClose, total, computedAcctGroups, computedHoldings, mask, hideAmounts }) {
-  const { ChevronRight } = window.Icons;
-
-  if (!open) return null;
-
+function NetWorthSheet({ open, onClose, total, computedAcctGroups, computedHoldings, mask, hideAmounts, savedFlows, masterData }) {
+  const { ChevronRight, Pencil, Check, X, Plus, Trash } = window.Icons;
+  // NetWorthSheet 是永遠掛載、只靠 open prop 顯示/隱藏（app.jsx），hook 必須在下面的
+  // early return 之前呼叫，順序才不會亂掉；連帶把 totalAssets 等純計算也搬到 early return
+  // 之前，這樣達成動畫判斷的 useEffectDash 才拿得到算好的進度。
   const amtTWD = (x) => x.amountTWD != null ? x.amountTWD : x.amount;
   const mvTWD = (x) => x.mvTWD != null ? x.mvTWD : x.mv || 0;
 
@@ -1286,7 +1720,196 @@ function NetWorthSheet({ open, onClose, total, computedAcctGroups, computedHoldi
 
   // 帶上 value：圓餅圖點選某片時中央要顯示該類別的金額。
   const assetData = assets.map((c) => ({ name: c.name, value: c.value, color: c.color, pct: totalAssets > 0 ? c.value / totalAssets * 100 : 0 }));
+
+  const [view, setView] = useStateDash('alloc'); // alloc=資產配置 | goals=財務目標
+  const [goals, setGoalsRaw] = useStateDash(ffGetSavingsGoals);
+  // editingId：null=沒在編輯、'picking'=選類型中、'new'=新增表單中、其他=正在編輯該筆目標的 id
+  const [editingId, setEditingId] = useStateDash(null);
+  const [draftType, setDraftType] = useStateDash('networth');
+  const [draftName, setDraftName] = useStateDash('');
+  const [draftAmount, setDraftAmount] = useStateDash('');
+  const [draftYear, setDraftYear] = useStateDash('');
+  const [draftMonth, setDraftMonth] = useStateDash('');
+  const [draftAccountName, setDraftAccountName] = useStateDash('');
+  const [draftTargetMode, setDraftTargetMode] = useStateDash('amount');
+  const [draftPercentValue, setDraftPercentValue] = useStateDash('');
+  const [draftPeriodUnit, setDraftPeriodUnit] = useStateDash('year');
+  const setGoals = (next) => { setGoalsRaw(next); ffSetSavingsGoals(next); };
+  useEffectDash(() => { if (open) setEditingId(null); }, [open]);
+
+  // 達成動畫：偵測「這次 render 才剛變成 done」的目標，把 celebrated 寫回去持久化，
+  // 確保下次重開 App/這個 sheet 時金色邊框還在，但彩紙不會再放第二次；animatedRef 記錄「這次
+  // 開啟 sheet 期間已經放過彩紙的目標 id」，讓彩紙在偵測到的那個 render 準時播放一次。
+  const animatedRef = useRefDash(new Set());
+  const goalCtx = { totalAssets, computedAcctGroups, computedHoldings, savedFlows, masterData: masterData || {} };
+  useEffectDash(() => {
+    const newlyDone = goals.filter((g) => !g.celebrated && computeGoalProgress(g, goalCtx).done);
+    if (newlyDone.length) {
+      setGoals(goals.map((g) => newlyDone.some((n) => n.id === g.id) ? { ...g, celebrated: true } : g));
+    }
+    // eslint-disable-next-line
+  }, [goals, totalAssets, savedFlows, computedAcctGroups, computedHoldings]);
+
+  const startPicker = () => setEditingId('picking');
+  const startEditWithType = (type) => {
+    setDraftType(type);
+    setDraftName(''); setDraftAmount(''); setDraftYear(''); setDraftMonth('');
+    setDraftAccountName(''); setDraftTargetMode('amount'); setDraftPercentValue(''); setDraftPeriodUnit('year');
+    setEditingId('new');
+  };
+  const startEdit = (g) => {
+    setEditingId(g.id);
+    setDraftType(g.type || 'networth');
+    setDraftName(g.name || '');
+    setDraftAmount(g.amount ? String(g.amount) : '');
+    setDraftYear(g.targetYear ? String(g.targetYear) : '');
+    setDraftMonth(g.targetMonth ? String(g.targetMonth) : '');
+    setDraftAccountName(g.accountName || '');
+    setDraftTargetMode(g.targetMode || 'amount');
+    setDraftPercentValue(g.percentValue ? String(g.percentValue) : '');
+    setDraftPeriodUnit(g.periodUnit || 'year');
+  };
+  const saveGoal = () => {
+    const name = draftName.trim() || '儲蓄目標';
+    const amount = parseFloat(draftAmount) || 0;
+    const type = editingId === 'new' ? draftType : (goals.find((g) => g.id === editingId) || {}).type || 'networth';
+    let extra = {};
+    if (type === 'networth') {
+      const targetYear = parseInt(draftYear, 10) || null;
+      let targetMonth = parseInt(draftMonth, 10) || null;
+      if (targetMonth != null) targetMonth = Math.min(12, Math.max(1, targetMonth));
+      extra = { targetYear, targetMonth };
+    } else if (type === 'account') {
+      extra = { accountName: draftAccountName };
+    } else if (GOAL_TYPE_MAP[type] && GOAL_TYPE_MAP[type].recurring) {
+      extra = { targetMode: draftTargetMode, percentValue: parseFloat(draftPercentValue) || 0, periodUnit: draftPeriodUnit };
+    }
+    if (editingId === 'new') {
+      setGoals([...goals, { id: 'g' + Date.now(), type, name, amount, celebrated: false, ...extra }]);
+    } else {
+      setGoals(goals.map((g) => g.id === editingId ? { ...g, name, amount, ...extra } : g));
+    }
+    setEditingId(null);
+  };
+  const deleteGoal = (id) => setGoals(goals.filter((g) => g.id !== id));
+
+  if (!open) return null;
+
   const cardStyle = { background: TOKENS.surface, borderRadius: RS(20), border: '1px solid rgba(0,0,0,0.07)', padding: PAD('16px') };
+  const segBtn = (id, lbl) => { const on = view === id; return <button key={id} onClick={() => { setView(id); setEditingId(null); }} style={{ flex: 1, height: 44, borderRadius: RS(14), border: 'none', background: on ? TOKENS.surface : 'transparent', boxShadow: on ? SH('0 2px 8px rgba(0,0,0,0.12)') : 'none', color: on ? TOKENS.ink : 'rgba(44,44,50,0.65)', fontSize: FS(16), fontWeight: on ? 700 : 500, cursor: 'pointer' }}>{lbl}</button>; };
+  // 新增/編輯儲蓄目標共用的表單（editingId 決定是新增還是編輯哪一筆）
+  const fieldLabelStyle = { fontSize: FS(15), color: 'rgba(44,44,50,0.7)', width: 64, flexShrink: 0 };
+  const inputStyle = { flex: 1, height: 36, padding: PAD('0 10px'), borderRadius: RS(8), background: 'rgba(0,0,0,0.06)',
+    border: '1px solid rgba(0,0,0,0.12)', fontSize: FS(16), color: TOKENS.ink, outline: 'none' };
+  const numInputStyle = { ...inputStyle, fontFamily: TOKENS.fontMono, fontSize: FS(17) };
+  // 信用卡是負債，拿來當「餘額目標」語意怪，選單裡不提供。
+  const accountList = computedAcctGroups.filter((g) => g.id !== 'credit').flatMap((g) => g.items.map((it) => ({ name: it.name, groupName: g.name })));
+
+  // 選類型（新增流程第一步）
+  const GoalTypePicker = () =>
+  <div style={{ display: 'flex', flexDirection: 'column', gap: SP(8) }}>
+    <div style={{ fontSize: FS(17), fontWeight: 600, color: TOKENS.ink, marginBottom: SP(2) }}>選擇目標類型</div>
+    {GOAL_TYPES.map((t) => {
+      const Ico = window.Icons[t.icon] || window.Icons.Wallet;
+      return (
+        <button key={t.key} onClick={() => startEditWithType(t.key)} style={{
+          display: 'flex', alignItems: 'center', gap: SP(12), padding: PAD('12px'), borderRadius: RS(12),
+          background: 'rgba(0,0,0,0.03)', border: 'none', cursor: 'pointer', textAlign: 'left' }}>
+          <div style={{ width: 36, height: 36, borderRadius: RS(10), flexShrink: 0, background: 'rgba(0,0,0,0.06)',
+            display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+            <Ico size={18} style={{ color: TOKENS.ink }} />
+          </div>
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <div style={{ fontSize: FS(15), fontWeight: 600, color: TOKENS.ink }}>{t.label}</div>
+            <div style={{ fontSize: FS(12), color: 'rgba(44,44,50,0.55)', marginTop: SP(1) }}>{t.desc}</div>
+          </div>
+        </button>);
+    })}
+    <button onClick={() => setEditingId(null)} style={{ width: '100%', height: 40, borderRadius: RS(12), background: 'transparent',
+      border: '1px solid rgba(0,0,0,0.12)', color: 'rgba(44,44,50,0.7)', fontSize: FS(15), cursor: 'pointer', marginTop: SP(4) }}>取消</button>
+  </div>;
+
+  // 新增/編輯儲蓄目標共用的表單（editingId 決定是新增還是編輯哪一筆，draftType 決定欄位組合）
+  const GoalEditForm = () => {
+    const cfg = GOAL_TYPE_MAP[draftType] || GOAL_TYPE_MAP.networth;
+    return (
+      <div style={{ display: 'flex', flexDirection: 'column', gap: SP(10) }}>
+        <div style={{ fontSize: FS(17), fontWeight: 600, color: TOKENS.ink }}>{editingId === 'new' ? '新增' : '編輯'}{cfg.label}</div>
+        <div style={{ display: 'flex', alignItems: 'center', gap: SP(8) }}>
+          <span style={fieldLabelStyle}>目標名稱</span>
+          <input value={draftName} onChange={(e) => setDraftName(e.target.value)} placeholder="例如：緊急預備金" style={inputStyle} />
+        </div>
+
+        {cfg.key === 'networth' && <>
+          <div style={{ display: 'flex', alignItems: 'center', gap: SP(8) }}>
+            <span style={fieldLabelStyle}>目標金額</span>
+            <input value={draftAmount} onChange={(e) => setDraftAmount(e.target.value)} inputMode="decimal" placeholder="0" style={numInputStyle} />
+          </div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: SP(8) }}>
+            <span style={fieldLabelStyle}>目標年月</span>
+            <input value={draftYear} onChange={(e) => setDraftYear(e.target.value)} inputMode="numeric" placeholder="年" maxLength={4} style={{ ...numInputStyle, flex: 'none', width: 72 }} />
+            <span style={{ fontSize: FS(15), color: 'rgba(44,44,50,0.68)' }}>年</span>
+            <input value={draftMonth} onChange={(e) => setDraftMonth(e.target.value)} inputMode="numeric" placeholder="月" maxLength={2} style={{ ...numInputStyle, flex: 'none', width: 56 }} />
+            <span style={{ fontSize: FS(15), color: 'rgba(44,44,50,0.68)' }}>月</span>
+          </div>
+        </>}
+
+        {cfg.key === 'account' && <>
+          <div style={{ display: 'flex', alignItems: 'center', gap: SP(8) }}>
+            <span style={fieldLabelStyle}>目標金額</span>
+            <input value={draftAmount} onChange={(e) => setDraftAmount(e.target.value)} inputMode="decimal" placeholder="0" style={numInputStyle} />
+          </div>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: SP(6) }}>
+            <span style={{ fontSize: FS(15), color: 'rgba(44,44,50,0.7)' }}>選擇帳戶</span>
+            <div style={{ display: 'flex', flexDirection: 'column', maxHeight: 160, overflowY: 'auto', borderRadius: RS(10), border: '1px solid rgba(0,0,0,0.1)' }}>
+              {accountList.map((a) =>
+              <button key={a.name} onClick={() => setDraftAccountName(a.name)} style={{
+                display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: PAD('10px 12px'),
+                background: draftAccountName === a.name ? 'rgba(0,0,0,0.06)' : 'transparent', border: 'none',
+                borderBottom: '1px solid rgba(0,0,0,0.06)', cursor: 'pointer', textAlign: 'left' }}>
+                <span style={{ fontSize: FS(15), color: TOKENS.ink }}>{a.name}<span style={{ color: 'rgba(44,44,50,0.5)', marginLeft: SP(6) }}>{a.groupName}</span></span>
+                {draftAccountName === a.name && <Check size={14} style={{ color: TOKENS.ink }} />}
+              </button>
+              )}
+            </div>
+          </div>
+        </>}
+
+        {cfg.recurring && <>
+          <div style={{ display: 'flex', gap: SP(8) }}>
+            <button onClick={() => setDraftPeriodUnit('month')} style={{ flex: 1, height: 36, borderRadius: RS(8), border: 'none',
+              background: draftPeriodUnit === 'month' ? TOKENS.ink : 'rgba(0,0,0,0.06)', color: draftPeriodUnit === 'month' ? '#fff' : 'rgba(44,44,50,0.7)',
+              fontSize: FS(14), fontWeight: 600, cursor: 'pointer' }}>以月為單位</button>
+            <button onClick={() => setDraftPeriodUnit('year')} style={{ flex: 1, height: 36, borderRadius: RS(8), border: 'none',
+              background: draftPeriodUnit === 'year' ? TOKENS.ink : 'rgba(0,0,0,0.06)', color: draftPeriodUnit === 'year' ? '#fff' : 'rgba(44,44,50,0.7)',
+              fontSize: FS(14), fontWeight: 600, cursor: 'pointer' }}>以年為單位</button>
+          </div>
+          <div style={{ display: 'flex', gap: SP(8) }}>
+            <button onClick={() => setDraftTargetMode('amount')} style={{ flex: 1, height: 36, borderRadius: RS(8), border: 'none',
+              background: draftTargetMode === 'amount' ? TOKENS.ink : 'rgba(0,0,0,0.06)', color: draftTargetMode === 'amount' ? '#fff' : 'rgba(44,44,50,0.7)',
+              fontSize: FS(14), fontWeight: 600, cursor: 'pointer' }}>固定金額</button>
+            <button onClick={() => setDraftTargetMode('percent')} style={{ flex: 1, height: 36, borderRadius: RS(8), border: 'none',
+              background: draftTargetMode === 'percent' ? TOKENS.ink : 'rgba(0,0,0,0.06)', color: draftTargetMode === 'percent' ? '#fff' : 'rgba(44,44,50,0.7)',
+              fontSize: FS(14), fontWeight: 600, cursor: 'pointer' }}>{draftPeriodUnit === 'month' ? '跟上個月比成長%' : '跟去年比成長%'}</button>
+          </div>
+          {draftTargetMode === 'amount' ?
+          <div style={{ display: 'flex', alignItems: 'center', gap: SP(8) }}>
+            <span style={fieldLabelStyle}>目標金額</span>
+            <input value={draftAmount} onChange={(e) => setDraftAmount(e.target.value)} inputMode="decimal" placeholder="0" style={numInputStyle} />
+          </div> :
+          <div style={{ display: 'flex', alignItems: 'center', gap: SP(8) }}>
+            <span style={fieldLabelStyle}>成長幅度</span>
+            <input value={draftPercentValue} onChange={(e) => setDraftPercentValue(e.target.value)} inputMode="decimal" placeholder="例如 4" style={numInputStyle} />
+            <span style={{ fontSize: FS(15), color: 'rgba(44,44,50,0.68)' }}>%</span>
+          </div>}
+        </>}
+
+        <div style={{ display: 'flex', gap: SP(8), justifyContent: 'flex-end', marginTop: SP(4) }}>
+          <button onClick={() => setEditingId(null)} style={{ width: 36, height: 36, borderRadius: RS(18), background: 'rgba(0,0,0,0.07)', border: 'none', color: 'rgba(44,44,50,0.7)', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer' }}><X size={16} /></button>
+          <button onClick={saveGoal} style={{ width: 36, height: 36, borderRadius: RS(18), background: TOKENS.ink, border: 'none', color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer' }}><Check size={16} /></button>
+        </div>
+      </div>);
+  };
 
   return (
     <div style={{
@@ -1302,16 +1925,82 @@ function NetWorthSheet({ open, onClose, total, computedAcctGroups, computedHoldi
             color: 'rgba(60,60,67,0.88)', display: 'flex', alignItems: 'center', justifyContent: 'center'
           }}><ChevronRight size={20} style={{ transform: 'rotate(180deg)' }} /></button>
           <div>
-            <div style={{ fontSize: FS(28), fontWeight: 700, color: TOKENS.ink, letterSpacing: -0.5, lineHeight: 1.3 }}>資產配置明細</div>
+            <div style={{ fontSize: FS(28), fontWeight: 700, color: TOKENS.ink, letterSpacing: -0.5, lineHeight: 1.3 }}>資產配置與目標</div>
+          </div>
+        </div>
+
+        <div style={{ padding: "0 10px 10px" }}>
+          <div style={{ display: 'flex', gap: SP(4), padding: SP(4), borderRadius: RS(18), background: 'rgba(0,0,0,0.06)' }}>
+            {segBtn('alloc', '資產配置')}{segBtn('goals', '財務目標')}
           </div>
         </div>
 
         <div style={{ ...{ flex: 1, overflowY: 'auto', overflowX: 'hidden', padding: PAD('0 18px 32px'),
             display: 'flex', flexDirection: 'column', gap: SP(20) }, padding: "0px 10px 32px" }}>
+          {/* 儲蓄目標追蹤：多個長期計劃各自一張卡片，直向排列同時攤開就是達成率比較。
+              目標金額+年月 vs 目前淨資產（totalAssets，下面算出）。 */}
+          {view === 'goals' &&
+          <div style={{ display: 'flex', flexDirection: 'column', gap: SP(12) }}>
+            {goals.map((g) => {
+              const p = computeGoalProgress(g, goalCtx);
+              // showBurst 只在「這次 render 才第一次偵測到達成」時為真，animatedRef 保證同一個
+              // sheet-open session內不會因為 useEffectDash 寫回 celebrated 而重播第二次。
+              const showBurst = p.done && !g.celebrated && !animatedRef.current.has(g.id);
+              if (showBurst) animatedRef.current.add(g.id);
+              return (
+                <div key={g.id} style={{ ...cardStyle, padding: PAD('18px 16px'), position: 'relative', overflow: 'visible',
+                  border: p.done ? `1px solid ${TOKENS.gold}` : '1px solid rgba(0,0,0,0.07)',
+                  animation: showBurst ? 'goalGoldGlow 900ms ease-out both' : 'none' }}>
+                  {showBurst && <ConfettiBurst />}
+                  {editingId === g.id ?
+                  <GoalEditForm /> :
+                  <div>
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: SP(6), minWidth: 0 }}>
+                        <div style={{ fontSize: FS(16), fontWeight: 600, color: TOKENS.ink, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{g.name}</div>
+                        {p.done &&
+                        <span style={{ fontSize: FS(11), fontWeight: 700, color: '#fff', background: TOKENS.gold, borderRadius: RS(8), padding: PAD('2px 8px'), flexShrink: 0 }}>已達成</span>}
+                      </div>
+                      <div style={{ display: 'flex', gap: SP(6), flexShrink: 0 }}>
+                        <button onClick={() => startEdit(g)} style={{ width: 30, height: 30, borderRadius: RS(15), background: 'rgba(0,0,0,0.06)', border: 'none', color: 'rgba(44,44,50,0.7)', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer' }}><Pencil size={14} /></button>
+                        <button onClick={() => deleteGoal(g.id)} style={{ width: 30, height: 30, borderRadius: RS(15), background: 'rgba(184,92,74,0.10)', border: 'none', color: TOKENS.red, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer' }}><Trash size={14} /></button>
+                      </div>
+                    </div>
+                    <div style={{ fontSize: FS(14), color: 'rgba(44,44,50,0.68)', marginTop: SP(2) }}>{p.subtitle}</div>
+                    {p.noBaseline ?
+                    <div style={{ fontSize: FS(13), color: 'rgba(44,44,50,0.55)', marginTop: SP(8) }}>尚無上一期資料可比較</div> :
+                    <>
+                      <div style={{ display: 'flex', alignItems: 'baseline', gap: SP(6), marginTop: SP(6) }}>
+                        <div style={{ fontSize: FS(24), fontWeight: 700, fontFamily: TOKENS.fontMono, color: p.done ? TOKENS.green : TOKENS.ink }}>{p.pct.toFixed(0)}%</div>
+                        <div style={{ fontSize: FS(14), color: 'rgba(44,44,50,0.68)' }}>{mask(Math.round(p.current))} / {mask(Math.round(p.target))}</div>
+                      </div>
+                      <div style={{ height: 8, borderRadius: RS(4), background: 'rgba(0,0,0,0.08)', marginTop: SP(8), overflow: 'hidden' }}>
+                        <div style={{ height: '100%', width: `${p.pct}%`, borderRadius: RS(4), background: p.done ? TOKENS.green : TOKENS.ink, transition: 'width 420ms ease-out' }} />
+                      </div>
+                      <div style={{ fontSize: FS(13), color: 'rgba(44,44,50,0.68)', marginTop: SP(6) }}>
+                        {p.done ? '🎉 已達成目標' : `還差 ${mask(Math.round(p.target - p.current))}${p.remainingText ? ` · ${p.remainingText}` : ''}`}
+                      </div>
+                    </>}
+                    {p.historyDots && <GoalHistoryDots {...p.historyDots} periodLabel={g.periodUnit === 'month' ? '月' : '年'} />}
+                  </div>}
+                </div>);
+            })}
+            <div style={{ ...cardStyle, padding: PAD('18px 16px') }}>
+              {editingId === 'new' ?
+              <GoalEditForm /> :
+              editingId === 'picking' ?
+              <GoalTypePicker /> :
+              <button onClick={startPicker} style={{ width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: SP(6), height: 44, background: 'transparent', border: '1px dashed rgba(0,0,0,0.2)', borderRadius: RS(12), color: 'rgba(44,44,50,0.7)', fontSize: FS(16), cursor: 'pointer' }}>
+                <Plus size={16} />{goals.length === 0 ? '設定目標' : '新增目標'}
+              </button>}
+            </div>
+          </div>
+          }
+          {view === 'alloc' && <>
           {/* 資產配置 圓餅（標題已在頁首，這裡不重複） */}
           <div style={{ ...cardStyle, padding: PAD('20px 16px') }}>
             {assets.length === 0 ?
-            <div style={{ fontSize: FS(17), color: 'rgba(44,44,50,0.4)', textAlign: 'center', padding: PAD('12px 0') }}>尚無資產</div> :
+            <div style={{ fontSize: FS(17), color: 'rgba(44,44,50,0.55)', textAlign: 'center', padding: PAD('12px 0') }}>尚無資產</div> :
             <>
               <StatDonut data={assetData} total={totalAssets} label="總資產" color={TOKENS.ink} mask={mask} />
               <div style={{ marginTop: SP(14), display: 'flex', flexDirection: 'column' }}>
@@ -1326,7 +2015,7 @@ function NetWorthSheet({ open, onClose, total, computedAcctGroups, computedHoldi
                   </div>
                   <div style={{ flex: 1, minWidth: 0 }}>
                     <div style={{ fontSize: FS(19), fontWeight: 500, color: TOKENS.ink }}>{c.name}</div>
-                    <div style={{ fontSize: FS(14), color: 'rgba(44,44,50,0.5)', marginTop: SP(1) }}>
+                    <div style={{ fontSize: FS(14), color: 'rgba(44,44,50,0.62)', marginTop: SP(1) }}>
                       {totalAssets > 0 ? (c.value / totalAssets * 100).toFixed(1) : '0.0'}%
                       {ASSET_CAT_NOTE[c.name] ? ' · ' + ASSET_CAT_NOTE[c.name] : ''}
                     </div>
@@ -1366,6 +2055,7 @@ function NetWorthSheet({ open, onClose, total, computedAcctGroups, computedHoldi
             </div>
           </div>
           }
+          </>}
         </div>
       </div>
     </div>);
