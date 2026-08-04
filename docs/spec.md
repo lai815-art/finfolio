@@ -130,7 +130,6 @@ App 分四個主要分頁（底部 TabBar）＋一個全螢幕設定頁：
 - 折線用 SVG `pathLength="1"` 技巧：把整條線正規化成 0–1，`stroke-dashoffset` 從 1 動畫到 0 做「畫出來」效果；虛線（消費支出，本身已有 dash 花紋）改用單純淡入，避免兩種 dasharray 互相干擾。
 - 圓餅圖用 CSS 自訂屬性（`--arcFrom`/`--arcTo`）讓每段弧線各自動畫到自己的 `stroke-dashoffset` 終點。
 - 折線圖圖例可點擊：`MonthlyStatsSheet` 用 `hiddenSeries`（Set）記錄被隱藏的線，`ComboChart` 依可見的線重新計算 Y 軸範圍（隱藏掉大數值的線後，其餘線會自動放大顯示）；圖表容器加了 `key`（依所在月/年年份），切換月份/年份時整組圖表會重新掛載、動畫重播一次。「餘額」柱狀與（僅月檢視）「去年同期」參考線雖然不在 `CHART_SERIES` 裡，一樣是 `hiddenSeries` 的成員、也一起納入 Y 軸重算。
-- 儲蓄率趨勢（`SavingsRateStrip`）是獨立於 `ComboChart` 的小型 sparkline，自己算 Y 軸範圍——金額與百分比尺度差太多，不跟收支圖共用刻度；沒有收入的期間線段會斷開，不畫成假的 0%。
 - 消費分析支援子分類下鑽：點大類列會用 `expanded` state（原本宣告但沒渲染用途的死 state）切到該大類底下依實際 `cat` 名稱彙總的第二層圓餅圖，切換月份會自動退出下鑽畫面。月對月比較（總額與各類別）直接拿上個月同一份聚合邏輯來對照，無資料時不顯示避免出現 `Infinity%`。
 
 **財務目標**（`NetWorthSheet` 的「財務目標」頁籤，dashboard.jsx）
@@ -141,6 +140,8 @@ App 分四個主要分頁（底部 TabBar）＋一個全螢幕設定頁：
 - 股票已實現損益只算買賣操作損益（`merchant==='投資獲利'/'投資損失'`，故意不含股息/債息——那兩者算被動收入）。
 - 達成慶祝：目標 `done` 時卡片邊框恆常變金色＋掛勳章；`celebrated` 旗標（存在目標紀錄裡）記錄是否已經播過一次彩紙噴發動畫（CSS keyframe `confettiBurst`/`goalGoldGlow`，定義在 index.html），確保只在第一次偵測到達成時播放，重開 App/sheet 不會重播。
 - 舊資料相容：更早版本的目標紀錄沒有 `type`/`celebrated` 欄位，`ffGetSavingsGoals()` 讀取時一律補上預設值（`type:'networth'`），不用另外寫遷移程式。
+- **`GoalEditForm`/`GoalTypePicker` 必須是模組層級元件，不能定義在 `NetWorthSheet` 內部**（已修正過一次真實的手機 bug）：一開始把這兩個表單用 `const GoalEditForm = () => {...}` 寫在 `NetWorthSheet` 函式裡面，結果每次父層 render（打一個字、`setDraftField` 觸發一次 state 更新）都會產生新的函式參考，React 判定成不同元件整個卸載重掛，手機上打第一個字鍵盤就收起來、完全無法輸入。修法是把這兩個元件搬到模組層級、draft 狀態透過 props（`draft`/`setDraftField`）傳入，而不是靠 closure 捕捉一堆 `draftXxx` state。之後在這類 bottom sheet 裡新增子表單元件都要留意這點。
+- 週期性目標的「固定金額／%成長」「以月／以年」切換鈕比照 `segBtn`（見上面的圖表圖例章節與頁籤切換）視覺——白底+陰影＝選中、透明+淡字＝未選，跟 App 其他分段選擇器一致，不要另外做純黑底的樣式。
 
 **核心計算邏輯**
 - `computeAccounts()`：從各帳戶初始餘額出發，依收支/轉帳/股票交易逐筆計算目前餘額；未來日期的紀錄不計入；信用卡類帳戶以「負債」方式顯示餘額。
@@ -178,6 +179,7 @@ App 分四個主要分頁（底部 TabBar）＋一個全螢幕設定頁：
 已涵蓋的純計算函式：
 - `computeAccounts()` / `computeHoldings()`（compute.js）——輸入輸出明確，已有單元測試
 - `parseUtterance()`（voice-parse.js 的語音解析）——規則多、邊界案例多，已有單元測試
+- 財務目標的聚合/進度計算（`dashboard.jsx`，`dashboard.goals.test.js`）——`ffPassiveIncomeForYear/Month`、`ffMonthlyBalance`/`ffYearlyBalance`、`ffRealizedPnlForYear/Month`、`ffResolvePeriodTarget`、`ffAchievementHistory`、`computeGoalProgress`；這些函式雖然定義在一個沒有任何 `export` 的「legacy 全域腳本」檔案裡，但 `dashboard.jsx` 本身仍是可以被 import 的 ES module（檔案開頭有 `import`），所以照樣可以個別加 `export` 讓測試檔案匯入，不用像 `compute.js` 一樣整個抽成獨立檔案。`dashboard.jsx` 其餘的圖表/UI 渲染邏輯仍未涵蓋，沿用手動操作驗證。
 
 完整的測試涵蓋範圍與優先順序，另外開一份 `docs/test.md` 規劃，不在本文件展開。
 
