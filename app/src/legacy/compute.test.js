@@ -318,7 +318,21 @@ describe('開發者隱藏：只從清單與加總排除，不動計算', () => {
     expect(excludeHiddenHoldings(groups, new Set(), new Set(['國泰銀行']))).toEqual(groups);
     // 隱藏券商 → 該券商持倉退出，空掉的資產類別群組也不留
     expect(excludeHiddenHoldings(groups, new Set(), new Set(['元大證券'])).map((g) => g.id)).toEqual(['股票']);
-    // 隱藏個股 → 只有該檔退出
-    expect(excludeHiddenHoldings(groups, new Set(['2330']), new Set()).map((g) => g.id)).toEqual(['ETF']);
+    // 隱藏個股 → 只有該檔退出（key 為 代號+券商）
+    expect(excludeHiddenHoldings(groups, new Set(['2330|凱基證券']), new Set()).map((g) => g.id)).toEqual(['ETF']);
+  });
+
+  it('同一檔股票分屬兩家券商時，只隱藏其中一家不會連帶隱藏另一家', () => {
+    const trades = [
+      { code: '2330', name: '台積電', side: 'buy', shares: 1000, price: 500, date: '2024-01-01',
+        assetClass: '股票', broker: '凱基證券', settleAccount: '國泰銀行' },
+      { code: '2330', name: '台積電', side: 'buy', shares: 2000, price: 500, date: '2024-01-01',
+        assetClass: '股票', broker: '元大證券', settleAccount: '國泰銀行' },
+    ];
+    const groups = computeHoldings(trades, emptyMaster, {});
+
+    const visible = excludeHiddenHoldings(groups, new Set(['2330|凱基證券']), new Set());
+    const items = visible.find((g) => g.id === '股票').items;
+    expect(items.map((i) => i.broker)).toEqual(['元大證券']);
   });
 });

@@ -93,15 +93,15 @@ export function excludeHiddenAccounts(groups, hiddenNames) {
   return (groups || []).map((g) => ({ ...g, items: g.items.filter((it) => !hiddenNames.has(it.name)) }));
 }
 
-// 持倉：隱藏個股（依代號）或隱藏證券戶（依券商）都退出持倉清單與市值／損益加總。
-// 過濾後空掉的資產類別群組要一併移除，否則投資頁會出現空的類別區塊。
+// 持倉：隱藏個股（依「代號+券商」，同一檔股票在不同券商各自獨立隱藏）或隱藏證券戶（依券商）
+// 都退出持倉清單與市值／損益加總。過濾後空掉的資產類別群組要一併移除，否則投資頁會出現空的類別區塊。
 export function excludeHiddenHoldings(groups, hiddenCodes, hiddenBrokers) {
   const hc = hiddenCodes && hiddenCodes.size ? hiddenCodes : null;
   const hb = hiddenBrokers && hiddenBrokers.size ? hiddenBrokers : null;
   if (!hc && !hb) return groups;
   return (groups || []).
   map((g) => ({ ...g, items: g.items.filter((it) =>
-    !(hc && hc.has(it.code)) && !(hb && it.broker && hb.has(it.broker))) })).
+    !(hc && hc.has(it.code + '|' + (it.broker || ''))) && !(hb && it.broker && hb.has(it.broker))) })).
   filter((g) => g.items.length > 0);
 }
 
