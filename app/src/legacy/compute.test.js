@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeEach } from 'vitest';
 import { computeAccounts, computeHoldings, computeStockTrade, defaultTaxRate, mergeHoldingsByCode,
-  excludeHiddenAccounts, excludeHiddenHoldings } from './compute.js';
+  sumHoldingsByBroker, excludeHiddenAccounts, excludeHiddenHoldings } from './compute.js';
 
 describe('computeAccounts', () => {
   beforeEach(() => {
@@ -162,6 +162,35 @@ describe('mergeHoldingsByCode', () => {
     expect(merged[0].avg).toBe(1000);
     expect(merged[0].pct).toBe(10);
     expect(merged[0].brokers).toEqual(['凱基證券']);
+  });
+});
+
+describe('sumHoldingsByBroker', () => {
+  const item = (over) => ({ mvT: 0, costT: 0, pnlT: 0, ...over });
+
+  it('sums market value/cost/pnl per broker separately', () => {
+    const map = sumHoldingsByBroker([
+      item({ broker: '凱基證券', mvT: 220000, costT: 200000, pnlT: 20000 }),
+      item({ broker: '元大證券', mvT: 1100000, costT: 900000, pnlT: 200000 }),
+    ]);
+
+    expect(map['凱基證券']).toEqual({ mv: 220000, cost: 200000, pnl: 20000 });
+    expect(map['元大證券']).toEqual({ mv: 1100000, cost: 900000, pnl: 200000 });
+  });
+
+  it('adds up multiple holdings at the same broker', () => {
+    const map = sumHoldingsByBroker([
+      item({ broker: '凱基證券', mvT: 100000, costT: 90000, pnlT: 10000 }),
+      item({ broker: '凱基證券', mvT: 50000, costT: 60000, pnlT: -10000 }),
+    ]);
+
+    expect(map['凱基證券']).toEqual({ mv: 150000, cost: 150000, pnl: 0 });
+  });
+
+  it('falls back to 未分類 when broker is missing', () => {
+    const map = sumHoldingsByBroker([item({ mvT: 1000, costT: 900, pnlT: 100 })]);
+
+    expect(map['未分類']).toEqual({ mv: 1000, cost: 900, pnl: 100 });
   });
 });
 

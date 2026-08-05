@@ -1,5 +1,5 @@
 // Investment Portfolio / 投資組合（依投資類型分頁）
-import { mergeHoldingsByCode } from '../compute.js';
+import { mergeHoldingsByCode, sumHoldingsByBroker } from '../compute.js';
 
 const { useState: useStateInv, useMemo: useMemoInv } = React;
 
@@ -366,6 +366,9 @@ function InvestScreen({ hideAmounts, onOpenDetail, savedTrades = [], computedHol
   })
   );
 
+  // ── Per-broker totals (市值/損益小結，顯示在分頁下方) ──
+  const brokerTotals = sumHoldingsByBroker(allItems);
+
   // ── Category colour map (for the overview donut: 股票/債券/… 主題) ──
   const catClasses = [...new Set([...(md.asset_class || []), ...computedHoldings.map((g) => g.id)])];
   const catColorMap = {};
@@ -383,6 +386,9 @@ function InvestScreen({ hideAmounts, onOpenDetail, savedTrades = [], computedHol
 
   const validTab = dynTabs.find((t) => t.id === activeTab) ? activeTab : dynTabs[0]?.id || '未分類';
   const tabColor = (dynTabs.find((t) => t.id === validTab) || {}).color || TOKENS.ink2;
+
+  const brokerTotal = brokerTotals[validTab] || { mv: 0, cost: 0, pnl: 0 };
+  const brokerPct = brokerTotal.cost > 0 ? brokerTotal.pnl / brokerTotal.cost * 100 : 0;
 
   // 排序：台股（代號開頭為數字）由 0→9 在前，接著美股由 A→Z。
   // 用「逐字元字串比較」而非數值比較——否則像 006208 會被當成 6208 而排到 2330 之後。
@@ -507,6 +513,28 @@ function InvestScreen({ hideAmounts, onOpenDetail, savedTrades = [], computedHol
               }, borderRadius: "11px", lineHeight: "1.35" }}>{t.label}</button>);
 
         })}
+      </div>
+
+      {/* ── Broker summary: 目前選到的券商總市值/未實現損益 ── */}
+      <div style={{ ...{ marginTop: SP(10), padding: PAD('14px 16px'), borderRadius: RS(20),
+          background: 'rgba(235, 222, 207, 0.4)', border: '1px solid rgba(0, 0, 0, 0.153)',
+          display: 'flex', alignItems: 'center', justifyContent: 'space-between' }, borderRadius: "10px" }}>
+        <div>
+          <div style={{ fontSize: FS(14), color: 'rgba(44,44,50,0.5)' }}>{validTab} 總市值</div>
+          <div style={{ marginTop: SP(2), fontFamily: TOKENS.fontMono, fontSize: FS(19), fontWeight: 700, color: TOKENS.ink }}>
+            {fmtInv(brokerTotal.mv)}
+          </div>
+        </div>
+        <div style={{ textAlign: 'right' }}>
+          <div style={{ fontSize: FS(14), color: 'rgba(44,44,50,0.5)' }}>未實現損益</div>
+          <div style={{ marginTop: SP(2), fontFamily: TOKENS.fontMono, fontSize: FS(16), fontWeight: 600,
+              color: brokerTotal.pnl < 0 ? TOKENS.red : TOKENS.incBlue }}>
+            {brokerTotal.pnl < 0 ? '-' : '+'}{fmtInv(Math.abs(brokerTotal.pnl))}
+            <span style={{ fontSize: FS(13), fontWeight: 400, opacity: 0.8, marginLeft: SP(2) }}>
+              ({brokerTotal.pnl < 0 ? '' : '+'}{brokerPct.toFixed(1)}%)
+            </span>
+          </div>
+        </div>
       </div>
 
       {/* ── Holdings list ── */}

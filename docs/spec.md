@@ -58,7 +58,7 @@ App 分四個主要分頁（底部 TabBar）＋一個全螢幕設定頁：
 22. As a 使用者, I want to 編輯或刪除一筆已存在的記錄, so that 打錯的資料可以修正
 
 **投資**
-23. As a 使用者, I want to 依證券戶分頁查看我的持倉, so that 我能區分不同券商的部位
+23. As a 使用者, I want to 依證券戶分頁查看我的持倉，並在分頁下方看到該券商的總市值與未實現損益小結, so that 我能區分不同券商的部位，也不用自己心算加總
 24. As a 使用者, I want to 點進單一持倉看即時股價、市值、均價、未實現損益（金額與百分比）, so that 我知道這檔股票賺賠多少
 25. As a 使用者, I want to 看到該持倉完整的買賣歷史（FIFO 先進先出配對成本）, so that 我能理解均價是怎麼算出來的
 26. As a 使用者, I want to 點頂端市值圓餅圖看「投資組合明細」——全部券商加總的持倉分布, so that 我能看整體資產配置
@@ -152,6 +152,7 @@ App 分四個主要分頁（底部 TabBar）＋一個全螢幕設定頁：
 - `computeAccounts()`：從各帳戶初始餘額出發，依收支/轉帳/股票交易逐筆計算目前餘額；未來日期的紀錄不計入；信用卡類帳戶以「負債」方式顯示餘額。
 - `computeHoldings()`：依交易時間排序，用 **FIFO（先進先出）** 配對買賣成本，算出目前持股數量、均價、市值、未實現損益。
 - 開發者隱藏個股：`excludeHiddenHoldings()` 以「代號+券商」為 key（跟 `computeHoldings()` 內部分組 key 一致），同一檔股票在不同券商可以各自獨立隱藏，互不影響。
+- `sumHoldingsByBroker()`：依券商加總市值/成本/未實現損益（台幣），供投資分頁下方的券商小結卡片使用；缺 `broker` 的持倉歸到「未分類」。
 
 **Worker API 合約（`finfolio-prices`）**
 - `GET /quotes?codes=...` → `{date, prices, fx, source}`：台股走 TWSE MIS 即時報價，缺的再補 TWSE/TPEx 收盤價；美股先查 Finnhub（需設定 `FINNHUB_KEY`），沒設定或查不到就 fallback 到 Yahoo Finance（不需金鑰）。

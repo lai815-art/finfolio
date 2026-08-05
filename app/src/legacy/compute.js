@@ -199,6 +199,20 @@ export function mergeHoldingsByCode(items) {
   return merged;
 }
 
+// 券商分頁小結用：依券商加總台幣市值/成本/損益（mvT/costT/pnlT）。
+// key 用 it.broker || '未分類'，跟 invest.jsx 分頁 items 過濾用的 fallback 一致。
+export function sumHoldingsByBroker(items) {
+  const map = {};
+  (items || []).forEach((it) => {
+    const b = it.broker || '未分類';
+    if (!map[b]) map[b] = { mv: 0, cost: 0, pnl: 0 };
+    map[b].mv += it.mvT || 0;
+    map[b].cost += it.costT || 0;
+    map[b].pnl += it.pnlT || 0;
+  });
+  return map;
+}
+
 export function computeHoldings(trades, masterData, livePrices = {}) {
   if (!trades) return [];
   const curMap = window.buildCurMap(masterData);
