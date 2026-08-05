@@ -90,9 +90,10 @@ App 分四個主要分頁（底部 TabBar）＋一個全螢幕設定頁：
 46. As a 使用者, I want to 資料結構升級時自動做 migration, so that 舊版本存的資料在新版 App 上不會壞掉
 
 **財務目標（資產配置與目標頁面的「財務目標」頁籤）**
-47. As a 使用者, I want to 設定多種類型的財務目標（淨資產於指定年月達標／單一帳戶餘額達標／被動收入／收支結餘／股票已實現損益），後三種可選以月或以年為單位、固定金額或跟上一期比成長%, so that 我能同時追蹤不同面向的財務計劃
+47. As a 使用者, I want to 設定多種類型的財務目標（淨資產於指定年月達標／單一帳戶餘額達標／收入目標／收支結餘），後兩種可選以月或以年為單位、固定金額或跟上一期比成長%, so that 我能同時追蹤不同面向的財務計劃
+47b. As a 使用者, I want to 收入目標可指定追蹤範圍——任一收入大類（含自訂新增的大類）或「總收入」, so that 我能單獨追蹤主動/被動/投資等某一類收入，而不是只能追蹤被動收入
 48. As a 使用者, I want to 目標達成時卡片出現金色邊框＋彩紙動畫慶祝（只播一次，之後常駐金色邊框與勳章）, so that 我能清楚感受到達成的成就感
-49. As a 使用者, I want to 週期性目標（被動收入/結餘/股票損益）顯示近幾期的達成率小圓點, so that 我能看出自己是不是穩定達標
+49. As a 使用者, I want to 週期性目標（收入/結餘/股票損益）顯示近幾期的達成率小圓點, so that 我能看出自己是不是穩定達標
 50. As a 使用者, I want to 目標卡片依完成率由高到低排序（已達成 100% 的固定排最下面）、「新增目標」按鈕固定在最上方, so that 我能一眼看到最接近達成的目標，且新增入口不會隨清單長度移動位置
 
 ## Implementation Decisions
@@ -134,11 +135,12 @@ App 分四個主要分頁（底部 TabBar）＋一個全螢幕設定頁：
 - 消費分析支援子分類下鑽：點大類列會用 `expanded` state（原本宣告但沒渲染用途的死 state）切到該大類底下依實際 `cat` 名稱彙總的第二層圓餅圖，切換月份會自動退出下鑽畫面。月對月比較（總額與各類別）直接拿上個月同一份聚合邏輯來對照，無資料時不顯示避免出現 `Infinity%`。
 
 **財務目標**（`NetWorthSheet` 的「財務目標」頁籤，dashboard.jsx）
-- `GOAL_TYPES` 設定陣列驅動類型選單與表單欄位：`networth`（淨資產於指定年月達標）、`account`（單一帳戶餘額達標，無期限）、`passive_income`／`balance`／`stock_gain`（被動收入／收支結餘／股票已實現損益，皆為週期性目標）。新增目標先選類型、再依類型顯示對應欄位；類型建立後不可更改，要換類型只能刪除重建。
-- 週期性目標（`recurring: true` 的三種）沒有目標年月欄位，改成 `periodUnit: 'month'|'year'` 讓使用者自選，以及 `targetMode: 'amount'|'percent'`：固定金額直接比 `amount`；%成長模式比對象是「上一期實際值」（`percentValue`，例如 4 代表比上一期成長 4%），基準每期自動滾動往前推進，上一期沒資料時顯示「尚無上一期資料可比較」。三種類型的月/年聚合函式（`ffPassiveIncomeForYear/Month`、`ffMonthlyBalance`/`ffYearlyBalance`、`ffRealizedPnlForYear/Month`）透過 `PERIOD_METRIC_GETTERS` 對照表查表呼叫，不用為月/年各寫一次判斷。
+- `GOAL_TYPES` 設定陣列驅動類型選單與表單欄位：`networth`（淨資產於指定年月達標）、`account`（單一帳戶餘額達標，無期限）、`passive_income`／`balance`（收入目標／收支結餘，皆為週期性目標）。新增目標先選類型、再依類型顯示對應欄位；類型建立後不可更改，要換類型只能刪除重建。`passive_income` 這個 key 沿用舊資料的 `type` 值沒有改名，只有 UI 上的 label 改叫「收入目標」。
+- 週期性目標（`recurring: true` 的兩種）沒有目標年月欄位，改成 `periodUnit: 'month'|'year'` 讓使用者自選，以及 `targetMode: 'amount'|'percent'`：固定金額直接比 `amount`；%成長模式比對象是「上一期實際值」（`percentValue`，例如 4 代表比上一期成長 4%），基準每期自動滾動往前推進，上一期沒資料時顯示「尚無上一期資料可比較」。兩種類型的月/年聚合函式（`ffIncomeForYear/Month`、`ffMonthlyBalance`/`ffYearlyBalance`）透過 `PERIOD_METRIC_GETTERS` 對照表查表呼叫，不用為月/年各寫一次判斷。
+- 收入目標（`passive_income` 類型）的追蹤範圍：一個下拉選單（`<select>`），`goal.incomeGroup` 存的是「大類顯示名稱」（例如 `被動收入`、`投資收入`，跟 `MonthlyStatsSheet` 的 `INC_LABEL` 轉換規則一致）或 sentinel 值 `'total'`（不分大類，全部收入加總）。選單清單動態產生自 `masterData.inc_groups`（使用者可自訂新增/刪除大類，新增的大類會自動出現在選單裡），最前面固定加一個「總收入」。舊資料沒有 `incomeGroup` 欄位時，`ffIncomeForYear/Month` 的第 4 個參數預設 `'被動收入'`，維持改版前「固定只算被動收入」的行為，不用另外寫遷移程式。
+- 股票已實現損益曾是第三種週期性目標，後來整個拿掉（`GOAL_TYPES` 移除該項、`ffRealizedPnlForYear/Month` 一併刪除，未保留過渡相容），現在只剩收入目標／收支結餘兩種週期性目標。
 - 歷史達成率（週期性目標專屬）：對每個「有資料的過去期間」重新解析當期目標值（%模式一樣滾動跟上一期比），畫成小圓點列＋「近N期達成X次」文字；不需要另外儲存歷史快照，全部即時從 `savedFlows` 現算，向前推算的期數受 `savedFlows` 最早一筆記錄裁剪，避免對沒有資料的期間生出假的「未達成」圓點。
 - `account` 類型的進度計算：一般帳戶直接用 `computedAcctGroups` 裡的 `amountTWD`；若選到的是證券戶（比對 `masterData.brokers`），要額外加上 `computedHoldings` 裡 `broker` 相符的持倉市值加總，否則只會看到交割戶現金、少算股票市值。帳戶選單排除信用卡群組（負債，拿來當餘額目標語意不合）。
-- 股票已實現損益只算買賣操作損益（`merchant==='投資獲利'/'投資損失'`，故意不含股息/債息——那兩者算被動收入）。
 - 達成慶祝：目標 `done` 時卡片邊框恆常變金色＋掛勳章；`celebrated` 旗標（存在目標紀錄裡）記錄是否已經播過一次彩紙噴發動畫（CSS keyframe `confettiBurst`/`goalGoldGlow`，定義在 index.html），確保只在第一次偵測到達成時播放，重開 App/sheet 不會重播。
 - 舊資料相容：更早版本的目標紀錄沒有 `type`/`celebrated` 欄位，`ffGetSavingsGoals()` 讀取時一律補上預設值（`type:'networth'`），不用另外寫遷移程式。
 - 排序與新增按鈕位置：渲染前先對每筆目標算好 `computeGoalProgress`，依「未達成的依 `pct` 由高到低、已達成（`done`）固定排最後」排序（純渲染層排序，不落地存檔，`ff_savings_goals` 原始陣列順序不變）；「新增目標」卡片固定在清單最上方，不隨目標數量變動位置。
@@ -182,7 +184,7 @@ App 分四個主要分頁（底部 TabBar）＋一個全螢幕設定頁：
 已涵蓋的純計算函式：
 - `computeAccounts()` / `computeHoldings()`（compute.js）——輸入輸出明確，已有單元測試
 - `parseUtterance()`（voice-parse.js 的語音解析）——規則多、邊界案例多，已有單元測試
-- 財務目標的聚合/進度計算（`dashboard.jsx`，`dashboard.goals.test.js`）——`ffPassiveIncomeForYear/Month`、`ffMonthlyBalance`/`ffYearlyBalance`、`ffRealizedPnlForYear/Month`、`ffResolvePeriodTarget`、`ffAchievementHistory`、`computeGoalProgress`；這些函式雖然定義在一個沒有任何 `export` 的「legacy 全域腳本」檔案裡，但 `dashboard.jsx` 本身仍是可以被 import 的 ES module（檔案開頭有 `import`），所以照樣可以個別加 `export` 讓測試檔案匯入，不用像 `compute.js` 一樣整個抽成獨立檔案。`dashboard.jsx` 其餘的圖表/UI 渲染邏輯仍未涵蓋，沿用手動操作驗證。
+- 財務目標的聚合/進度計算（`dashboard.jsx`，`dashboard.goals.test.js`）——`ffIncomeForYear/Month`、`ffMonthlyBalance`/`ffYearlyBalance`、`ffResolvePeriodTarget`、`ffAchievementHistory`、`computeGoalProgress`；這些函式雖然定義在一個沒有任何 `export` 的「legacy 全域腳本」檔案裡，但 `dashboard.jsx` 本身仍是可以被 import 的 ES module（檔案開頭有 `import`），所以照樣可以個別加 `export` 讓測試檔案匯入，不用像 `compute.js` 一樣整個抽成獨立檔案。`dashboard.jsx` 其餘的圖表/UI 渲染邏輯仍未涵蓋，沿用手動操作驗證。
 
 完整的測試涵蓋範圍與優先順序，另外開一份 `docs/test.md` 規劃，不在本文件展開。
 

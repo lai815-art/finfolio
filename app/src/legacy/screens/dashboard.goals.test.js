@@ -1,8 +1,7 @@
 import { describe, it, expect, afterEach } from 'vitest';
 import {
-  ffPassiveIncomeForYear, ffPassiveIncomeForMonth,
+  ffIncomeForYear, ffIncomeForMonth,
   ffMonthlyBalance, ffYearlyBalance,
-  ffRealizedPnlForYear, ffRealizedPnlForMonth,
   ffResolvePeriodTarget, ffAchievementHistory,
   computeGoalProgress,
 } from './dashboard.jsx';
@@ -23,26 +22,35 @@ function flow(kind, cat, amount, dateStr, extra) {
   return { kind, cat, amount, account: '現金', date: dateStr, ...extra };
 }
 
-describe('ffPassiveIncomeForYear / ffPassiveIncomeForMonth', () => {
+describe('ffIncomeForYear / ffIncomeForMonth', () => {
   const flows = [
     flow('inc', '股息', 1000, '2024-03-10'),
     flow('inc', '債息', 500, '2024-03-20'),
-    flow('inc', '薪資', 5000, '2024-03-15'), // 主動收入，不算被動
+    flow('inc', '薪資', 5000, '2024-03-15'), // 主動收入
     flow('exp', '股息', 999, '2024-03-01'),  // 支出，不算（kind!=='inc'）
     flow('inc', '股息', 300, '2023-12-25'),  // 不同年
   ];
 
-  it('只加總被動收入分組的當年金額', () => {
-    expect(ffPassiveIncomeForYear(flows, masterData, 2024)).toBe(1500);
+  it('不指定 group 時預設只加總被動收入分組的當年金額（沿用舊行為）', () => {
+    expect(ffIncomeForYear(flows, masterData, 2024)).toBe(1500);
   });
 
-  it('只加總被動收入分組的當月金額', () => {
-    expect(ffPassiveIncomeForMonth(flows, masterData, 2024, 3)).toBe(1500);
-    expect(ffPassiveIncomeForMonth(flows, masterData, 2024, 4)).toBe(0);
+  it('不指定 group 時預設只加總被動收入分組的當月金額', () => {
+    expect(ffIncomeForMonth(flows, masterData, 2024, 3)).toBe(1500);
+    expect(ffIncomeForMonth(flows, masterData, 2024, 4)).toBe(0);
+  });
+
+  it('指定 group 為「主動收入」時只加總主動分組', () => {
+    expect(ffIncomeForYear(flows, masterData, 2024, '主動收入')).toBe(5000);
+  });
+
+  it('group 為 total 時不分大類，加總全部收入', () => {
+    expect(ffIncomeForYear(flows, masterData, 2024, 'total')).toBe(1000 + 500 + 5000);
+    expect(ffIncomeForMonth(flows, masterData, 2024, 3, 'total')).toBe(1000 + 500 + 5000);
   });
 
   it('沒有資料的年份回傳 0', () => {
-    expect(ffPassiveIncomeForYear(flows, masterData, 2020)).toBe(0);
+    expect(ffIncomeForYear(flows, masterData, 2020)).toBe(0);
   });
 });
 
@@ -61,24 +69,6 @@ describe('ffMonthlyBalance / ffYearlyBalance', () => {
 
   it('算整年的 inc - exp', () => {
     expect(ffYearlyBalance(flows, masterData, 2024)).toBe(1000);
-  });
-});
-
-describe('ffRealizedPnlForYear / ffRealizedPnlForMonth', () => {
-  const flows = [
-    flow('inc', '台股', 2000, '2024-05-10', { merchant: '投資獲利' }),
-    flow('exp', '台股', 500, '2024-06-15', { merchant: '投資損失' }),
-    flow('inc', '台股', 800, '2024-07-01', { merchant: '', note: '舊資料已實現損益匯入' }),
-    flow('inc', '股息', 300, '2024-05-10'), // 股息不算操作損益
-  ];
-
-  it('只加總買賣操作損益（獲利加、損失減），股息不影響', () => {
-    expect(ffRealizedPnlForYear(flows, masterData, 2024)).toBe(2000 - 500 + 800);
-  });
-
-  it('可以只算單一月份', () => {
-    expect(ffRealizedPnlForMonth(flows, masterData, 2024, 5)).toBe(2000);
-    expect(ffRealizedPnlForMonth(flows, masterData, 2024, 6)).toBe(-500);
   });
 });
 
@@ -242,5 +232,21 @@ describe('computeGoalProgress', () => {
     expect(p.noBaseline).toBe(true);
     expect(p.pct).toBe(0);
     expect(p.done).toBe(false);
+  });
+
+  it('passive_income 類型指定 incomeGroup 時依該大類彙總，不再固定只算被動收入', () => {
+    window.TODAY_DATE = new Date(2024, 5, 15);
+    const ctxMixed = { ...baseCtx, savedFlows: [...savedFlows, flow('inc', '薪資', 200000, '2024-06-01')] };
+    const goal = { type: 'passive_income', periodUnit: 'year', targetMode: 'amount', amount: 100000, incomeGroup: '主動收入' };
+    const p = computeGoalProgress(goal, ctxMixed);
+    expect(p.current).toBe(200000); // 只算薪資（主動），不含股息
+  });
+
+  it('passive_income 類型 incomeGroup 為 total 時不分大類全部加總', () => {
+    window.TODAY_DATE = new Date(2024, 5, 15);
+    const ctxMixed = { ...baseCtx, savedFlows: [...savedFlows, flow('inc', '薪資', 200000, '2024-06-01')] };
+    const goal = { type: 'passive_income', periodUnit: 'year', targetMode: 'amount', amount: 100000, incomeGroup: 'total' };
+    const p = computeGoalProgress(goal, ctxMixed);
+    expect(p.current).toBe(350000 + 200000); // 2024 年股息 + 薪資
   });
 });

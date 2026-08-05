@@ -1362,36 +1362,35 @@ function ffSetSavingsGoals(v) {
 export const GOAL_TYPES = [
   { key: 'networth', icon: 'PiggyBank', label: '淨資產目標', desc: '淨資產於指定年月達到目標金額', recurring: false },
   { key: 'account', icon: 'Wallet', label: '單一帳戶餘額', desc: '指定帳戶餘額達到目標金額（無期限）', recurring: false },
-  { key: 'passive_income', icon: 'TrendUp', label: '被動收入', desc: '被動收入達到目標，可選以月或以年為單位', recurring: true },
+  { key: 'passive_income', icon: 'TrendUp', label: '收入目標', desc: '指定收入大類（或總收入）達到目標，可選以月或以年為單位', recurring: true },
   { key: 'balance', icon: 'Receipt', label: '收支結餘', desc: '收支結餘達到目標，可選以月或以年為單位', recurring: true },
-  { key: 'stock_gain', icon: 'LineChart', label: '股票已實現損益', desc: '股票買賣已實現損益達標（不含股息債息），可選以月或以年為單位', recurring: true },
 ];
 export const GOAL_TYPE_MAP = Object.fromEntries(GOAL_TYPES.map((t) => [t.key, t]));
 
-// 被動收入：複製 MonthlyStatsSheet 的 incGroupOf/amtOf 邏輯——那是該元件的私有 closure、
-// 未對外匯出，這裡刻意重新實作一份小型獨立版本，避免跨元件耦合。年/月兩種版本共用同一套
-// 分類判斷，只差在日期篩選的粒度。
-export function ffPassiveIncomeForYear(savedFlows, masterData, year) {
-  const INC_LABEL = { '主動': '主動收入', '被動': '被動收入', '投資收入': '投資收入', '其他': '其他' };
+// 收入目標：依「大類」彙總（大類清單來自 masterData.inc_groups，使用者可自訂新增/刪除），
+// 或選 'total' 不分大類、全部收入加總。複製 MonthlyStatsSheet 的 incGroupOf/amtOf 邏輯——那是
+// 該元件的私有 closure、未對外匯出，這裡刻意重新實作一份小型獨立版本，避免跨元件耦合。
+// 年/月兩種版本共用同一套分類判斷，只差在日期篩選的粒度。
+const INC_GROUP_LABEL = { '主動': '主動收入', '被動': '被動收入', '投資收入': '投資收入', '其他': '其他' };
+function incGroupLabelOf(masterData, cat) {
   const catIncGroup = {};
   (masterData.cat_inc || []).forEach((c) => { const o = typeof c === 'string' ? { name: c, group: '其他' } : c; catIncGroup[o.name] = o.group || '其他'; });
-  const incGroupOf = (cat) => INC_LABEL[catIncGroup[cat] || '其他'] || (catIncGroup[cat] || '其他');
+  const g = catIncGroup[cat] || '其他';
+  return INC_GROUP_LABEL[g] || g;
+}
+export function ffIncomeForYear(savedFlows, masterData, year, group = '被動收入') {
   const curMap = window.buildCurMap(masterData);
   const amtOf = (f) => window.fxToTWD(f.amount, curMap[f.account]);
   let total = 0;
   (savedFlows || []).forEach((f) => {
     if (f.kind !== 'inc' || !f.date) return;
     if (new Date(f.date).getFullYear() !== year) return;
-    if (incGroupOf(f.cat) !== '被動收入') return;
+    if (group !== 'total' && incGroupLabelOf(masterData, f.cat) !== group) return;
     total += amtOf(f);
   });
   return total;
 }
-export function ffPassiveIncomeForMonth(savedFlows, masterData, year, month /* 1-12 */) {
-  const INC_LABEL = { '主動': '主動收入', '被動': '被動收入', '投資收入': '投資收入', '其他': '其他' };
-  const catIncGroup = {};
-  (masterData.cat_inc || []).forEach((c) => { const o = typeof c === 'string' ? { name: c, group: '其他' } : c; catIncGroup[o.name] = o.group || '其他'; });
-  const incGroupOf = (cat) => INC_LABEL[catIncGroup[cat] || '其他'] || (catIncGroup[cat] || '其他');
+export function ffIncomeForMonth(savedFlows, masterData, year, month /* 1-12 */, group = '被動收入') {
   const curMap = window.buildCurMap(masterData);
   const amtOf = (f) => window.fxToTWD(f.amount, curMap[f.account]);
   let total = 0;
@@ -1399,7 +1398,7 @@ export function ffPassiveIncomeForMonth(savedFlows, masterData, year, month /* 1
     if (f.kind !== 'inc' || !f.date) return;
     const d = f.date instanceof Date ? f.date : new Date(f.date);
     if (d.getFullYear() !== year || d.getMonth() + 1 !== month) return;
-    if (incGroupOf(f.cat) !== '被動收入') return;
+    if (group !== 'total' && incGroupLabelOf(masterData, f.cat) !== group) return;
     total += amtOf(f);
   });
   return total;
@@ -1432,51 +1431,11 @@ export function ffYearlyBalance(savedFlows, masterData, year) {
   return inc - exp;
 }
 
-// 已實現股票損益：只算買賣操作損益，複製 invest.jsx InvestBreakdownSheet 判斷式裡的 pnl
-// 分支（merchant 精確比對 → 舊資料 regex fallback），故意跳過股息/債息分支——那兩者算被動
-// 收入，不算「操作」。年/月兩種版本只差日期篩選粒度。
-export function ffRealizedPnlForYear(savedFlows, masterData, year) {
-  const curMap = window.buildCurMap(masterData);
-  const amtOf = (f) => window.fxToTWD(f.amount, curMap[f.account]);
-  let total = 0;
-  (savedFlows || []).forEach((f) => {
-    if (!f.date) return;
-    if (new Date(f.date).getFullYear() !== year) return;
-    const mer = f.merchant || '';
-    const note = f.note || '';
-    const sign = f.kind === 'inc' ? 1 : -1;
-    const amt = amtOf(f);
-    if (mer === '投資獲利') total += amt;
-    else if (mer === '投資損失') total -= amt;
-    else if (/已實現損益/.test(mer + note)) total += sign * amt;
-  });
-  return total;
-}
-export function ffRealizedPnlForMonth(savedFlows, masterData, year, month /* 1-12 */) {
-  const curMap = window.buildCurMap(masterData);
-  const amtOf = (f) => window.fxToTWD(f.amount, curMap[f.account]);
-  let total = 0;
-  (savedFlows || []).forEach((f) => {
-    if (!f.date) return;
-    const d = f.date instanceof Date ? f.date : new Date(f.date);
-    if (d.getFullYear() !== year || d.getMonth() + 1 !== month) return;
-    const mer = f.merchant || '';
-    const note = f.note || '';
-    const sign = f.kind === 'inc' ? 1 : -1;
-    const amt = amtOf(f);
-    if (mer === '投資獲利') total += amt;
-    else if (mer === '投資損失') total -= amt;
-    else if (/已實現損益/.test(mer + note)) total += sign * amt;
-  });
-  return total;
-}
-
-// 三種週期性目標的月/年聚合函式對照表，computeGoalProgress 依 goal.periodUnit 查表，
-// 不用為月/年各寫一次六路判斷。
+// 兩種週期性目標的月/年聚合函式對照表，computeGoalProgress 依 goal.periodUnit 查表，
+// 不用為月/年各寫一次四路判斷。
 export const PERIOD_METRIC_GETTERS = {
-  passive_income: { year: ffPassiveIncomeForYear, month: ffPassiveIncomeForMonth },
+  passive_income: { year: ffIncomeForYear, month: ffIncomeForMonth },
   balance: { year: ffYearlyBalance, month: ffMonthlyBalance },
-  stock_gain: { year: ffRealizedPnlForYear, month: ffRealizedPnlForMonth },
 };
 
 // 週期性目標的目標值：固定金額直接用 amount；%成長模式要跟「上一期實際值」比，上一期沒
@@ -1558,20 +1517,20 @@ export function computeGoalProgress(goal, ctx) {
       subtitle = goal.accountName;
     }
   } else if (PERIOD_METRIC_GETTERS[goal.type]) {
-    // 被動收入／結餘／股票已實現損益：三種都可選以月或以年為單位，共用同一套「本期 vs
+    // 收入／結餘：兩種都可選以月或以年為單位，共用同一套「本期 vs
     // 上一期」與歷史圓點邏輯，只是查表換算法函式跟窗口大小不同。
     const unit = goal.periodUnit === 'month' ? 'month' : 'year';
     const getters = PERIOD_METRIC_GETTERS[goal.type];
     const earliest = ffEarliestFlowPeriod(savedFlows);
     let series;
     if (unit === 'month') {
-      const getterM = (y, m) => getters.month(savedFlows, masterData, y, m);
+      const getterM = (y, m) => getters.month(savedFlows, masterData, y, m, goal.incomeGroup);
       current = getterM(thisYear, thisMonth);
       subtitle = '本月進度';
       const [py, pm] = thisMonth === 1 ? [thisYear - 1, 12] : [thisYear, thisMonth - 1];
       series = ffMonthSeries(getterM, py, pm, 13, earliest);
     } else {
-      const getterY = (y) => getters.year(savedFlows, masterData, y);
+      const getterY = (y) => getters.year(savedFlows, masterData, y, goal.incomeGroup);
       current = getterY(thisYear);
       subtitle = `${thisYear} 年度進度`;
       series = ffYearSeries(getterY, thisYear - 1, 6, earliest ? earliest.getFullYear() : null);
@@ -1683,7 +1642,7 @@ function GoalTypePicker({ onPick, onCancel }) {
 // 新增/編輯儲蓄目標共用的表單。同樣是模組層級元件，draft 狀態透過 props 傳入（而不是閉包），
 // 理由同上——draft/setDraftField 每次 render 的「值」變了沒關係，只要 GoalEditForm 這個函式
 // 本身的參考不變，React 就會當成同一個元件更新，輸入框不會被卸載、focus 不會掉。
-function GoalEditForm({ editingId, draftType, draft, setDraftField, accountList, onCancel, onSave }) {
+function GoalEditForm({ editingId, draftType, draft, setDraftField, accountList, incGroupOptions, onCancel, onSave }) {
   const { Check, X } = window.Icons;
   const cfg = GOAL_TYPE_MAP[draftType] || GOAL_TYPE_MAP.networth;
   return (
@@ -1726,6 +1685,15 @@ function GoalEditForm({ editingId, draftType, draft, setDraftField, accountList,
             </button>
             )}
           </div>
+        </div>
+      </>}
+
+      {cfg.key === 'passive_income' && <>
+        <div style={{ display: 'flex', alignItems: 'center', gap: SP(8) }}>
+          <span style={GOAL_FIELD_LABEL_STYLE}>追蹤範圍</span>
+          <select value={draft.incomeGroup} onChange={(e) => setDraftField('incomeGroup', e.target.value)} style={GOAL_INPUT_STYLE}>
+            {incGroupOptions.map((o) => <option key={o.key} value={o.key}>{o.label}</option>)}
+          </select>
         </div>
       </>}
 
@@ -1825,6 +1793,7 @@ function NetWorthSheet({ open, onClose, total, computedAcctGroups, computedHoldi
   const [draftTargetMode, setDraftTargetMode] = useStateDash('amount');
   const [draftPercentValue, setDraftPercentValue] = useStateDash('');
   const [draftPeriodUnit, setDraftPeriodUnit] = useStateDash('year');
+  const [draftIncomeGroup, setDraftIncomeGroup] = useStateDash('被動收入');
   const setGoals = (next) => { setGoalsRaw(next); ffSetSavingsGoals(next); };
   useEffectDash(() => { if (open) setEditingId(null); }, [open]);
 
@@ -1846,6 +1815,7 @@ function NetWorthSheet({ open, onClose, total, computedAcctGroups, computedHoldi
     setDraftType(type);
     setDraftName(''); setDraftAmount(''); setDraftYear(''); setDraftMonth('');
     setDraftAccountName(''); setDraftTargetMode('amount'); setDraftPercentValue(''); setDraftPeriodUnit('year');
+    setDraftIncomeGroup('被動收入');
     setEditingId('new');
   };
   const startEdit = (g) => {
@@ -1859,6 +1829,7 @@ function NetWorthSheet({ open, onClose, total, computedAcctGroups, computedHoldi
     setDraftTargetMode(g.targetMode || 'amount');
     setDraftPercentValue(g.percentValue ? String(g.percentValue) : '');
     setDraftPeriodUnit(g.periodUnit || 'year');
+    setDraftIncomeGroup(g.incomeGroup || '被動收入');
   };
   const saveGoal = () => {
     const name = draftName.trim() || '儲蓄目標';
@@ -1874,6 +1845,7 @@ function NetWorthSheet({ open, onClose, total, computedAcctGroups, computedHoldi
       extra = { accountName: draftAccountName };
     } else if (GOAL_TYPE_MAP[type] && GOAL_TYPE_MAP[type].recurring) {
       extra = { targetMode: draftTargetMode, percentValue: parseFloat(draftPercentValue) || 0, periodUnit: draftPeriodUnit };
+      if (type === 'passive_income') extra.incomeGroup = draftIncomeGroup;
     }
     if (editingId === 'new') {
       setGoals([...goals, { id: 'g' + Date.now(), type, name, amount, celebrated: false, ...extra }]);
@@ -1891,10 +1863,15 @@ function NetWorthSheet({ open, onClose, total, computedAcctGroups, computedHoldi
   // 新增/編輯儲蓄目標共用的表單（editingId 決定是新增還是編輯哪一筆）
   // 信用卡是負債，拿來當「餘額目標」語意怪，選單裡不提供。
   const accountList = computedAcctGroups.filter((g) => g.id !== 'credit').flatMap((g) => g.items.map((it) => ({ name: it.name, groupName: g.name })));
+  // 收入目標的追蹤範圍選單：大類清單來自 masterData.inc_groups（使用者可自訂新增/刪除），
+  // 「總收入」是額外加的固定選項（sentinel 'total'，不分大類全部加總）。
+  const incGroupOptions = [{ key: 'total', label: '總收入' },
+    ...(masterData.inc_groups || []).map((g) => ({ key: INC_GROUP_LABEL[g.name] || g.name, label: INC_GROUP_LABEL[g.name] || g.name }))];
   // GoalEditForm/GoalTypePicker 是模組層級元件（見上方定義），draft 狀態透過這兩個東西傳入，
   // 而不是讓它們直接閉包捕捉一堆 draftXxx state。
   const draft = { name: draftName, amount: draftAmount, year: draftYear, month: draftMonth,
-    accountName: draftAccountName, targetMode: draftTargetMode, percentValue: draftPercentValue, periodUnit: draftPeriodUnit };
+    accountName: draftAccountName, targetMode: draftTargetMode, percentValue: draftPercentValue, periodUnit: draftPeriodUnit,
+    incomeGroup: draftIncomeGroup };
   const setDraftField = (field, value) => {
     if (field === 'name') setDraftName(value);
     else if (field === 'amount') setDraftAmount(value);
@@ -1904,6 +1881,7 @@ function NetWorthSheet({ open, onClose, total, computedAcctGroups, computedHoldi
     else if (field === 'targetMode') setDraftTargetMode(value);
     else if (field === 'percentValue') setDraftPercentValue(value);
     else if (field === 'periodUnit') setDraftPeriodUnit(value);
+    else if (field === 'incomeGroup') setDraftIncomeGroup(value);
   };
 
   return (
@@ -1939,7 +1917,7 @@ function NetWorthSheet({ open, onClose, total, computedAcctGroups, computedHoldi
             <div style={{ ...cardStyle, padding: PAD('18px 16px'), border: '1px solid rgba(0,0,0,0.15)' }}>
               {editingId === 'new' ?
               <GoalEditForm editingId={editingId} draftType={draftType} draft={draft} setDraftField={setDraftField}
-                accountList={accountList} onCancel={() => setEditingId(null)} onSave={saveGoal} /> :
+                accountList={accountList} incGroupOptions={incGroupOptions} onCancel={() => setEditingId(null)} onSave={saveGoal} /> :
               editingId === 'picking' ?
               <GoalTypePicker onPick={startEditWithType} onCancel={() => setEditingId(null)} /> :
               <button onClick={startPicker} style={{ width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: SP(6), height: 44, background: 'transparent', border: '1px dashed rgba(0,0,0,0.2)', borderRadius: RS(12), color: 'rgba(44,44,50,0.7)', fontSize: FS(16), cursor: 'pointer' }}>
@@ -1962,7 +1940,7 @@ function NetWorthSheet({ open, onClose, total, computedAcctGroups, computedHoldi
                   {showBurst && <ConfettiBurst />}
                   {editingId === g.id ?
                   <GoalEditForm editingId={editingId} draftType={draftType} draft={draft} setDraftField={setDraftField}
-                    accountList={accountList} onCancel={() => setEditingId(null)} onSave={saveGoal} /> :
+                    accountList={accountList} incGroupOptions={incGroupOptions} onCancel={() => setEditingId(null)} onSave={saveGoal} /> :
                   <div>
                     <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
                       <div style={{ display: 'flex', alignItems: 'center', gap: SP(6), minWidth: 0 }}>
