@@ -93,6 +93,7 @@ App 分四個主要分頁（底部 TabBar）＋一個全螢幕設定頁：
 47. As a 使用者, I want to 設定多種類型的財務目標（淨資產於指定年月達標／單一帳戶餘額達標／被動收入／收支結餘／股票已實現損益），後三種可選以月或以年為單位、固定金額或跟上一期比成長%, so that 我能同時追蹤不同面向的財務計劃
 48. As a 使用者, I want to 目標達成時卡片出現金色邊框＋彩紙動畫慶祝（只播一次，之後常駐金色邊框與勳章）, so that 我能清楚感受到達成的成就感
 49. As a 使用者, I want to 週期性目標（被動收入/結餘/股票損益）顯示近幾期的達成率小圓點, so that 我能看出自己是不是穩定達標
+50. As a 使用者, I want to 目標卡片依完成率由高到低排序（已達成 100% 的固定排最下面）、「新增目標」按鈕固定在最上方, so that 我能一眼看到最接近達成的目標，且新增入口不會隨清單長度移動位置
 
 ## Implementation Decisions
 
@@ -140,6 +141,7 @@ App 分四個主要分頁（底部 TabBar）＋一個全螢幕設定頁：
 - 股票已實現損益只算買賣操作損益（`merchant==='投資獲利'/'投資損失'`，故意不含股息/債息——那兩者算被動收入）。
 - 達成慶祝：目標 `done` 時卡片邊框恆常變金色＋掛勳章；`celebrated` 旗標（存在目標紀錄裡）記錄是否已經播過一次彩紙噴發動畫（CSS keyframe `confettiBurst`/`goalGoldGlow`，定義在 index.html），確保只在第一次偵測到達成時播放，重開 App/sheet 不會重播。
 - 舊資料相容：更早版本的目標紀錄沒有 `type`/`celebrated` 欄位，`ffGetSavingsGoals()` 讀取時一律補上預設值（`type:'networth'`），不用另外寫遷移程式。
+- 排序與新增按鈕位置：渲染前先對每筆目標算好 `computeGoalProgress`，依「未達成的依 `pct` 由高到低、已達成（`done`）固定排最後」排序（純渲染層排序，不落地存檔，`ff_savings_goals` 原始陣列順序不變）；「新增目標」卡片固定在清單最上方，不隨目標數量變動位置。
 - **`GoalEditForm`/`GoalTypePicker` 必須是模組層級元件，不能定義在 `NetWorthSheet` 內部**（已修正過一次真實的手機 bug）：一開始把這兩個表單用 `const GoalEditForm = () => {...}` 寫在 `NetWorthSheet` 函式裡面，結果每次父層 render（打一個字、`setDraftField` 觸發一次 state 更新）都會產生新的函式參考，React 判定成不同元件整個卸載重掛，手機上打第一個字鍵盤就收起來、完全無法輸入。修法是把這兩個元件搬到模組層級、draft 狀態透過 props（`draft`/`setDraftField`）傳入，而不是靠 closure 捕捉一堆 `draftXxx` state。之後在這類 bottom sheet 裡新增子表單元件都要留意這點。
 - 週期性目標的「固定金額／%成長」「以月／以年」切換鈕比照 `segBtn`（見上面的圖表圖例章節與頁籤切換）視覺——白底+陰影＝選中、透明+淡字＝未選，跟 App 其他分段選擇器一致，不要另外做純黑底的樣式。
 

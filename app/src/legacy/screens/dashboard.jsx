@@ -1582,7 +1582,7 @@ export function computeGoalProgress(goal, ctx) {
   } else {
     // networth（預設/回退——包含所有沒有 type 欄位、或 type 未知的舊資料）
     current = totalAssets;
-    subtitle = `${goal.targetYear} 年 ${goal.targetMonth} 月`;
+    subtitle = goal.targetMonth ? `${goal.targetYear} 年 ${goal.targetMonth} 月` : `${goal.targetYear} 年`;
     const monthsLeft = (goal.targetYear - nowD.getFullYear()) * 12 + (goal.targetMonth - (nowD.getMonth() + 1));
     remainingText = monthsLeft > 0 ? `剩 ${monthsLeft} 個月` : null;
   }
@@ -1631,7 +1631,7 @@ function ConfettiBurst() {
 }
 
 /* ── NetWorthSheet: 資產淨額明細 bottom sheet ─────────────────────── */
-const GOAL_INPUT_STYLE = { flex: 1, height: 36, padding: PAD('0 10px'), borderRadius: RS(8), background: 'rgba(0,0,0,0.06)',
+const GOAL_INPUT_STYLE = { flex: 1, minWidth: 0, height: 36, padding: PAD('0 10px'), borderRadius: RS(8), background: 'rgba(0,0,0,0.06)',
   border: '1px solid rgba(0,0,0,0.12)', fontSize: FS(16), color: TOKENS.ink, outline: 'none' };
 const GOAL_NUM_INPUT_STYLE = { ...GOAL_INPUT_STYLE, fontFamily: TOKENS.fontMono, fontSize: FS(17) };
 const GOAL_FIELD_LABEL_STYLE = { fontSize: FS(15), color: 'rgba(44,44,50,0.7)', width: 64, flexShrink: 0 };
@@ -1930,52 +1930,7 @@ function NetWorthSheet({ open, onClose, total, computedAcctGroups, computedHoldi
               目標金額+年月 vs 目前淨資產（totalAssets，下面算出）。 */}
           {view === 'goals' &&
           <div style={{ display: 'flex', flexDirection: 'column', gap: SP(12) }}>
-            {goals.map((g) => {
-              const p = computeGoalProgress(g, goalCtx);
-              // showBurst 只在「這次 render 才第一次偵測到達成」時為真，animatedRef 保證同一個
-              // sheet-open session內不會因為 useEffectDash 寫回 celebrated 而重播第二次。
-              const showBurst = p.done && !g.celebrated && !animatedRef.current.has(g.id);
-              if (showBurst) animatedRef.current.add(g.id);
-              return (
-                <div key={g.id} style={{ ...cardStyle, padding: PAD('18px 16px'), position: 'relative', overflow: 'visible',
-                  border: p.done ? `1px solid ${TOKENS.gold}` : '1px solid rgba(0,0,0,0.07)',
-                  animation: showBurst ? 'goalGoldGlow 900ms ease-out both' : 'none' }}>
-                  {showBurst && <ConfettiBurst />}
-                  {editingId === g.id ?
-                  <GoalEditForm editingId={editingId} draftType={draftType} draft={draft} setDraftField={setDraftField}
-                    accountList={accountList} onCancel={() => setEditingId(null)} onSave={saveGoal} /> :
-                  <div>
-                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: SP(6), minWidth: 0 }}>
-                        <div style={{ fontSize: FS(16), fontWeight: 600, color: TOKENS.ink, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{g.name}</div>
-                        {p.done &&
-                        <span style={{ fontSize: FS(11), fontWeight: 700, color: '#fff', background: TOKENS.gold, borderRadius: RS(8), padding: PAD('2px 8px'), flexShrink: 0 }}>已達成</span>}
-                      </div>
-                      <div style={{ display: 'flex', gap: SP(6), flexShrink: 0 }}>
-                        <button onClick={() => startEdit(g)} style={{ width: 30, height: 30, borderRadius: RS(15), background: 'rgba(0,0,0,0.06)', border: 'none', color: 'rgba(44,44,50,0.7)', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer' }}><Pencil size={14} /></button>
-                        <button onClick={() => deleteGoal(g.id)} style={{ width: 30, height: 30, borderRadius: RS(15), background: 'rgba(184,92,74,0.10)', border: 'none', color: TOKENS.red, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer' }}><Trash size={14} /></button>
-                      </div>
-                    </div>
-                    <div style={{ fontSize: FS(14), color: 'rgba(44,44,50,0.68)', marginTop: SP(2) }}>{p.subtitle}</div>
-                    {p.noBaseline ?
-                    <div style={{ fontSize: FS(13), color: 'rgba(44,44,50,0.55)', marginTop: SP(8) }}>尚無上一期資料可比較</div> :
-                    <>
-                      <div style={{ display: 'flex', alignItems: 'baseline', gap: SP(6), marginTop: SP(6) }}>
-                        <div style={{ fontSize: FS(24), fontWeight: 700, fontFamily: TOKENS.fontMono, color: p.done ? TOKENS.green : TOKENS.ink }}>{p.pct.toFixed(0)}%</div>
-                        <div style={{ fontSize: FS(14), color: 'rgba(44,44,50,0.68)' }}>{mask(Math.round(p.current))} / {mask(Math.round(p.target))}</div>
-                      </div>
-                      <div style={{ height: 8, borderRadius: RS(4), background: 'rgba(0,0,0,0.08)', marginTop: SP(8), overflow: 'hidden' }}>
-                        <div style={{ height: '100%', width: `${p.pct}%`, borderRadius: RS(4), background: p.done ? TOKENS.green : TOKENS.ink, transition: 'width 420ms ease-out' }} />
-                      </div>
-                      <div style={{ fontSize: FS(13), color: 'rgba(44,44,50,0.68)', marginTop: SP(6) }}>
-                        {p.done ? '🎉 已達成目標' : `還差 ${mask(Math.round(p.target - p.current))}${p.remainingText ? ` · ${p.remainingText}` : ''}`}
-                      </div>
-                    </>}
-                    {p.historyDots && <GoalHistoryDots {...p.historyDots} periodLabel={g.periodUnit === 'month' ? '月' : '年'} />}
-                  </div>}
-                </div>);
-            })}
-            <div style={{ ...cardStyle, padding: PAD('18px 16px') }}>
+            <div style={{ ...cardStyle, padding: PAD('18px 16px'), border: '1px solid rgba(0,0,0,0.15)' }}>
               {editingId === 'new' ?
               <GoalEditForm editingId={editingId} draftType={draftType} draft={draft} setDraftField={setDraftField}
                 accountList={accountList} onCancel={() => setEditingId(null)} onSave={saveGoal} /> :
@@ -1985,6 +1940,54 @@ function NetWorthSheet({ open, onClose, total, computedAcctGroups, computedHoldi
                 <Plus size={16} />{goals.length === 0 ? '設定目標' : '新增目標'}
               </button>}
             </div>
+            {/* 排序：未達成的依完成率由高到低排在上面，已達成 100% 的固定排到最下面。 */}
+            {goals
+              .map((g) => ({ g, p: computeGoalProgress(g, goalCtx) }))
+              .sort((a, b) => a.p.done !== b.p.done ? (a.p.done ? 1 : -1) : b.p.pct - a.p.pct)
+              .map(({ g, p }) => {
+              // showBurst 只在「這次 render 才第一次偵測到達成」時為真，animatedRef 保證同一個
+              // sheet-open session內不會因為 useEffectDash 寫回 celebrated 而重播第二次。
+              const showBurst = p.done && !g.celebrated && !animatedRef.current.has(g.id);
+              if (showBurst) animatedRef.current.add(g.id);
+              return (
+                <div key={g.id} style={{ ...cardStyle, padding: PAD('18px 16px'), position: 'relative', overflow: 'visible',
+                  border: p.done ? `1px solid ${TOKENS.gold}` : '1px solid rgba(0,0,0,0.15)',
+                  animation: showBurst ? 'goalGoldGlow 900ms ease-out both' : 'none' }}>
+                  {showBurst && <ConfettiBurst />}
+                  {editingId === g.id ?
+                  <GoalEditForm editingId={editingId} draftType={draftType} draft={draft} setDraftField={setDraftField}
+                    accountList={accountList} onCancel={() => setEditingId(null)} onSave={saveGoal} /> :
+                  <div>
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: SP(6), minWidth: 0 }}>
+                        <div style={{ fontSize: FS(18), fontWeight: 600, color: TOKENS.ink, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{g.name}</div>
+                        {p.done &&
+                        <span style={{ fontSize: FS(11), fontWeight: 700, color: '#fff', background: TOKENS.gold, borderRadius: RS(8), padding: PAD('2px 8px'), flexShrink: 0 }}>已達成</span>}
+                      </div>
+                      <div style={{ display: 'flex', gap: SP(6), flexShrink: 0 }}>
+                        <button onClick={() => startEdit(g)} style={{ width: 34, height: 34, borderRadius: RS(17), background: 'rgba(0,0,0,0.06)', border: 'none', color: 'rgba(44,44,50,0.7)', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer' }}><Pencil size={16} /></button>
+                        <button onClick={() => deleteGoal(g.id)} style={{ width: 34, height: 34, borderRadius: RS(17), background: 'rgba(184,92,74,0.10)', border: 'none', color: TOKENS.red, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer' }}><Trash size={16} /></button>
+                      </div>
+                    </div>
+                    <div style={{ fontSize: FS(15), color: 'rgba(44,44,50,0.8)', marginTop: SP(2) }}>{p.subtitle}</div>
+                    {p.noBaseline ?
+                    <div style={{ fontSize: FS(14), color: 'rgba(44,44,50,0.68)', marginTop: SP(8) }}>尚無上一期資料可比較</div> :
+                    <>
+                      <div style={{ display: 'flex', alignItems: 'baseline', gap: SP(6), marginTop: SP(6) }}>
+                        <div style={{ fontSize: FS(24), fontWeight: 700, fontFamily: TOKENS.fontMono, color: p.done ? TOKENS.green : TOKENS.ink }}>{p.pct.toFixed(0)}%</div>
+                        <div style={{ fontSize: FS(15), color: 'rgba(44,44,50,0.8)' }}>{mask(Math.round(p.current))} / {mask(Math.round(p.target))}</div>
+                      </div>
+                      <div style={{ height: 8, borderRadius: RS(4), background: 'rgba(0,0,0,0.08)', marginTop: SP(8), overflow: 'hidden' }}>
+                        <div style={{ height: '100%', width: `${p.pct}%`, borderRadius: RS(4), background: p.done ? TOKENS.green : TOKENS.ink, transition: 'width 420ms ease-out' }} />
+                      </div>
+                      <div style={{ fontSize: FS(14), color: 'rgba(44,44,50,0.8)', marginTop: SP(6) }}>
+                        {p.done ? '🎉 已達成目標' : `還差 ${mask(Math.round(p.target - p.current))}${p.remainingText ? ` · ${p.remainingText}` : ''}`}
+                      </div>
+                    </>}
+                    {p.historyDots && <GoalHistoryDots {...p.historyDots} periodLabel={g.periodUnit === 'month' ? '月' : '年'} />}
+                  </div>}
+                </div>);
+            })}
           </div>
           }
           {view === 'alloc' && <>
