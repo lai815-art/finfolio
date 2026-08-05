@@ -1582,7 +1582,8 @@ export function computeGoalProgress(goal, ctx) {
   } else {
     // networth（預設/回退——包含所有沒有 type 欄位、或 type 未知的舊資料）
     current = totalAssets;
-    subtitle = goal.targetMonth ? `${goal.targetYear} 年 ${goal.targetMonth} 月` : `${goal.targetYear} 年`;
+    subtitle = [goal.targetYear ? `${goal.targetYear} 年` : null, goal.targetMonth ? `${goal.targetMonth} 月` : null]
+      .filter(Boolean).join(' ') || '未設定目標年月';
     const monthsLeft = (goal.targetYear - nowD.getFullYear()) * 12 + (goal.targetMonth - (nowD.getMonth() + 1));
     remainingText = monthsLeft > 0 ? `剩 ${monthsLeft} 個月` : null;
   }
