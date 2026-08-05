@@ -1540,7 +1540,7 @@ export function computeGoalProgress(goal, ctx) {
   const { totalAssets, computedAcctGroups, computedHoldings, savedFlows, masterData } = ctx;
   const nowD = window.TODAY_DATE || new Date();
   const thisYear = nowD.getFullYear(), thisMonth = nowD.getMonth() + 1;
-  let current = 0, target = goal.amount, subtitle = '', remainingText = null, historyDots = null, noBaseline = false;
+  let current = 0, target = goal.amount, subtitle = '', historyDots = null, noBaseline = false;
 
   if (goal.type === 'account') {
     const items = computedAcctGroups.flatMap((g) => g.items);
@@ -1582,15 +1582,20 @@ export function computeGoalProgress(goal, ctx) {
   } else {
     // networth（預設/回退——包含所有沒有 type 欄位、或 type 未知的舊資料）
     current = totalAssets;
-    subtitle = [goal.targetYear ? `${goal.targetYear} 年` : null, goal.targetMonth ? `${goal.targetMonth} 月` : null]
-      .filter(Boolean).join(' ') || '未設定目標年月';
-    const monthsLeft = (goal.targetYear - nowD.getFullYear()) * 12 + (goal.targetMonth - (nowD.getMonth() + 1));
-    remainingText = monthsLeft > 0 ? `剩 ${monthsLeft} 個月` : null;
+    if (goal.targetYear && goal.targetMonth) {
+      const monthsLeft = (goal.targetYear - thisYear) * 12 + (goal.targetMonth - thisMonth);
+      subtitle = monthsLeft <= 0 ? '已到期'
+        : monthsLeft >= 12 ? `${Math.ceil(monthsLeft / 12)} 年內達成`
+        : `${monthsLeft} 月內達成`;
+    } else {
+      subtitle = [goal.targetYear ? `${goal.targetYear} 年` : null, goal.targetMonth ? `${goal.targetMonth} 月` : null]
+        .filter(Boolean).join(' ') || '未設定目標年月';
+    }
   }
 
   const pct = (!noBaseline && target > 0) ? Math.min(100, Math.max(0, current / target * 100)) : 0;
   const done = !noBaseline && target > 0 && current >= target;
-  return { current, target, pct, done, subtitle, remainingText, historyDots, noBaseline };
+  return { current, target, pct, done, subtitle, historyDots, noBaseline };
 }
 
 // 週期性目標的歷史達成率小圓點列（見 computeGoalProgress 回傳的 historyDots）。
@@ -1982,7 +1987,7 @@ function NetWorthSheet({ open, onClose, total, computedAcctGroups, computedHoldi
                         <div style={{ height: '100%', width: `${p.pct}%`, borderRadius: RS(4), background: p.done ? TOKENS.green : TOKENS.ink, transition: 'width 420ms ease-out' }} />
                       </div>
                       <div style={{ fontSize: FS(14), color: 'rgba(44,44,50,0.8)', marginTop: SP(6) }}>
-                        {p.done ? '🎉 已達成目標' : `還差 ${mask(Math.round(p.target - p.current))}${p.remainingText ? ` · ${p.remainingText}` : ''}`}
+                        {p.done ? '🎉 已達成目標' : `還差 ${mask(Math.round(p.target - p.current))}`}
                       </div>
                     </>}
                     {p.historyDots && <GoalHistoryDots {...p.historyDots} periodLabel={g.periodUnit === 'month' ? '月' : '年'} />}

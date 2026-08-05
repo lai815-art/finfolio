@@ -162,7 +162,7 @@ describe('computeGoalProgress', () => {
 
   afterEach(() => { delete window.TODAY_DATE; });
 
-  it('networth 類型：進度 = totalAssets / amount，附剩餘月數', () => {
+  it('networth 類型：進度 = totalAssets / amount，未滿一年顯示「X 月內達成」', () => {
     window.TODAY_DATE = new Date(2024, 0, 15); // 2024-01-15
     const goal = { type: 'networth', amount: 1000000, targetYear: 2024, targetMonth: 7 };
     const p = computeGoalProgress(goal, baseCtx);
@@ -170,8 +170,28 @@ describe('computeGoalProgress', () => {
     expect(p.target).toBe(1000000);
     expect(p.pct).toBeCloseTo(90);
     expect(p.done).toBe(false);
-    expect(p.subtitle).toBe('2024 年 7 月');
-    expect(p.remainingText).toBe('剩 6 個月');
+    expect(p.subtitle).toBe('6 月內達成');
+  });
+
+  it('networth 類型：滿一年以上顯示「X 年內達成」（無條件進位）', () => {
+    window.TODAY_DATE = new Date(2024, 0, 15); // 2024-01-15
+    const goal = { type: 'networth', amount: 1000000, targetYear: 2025, targetMonth: 2 }; // 剩 13 個月
+    const p = computeGoalProgress(goal, baseCtx);
+    expect(p.subtitle).toBe('2 年內達成');
+  });
+
+  it('networth 類型：目標年月已過顯示「已到期」', () => {
+    window.TODAY_DATE = new Date(2024, 0, 15); // 2024-01-15
+    const goal = { type: 'networth', amount: 1000000, targetYear: 2023, targetMonth: 12 };
+    const p = computeGoalProgress(goal, baseCtx);
+    expect(p.subtitle).toBe('已到期');
+  });
+
+  it('networth 類型：只填年或都沒填，顯示原始年月文字', () => {
+    window.TODAY_DATE = new Date(2024, 0, 15);
+    expect(computeGoalProgress({ type: 'networth', amount: 100, targetYear: 2030, targetMonth: null }, baseCtx).subtitle).toBe('2030 年');
+    expect(computeGoalProgress({ type: 'networth', amount: 100, targetYear: null, targetMonth: 6 }, baseCtx).subtitle).toBe('6 月');
+    expect(computeGoalProgress({ type: 'networth', amount: 100, targetYear: null, targetMonth: null }, baseCtx).subtitle).toBe('未設定目標年月');
   });
 
   it('account 類型：一般帳戶直接用 amountTWD', () => {
