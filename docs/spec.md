@@ -90,7 +90,7 @@ App 分四個主要分頁（底部 TabBar）＋一個全螢幕設定頁：
 46. As a 使用者, I want to 資料結構升級時自動做 migration, so that 舊版本存的資料在新版 App 上不會壞掉
 
 **財務目標（資產配置與目標頁面的「財務目標」頁籤）**
-47. As a 使用者, I want to 設定多種類型的財務目標（淨資產於指定年月達標／單一帳戶餘額達標／收入目標／收支結餘），後兩種可選以月或以年為單位、固定金額或跟上一期比成長%, so that 我能同時追蹤不同面向的財務計劃
+47. As a 使用者, I want to 設定多種類型的財務目標（淨資產於指定年月達標／單一帳戶餘額達標／收入目標／收支結餘），後兩種可選以月、季或年為單位、固定金額或跟上一期比成長%, so that 我能同時追蹤不同面向的財務計劃
 47b. As a 使用者, I want to 收入目標可指定追蹤範圍——任一收入大類（含自訂新增的大類）或「總收入」, so that 我能單獨追蹤主動/被動/投資等某一類收入，而不是只能追蹤被動收入
 48. As a 使用者, I want to 目標達成時卡片出現金色邊框＋彩紙動畫慶祝（只播一次，之後常駐金色邊框與勳章）, so that 我能清楚感受到達成的成就感
 49. As a 使用者, I want to 週期性目標（收入/結餘/股票損益）顯示近幾期的達成率小圓點, so that 我能看出自己是不是穩定達標
@@ -136,7 +136,7 @@ App 分四個主要分頁（底部 TabBar）＋一個全螢幕設定頁：
 
 **財務目標**（`NetWorthSheet` 的「財務目標」頁籤，dashboard.jsx）
 - `GOAL_TYPES` 設定陣列驅動類型選單與表單欄位：`networth`（淨資產於指定年月達標）、`account`（單一帳戶餘額達標，無期限）、`passive_income`／`balance`（收入目標／收支結餘，皆為週期性目標）。新增目標先選類型、再依類型顯示對應欄位；類型建立後不可更改，要換類型只能刪除重建。`passive_income` 這個 key 沿用舊資料的 `type` 值沒有改名，只有 UI 上的 label 改叫「收入目標」。
-- 週期性目標（`recurring: true` 的兩種）沒有目標年月欄位，改成 `periodUnit: 'month'|'year'` 讓使用者自選，以及 `targetMode: 'amount'|'percent'`：固定金額直接比 `amount`；%成長模式比對象是「上一期實際值」（`percentValue`，例如 4 代表比上一期成長 4%），基準每期自動滾動往前推進，上一期沒資料時顯示「尚無上一期資料可比較」。兩種類型的月/年聚合函式（`ffIncomeForYear/Month`、`ffMonthlyBalance`/`ffYearlyBalance`）透過 `PERIOD_METRIC_GETTERS` 對照表查表呼叫，不用為月/年各寫一次判斷。
+- 週期性目標（`recurring: true` 的兩種）沒有目標年月欄位，改成 `periodUnit: 'month'|'quarter'|'year'` 讓使用者自選，以及 `targetMode: 'amount'|'percent'`：固定金額直接比 `amount`；%成長模式比對象是「上一期實際值」（`percentValue`，例如 4 代表比上一期成長 4%），基準每期自動滾動往前推進，上一期沒資料時顯示「尚無上一期資料可比較」。三種單位的聚合函式（`ffIncomeForYear/Month/Quarter`、`ffYearlyBalance`/`ffMonthlyBalance`/`ffQuarterlyBalance`）透過 `PERIOD_METRIC_GETTERS` 對照表查表呼叫，不用為月/季/年各寫一次判斷；季度用 `Math.ceil(month/3)` 換算成 1-4，歷史圓點的期間序列由 `ffQuarterSeries` 產生（往回抓 9 期，約 2 年）。
 - 收入目標（`passive_income` 類型）的追蹤範圍：一個下拉選單（`<select>`），`goal.incomeGroup` 存的是「大類顯示名稱」（例如 `被動收入`、`投資收入`，跟 `MonthlyStatsSheet` 的 `INC_LABEL` 轉換規則一致）或 sentinel 值 `'total'`（不分大類，全部收入加總）。選單清單動態產生自 `masterData.inc_groups`（使用者可自訂新增/刪除大類，新增的大類會自動出現在選單裡），最前面固定加一個「總收入」。舊資料沒有 `incomeGroup` 欄位時，`ffIncomeForYear/Month` 的第 4 個參數預設 `'被動收入'`，維持改版前「固定只算被動收入」的行為，不用另外寫遷移程式。
 - 股票已實現損益曾是第三種週期性目標，後來整個拿掉（`GOAL_TYPES` 移除該項、`ffRealizedPnlForYear/Month` 一併刪除，未保留過渡相容），現在只剩收入目標／收支結餘兩種週期性目標。
 - 歷史達成率（週期性目標專屬）：對每個「有資料的過去期間」重新解析當期目標值（%模式一樣滾動跟上一期比），畫成小圓點列＋「近N期達成X次」文字；不需要另外儲存歷史快照，全部即時從 `savedFlows` 現算，向前推算的期數受 `savedFlows` 最早一筆記錄裁剪，避免對沒有資料的期間生出假的「未達成」圓點。
@@ -144,9 +144,9 @@ App 分四個主要分頁（底部 TabBar）＋一個全螢幕設定頁：
 - 達成慶祝：目標 `done` 時卡片邊框恆常變金色＋掛勳章；`celebrated` 旗標（存在目標紀錄裡）記錄是否已經播過一次彩紙噴發動畫（CSS keyframe `confettiBurst`/`goalGoldGlow`，定義在 index.html），確保只在第一次偵測到達成時播放，重開 App/sheet 不會重播。
 - 舊資料相容：更早版本的目標紀錄沒有 `type`/`celebrated` 欄位，`ffGetSavingsGoals()` 讀取時一律補上預設值（`type:'networth'`），不用另外寫遷移程式。
 - 排序與新增按鈕位置：渲染前先對每筆目標算好 `computeGoalProgress`，依「未達成的依 `pct` 由高到低、已達成（`done`）固定排最後」排序（純渲染層排序，不落地存檔，`ff_savings_goals` 原始陣列順序不變）；「新增目標」卡片固定在清單最上方，不隨目標數量變動位置。
-- `networth` 目標的副標題顯示「還要多久達成」而非絕對年月：`targetYear`/`targetMonth` 都有填時，算出距今剩餘月數，未滿 12 個月顯示「X 月內達成」、滿 12 個月以上無條件進位換算成年顯示「X 年內達成」（例：剩 13 個月顯示「2 年內達成」，避免高估已達成的時間）、目標年月已過則顯示「已到期」；只填年或月其中一個、或都沒填，就照原樣拼「YYYY 年」「M 月」，都沒填顯示「未設定目標年月」。
+- `networth` 目標的副標題顯示絕對目標年月：`targetYear`/`targetMonth` 都有填且尚未到期時顯示「西元 X 年 X 月達成目標」，目標年月已過則顯示「已到期」；只填年或月其中一個、或都沒填，就照原樣拼「YYYY 年」「M 月」，都沒填顯示「未設定目標年月」。
 - **`GoalEditForm`/`GoalTypePicker` 必須是模組層級元件，不能定義在 `NetWorthSheet` 內部**（已修正過一次真實的手機 bug）：一開始把這兩個表單用 `const GoalEditForm = () => {...}` 寫在 `NetWorthSheet` 函式裡面，結果每次父層 render（打一個字、`setDraftField` 觸發一次 state 更新）都會產生新的函式參考，React 判定成不同元件整個卸載重掛，手機上打第一個字鍵盤就收起來、完全無法輸入。修法是把這兩個元件搬到模組層級、draft 狀態透過 props（`draft`/`setDraftField`）傳入，而不是靠 closure 捕捉一堆 `draftXxx` state。之後在這類 bottom sheet 裡新增子表單元件都要留意這點。
-- 週期性目標的「固定金額／%成長」「以月／以年」切換鈕比照 `segBtn`（見上面的圖表圖例章節與頁籤切換）視覺——白底+陰影＝選中、透明+淡字＝未選，跟 App 其他分段選擇器一致，不要另外做純黑底的樣式。
+- 週期性目標的「固定金額／%成長」「以月／以季／以年」切換鈕比照 `segBtn`（見上面的圖表圖例章節與頁籤切換）視覺——白底+陰影＝選中、透明+淡字＝未選，跟 App 其他分段選擇器一致，不要另外做純黑底的樣式。
 
 **核心計算邏輯**
 - `computeAccounts()`：從各帳戶初始餘額出發，依收支/轉帳/股票交易逐筆計算目前餘額；未來日期的紀錄不計入；信用卡類帳戶以「負債」方式顯示餘額。

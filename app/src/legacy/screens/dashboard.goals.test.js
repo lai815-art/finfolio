@@ -1,7 +1,7 @@
 import { describe, it, expect, afterEach } from 'vitest';
 import {
-  ffIncomeForYear, ffIncomeForMonth,
-  ffMonthlyBalance, ffYearlyBalance,
+  ffIncomeForYear, ffIncomeForMonth, ffIncomeForQuarter,
+  ffMonthlyBalance, ffYearlyBalance, ffQuarterlyBalance,
   ffResolvePeriodTarget, ffAchievementHistory,
   computeGoalProgress,
 } from './dashboard.jsx';
@@ -54,6 +54,24 @@ describe('ffIncomeForYear / ffIncomeForMonth', () => {
   });
 });
 
+describe('ffIncomeForQuarter', () => {
+  const flows = [
+    flow('inc', '股息', 1000, '2024-03-10'), // Q1
+    flow('inc', '股息', 700, '2024-04-05'),  // Q2
+    flow('inc', '薪資', 5000, '2024-03-15'), // Q1，主動收入
+  ];
+
+  it('只加總指定年季的被動收入（預設 group）', () => {
+    expect(ffIncomeForQuarter(flows, masterData, 2024, 1)).toBe(1000);
+    expect(ffIncomeForQuarter(flows, masterData, 2024, 2)).toBe(700);
+    expect(ffIncomeForQuarter(flows, masterData, 2024, 3)).toBe(0);
+  });
+
+  it('group 為 total 時不分大類，加總該季全部收入', () => {
+    expect(ffIncomeForQuarter(flows, masterData, 2024, 1, 'total')).toBe(1000 + 5000);
+  });
+});
+
 describe('ffMonthlyBalance / ffYearlyBalance', () => {
   const flows = [
     flow('inc', '薪資', 1000, '2024-01-05'),
@@ -69,6 +87,19 @@ describe('ffMonthlyBalance / ffYearlyBalance', () => {
 
   it('算整年的 inc - exp', () => {
     expect(ffYearlyBalance(flows, masterData, 2024)).toBe(1000);
+  });
+});
+
+describe('ffQuarterlyBalance', () => {
+  const flows = [
+    flow('inc', '薪資', 1000, '2024-01-05'), // Q1
+    flow('exp', '股息', 400, '2024-01-10'),  // Q1
+    flow('inc', '薪資', 500, '2024-04-05'),  // Q2
+  ];
+
+  it('算指定年季的 inc - exp', () => {
+    expect(ffQuarterlyBalance(flows, masterData, 2024, 1)).toBe(600);
+    expect(ffQuarterlyBalance(flows, masterData, 2024, 2)).toBe(500);
   });
 });
 
@@ -152,7 +183,7 @@ describe('computeGoalProgress', () => {
 
   afterEach(() => { delete window.TODAY_DATE; });
 
-  it('networth 類型：進度 = totalAssets / amount，未滿一年顯示「X 月內達成」', () => {
+  it('networth 類型：進度 = totalAssets / amount，未到期時顯示「西元 X 年 X 月達成目標」', () => {
     window.TODAY_DATE = new Date(2024, 0, 15); // 2024-01-15
     const goal = { type: 'networth', amount: 1000000, targetYear: 2024, targetMonth: 7 };
     const p = computeGoalProgress(goal, baseCtx);
@@ -160,14 +191,7 @@ describe('computeGoalProgress', () => {
     expect(p.target).toBe(1000000);
     expect(p.pct).toBeCloseTo(90);
     expect(p.done).toBe(false);
-    expect(p.subtitle).toBe('6 月內達成');
-  });
-
-  it('networth 類型：滿一年以上顯示「X 年內達成」（無條件進位）', () => {
-    window.TODAY_DATE = new Date(2024, 0, 15); // 2024-01-15
-    const goal = { type: 'networth', amount: 1000000, targetYear: 2025, targetMonth: 2 }; // 剩 13 個月
-    const p = computeGoalProgress(goal, baseCtx);
-    expect(p.subtitle).toBe('2 年內達成');
+    expect(p.subtitle).toBe('西元 2024 年 7 月達成目標');
   });
 
   it('networth 類型：目標年月已過顯示「已到期」', () => {
@@ -222,6 +246,16 @@ describe('computeGoalProgress', () => {
     expect(p.current).toBe(350000);
     expect(p.target).toBeCloseTo(480000 * 1.04); // 去年 480000 * 1.04
     expect(p.done).toBe(false);
+  });
+
+  it('passive_income 類型（季）：本季進度 + 固定金額目標', () => {
+    window.TODAY_DATE = new Date(2024, 5, 15); // 2024-06-15 → Q2
+    // baseCtx.savedFlows 已有一筆 2024-06-01 350000（Q2）
+    const goal = { type: 'passive_income', periodUnit: 'quarter', targetMode: 'amount', amount: 100000 };
+    const p = computeGoalProgress(goal, baseCtx);
+    expect(p.current).toBe(350000); // 2024 Q2 股息
+    expect(p.target).toBe(100000);
+    expect(p.done).toBe(true);
   });
 
   it('沒有上一期資料時 noBaseline 為 true，不算百分比', () => {

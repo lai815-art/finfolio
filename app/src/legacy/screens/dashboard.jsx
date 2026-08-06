@@ -1362,8 +1362,8 @@ function ffSetSavingsGoals(v) {
 export const GOAL_TYPES = [
   { key: 'networth', icon: 'PiggyBank', label: '淨資產目標', desc: '淨資產於指定年月達到目標金額', recurring: false },
   { key: 'account', icon: 'Wallet', label: '單一帳戶餘額', desc: '指定帳戶餘額達到目標金額（無期限）', recurring: false },
-  { key: 'passive_income', icon: 'TrendUp', label: '收入目標', desc: '指定收入大類（或總收入）達到目標，可選以月或以年為單位', recurring: true },
-  { key: 'balance', icon: 'Receipt', label: '收支結餘', desc: '收支結餘達到目標，可選以月或以年為單位', recurring: true },
+  { key: 'passive_income', icon: 'TrendUp', label: '收入目標', desc: '指定收入大類（或總收入）達到目標，可選以月、季或年為單位', recurring: true },
+  { key: 'balance', icon: 'Receipt', label: '收支結餘', desc: '收支結餘達到目標，可選以月、季或年為單位', recurring: true },
 ];
 export const GOAL_TYPE_MAP = Object.fromEntries(GOAL_TYPES.map((t) => [t.key, t]));
 
@@ -1403,6 +1403,19 @@ export function ffIncomeForMonth(savedFlows, masterData, year, month /* 1-12 */,
   });
   return total;
 }
+export function ffIncomeForQuarter(savedFlows, masterData, year, quarter /* 1-4 */, group = '被動收入') {
+  const curMap = window.buildCurMap(masterData);
+  const amtOf = (f) => window.fxToTWD(f.amount, curMap[f.account]);
+  let total = 0;
+  (savedFlows || []).forEach((f) => {
+    if (f.kind !== 'inc' || !f.date) return;
+    const d = f.date instanceof Date ? f.date : new Date(f.date);
+    if (d.getFullYear() !== year || Math.ceil((d.getMonth() + 1) / 3) !== quarter) return;
+    if (group !== 'total' && incGroupLabelOf(masterData, f.cat) !== group) return;
+    total += amtOf(f);
+  });
+  return total;
+}
 
 // 結餘：指定期間的 inc - exp，年/月兩種版本只差日期篩選粒度。
 export function ffMonthlyBalance(savedFlows, masterData, year, month /* 1-12 */) {
@@ -1430,12 +1443,25 @@ export function ffYearlyBalance(savedFlows, masterData, year) {
   });
   return inc - exp;
 }
+export function ffQuarterlyBalance(savedFlows, masterData, year, quarter /* 1-4 */) {
+  const curMap = window.buildCurMap(masterData);
+  const amtOf = (f) => window.fxToTWD(f.amount, curMap[f.account]);
+  let inc = 0, exp = 0;
+  (savedFlows || []).forEach((f) => {
+    if (!f.date) return;
+    const d = f.date instanceof Date ? f.date : new Date(f.date);
+    if (d.getFullYear() !== year || Math.ceil((d.getMonth() + 1) / 3) !== quarter) return;
+    if (f.kind === 'inc') inc += amtOf(f);
+    else if (f.kind === 'exp') exp += amtOf(f);
+  });
+  return inc - exp;
+}
 
-// 兩種週期性目標的月/年聚合函式對照表，computeGoalProgress 依 goal.periodUnit 查表，
-// 不用為月/年各寫一次四路判斷。
+// 兩種週期性目標的月/季/年聚合函式對照表，computeGoalProgress 依 goal.periodUnit 查表，
+// 不用為月/季/年各寫一次判斷。
 export const PERIOD_METRIC_GETTERS = {
-  passive_income: { year: ffIncomeForYear, month: ffIncomeForMonth },
-  balance: { year: ffYearlyBalance, month: ffMonthlyBalance },
+  passive_income: { year: ffIncomeForYear, quarter: ffIncomeForQuarter, month: ffIncomeForMonth },
+  balance: { year: ffYearlyBalance, quarter: ffQuarterlyBalance, month: ffMonthlyBalance },
 };
 
 // 週期性目標的目標值：固定金額直接用 amount；%成長模式要跟「上一期實際值」比，上一期沒
@@ -1492,6 +1518,16 @@ export function ffMonthSeries(getter, startYear, startMonth, maxCount, earliest)
   }
   return out;
 }
+export function ffQuarterSeries(getter, startYear, startQuarter, maxCount, earliest) {
+  const out = []; let y = startYear, q = startQuarter;
+  const earliestQuarter = earliest ? Math.ceil((earliest.getMonth() + 1) / 3) : null;
+  for (let i = 0; i < maxCount; i++) {
+    if (earliest && (y < earliest.getFullYear() || (y === earliest.getFullYear() && q < earliestQuarter))) break;
+    out.push({ label: `${y} Q${q}`, value: getter(y, q) });
+    q--; if (q < 1) { q = 4; y--; }
+  }
+  return out;
+}
 
 // 統一算出目標卡片要顯示的所有資訊，六種類型的分支都在這裡，卡片 JSX 只有一份、吃這個
 // 回傳值渲染；也是達成動畫判斷（見 NetWorthSheet）跟卡片渲染共用的計算，避免六路分支寫兩次。
@@ -1517,9 +1553,9 @@ export function computeGoalProgress(goal, ctx) {
       subtitle = goal.accountName;
     }
   } else if (PERIOD_METRIC_GETTERS[goal.type]) {
-    // 收入／結餘：兩種都可選以月或以年為單位，共用同一套「本期 vs
+    // 收入／結餘：三種都可選以月/季/年為單位，共用同一套「本期 vs
     // 上一期」與歷史圓點邏輯，只是查表換算法函式跟窗口大小不同。
-    const unit = goal.periodUnit === 'month' ? 'month' : 'year';
+    const unit = goal.periodUnit === 'month' ? 'month' : goal.periodUnit === 'quarter' ? 'quarter' : 'year';
     const getters = PERIOD_METRIC_GETTERS[goal.type];
     const earliest = ffEarliestFlowPeriod(savedFlows);
     let series;
@@ -1529,6 +1565,13 @@ export function computeGoalProgress(goal, ctx) {
       subtitle = '本月進度';
       const [py, pm] = thisMonth === 1 ? [thisYear - 1, 12] : [thisYear, thisMonth - 1];
       series = ffMonthSeries(getterM, py, pm, 13, earliest);
+    } else if (unit === 'quarter') {
+      const thisQuarter = Math.ceil(thisMonth / 3);
+      const getterQ = (y, q) => getters.quarter(savedFlows, masterData, y, q, goal.incomeGroup);
+      current = getterQ(thisYear, thisQuarter);
+      subtitle = '本季進度';
+      const [py, pq] = thisQuarter === 1 ? [thisYear - 1, 4] : [thisYear, thisQuarter - 1];
+      series = ffQuarterSeries(getterQ, py, pq, 9, earliest);
     } else {
       const getterY = (y) => getters.year(savedFlows, masterData, y, goal.incomeGroup);
       current = getterY(thisYear);
@@ -1543,9 +1586,7 @@ export function computeGoalProgress(goal, ctx) {
     current = totalAssets;
     if (goal.targetYear && goal.targetMonth) {
       const monthsLeft = (goal.targetYear - thisYear) * 12 + (goal.targetMonth - thisMonth);
-      subtitle = monthsLeft <= 0 ? '已到期'
-        : monthsLeft >= 12 ? `${Math.ceil(monthsLeft / 12)} 年內達成`
-        : `${monthsLeft} 月內達成`;
+      subtitle = monthsLeft <= 0 ? '已到期' : `西元 ${goal.targetYear} 年 ${goal.targetMonth} 月達成目標`;
     } else {
       subtitle = [goal.targetYear ? `${goal.targetYear} 年` : null, goal.targetMonth ? `${goal.targetMonth} 月` : null]
         .filter(Boolean).join(' ') || '未設定目標年月';
@@ -1643,7 +1684,7 @@ function GoalTypePicker({ onPick, onCancel }) {
 // 理由同上——draft/setDraftField 每次 render 的「值」變了沒關係，只要 GoalEditForm 這個函式
 // 本身的參考不變，React 就會當成同一個元件更新，輸入框不會被卸載、focus 不會掉。
 function GoalEditForm({ editingId, draftType, draft, setDraftField, accountList, incGroupOptions, onCancel, onSave }) {
-  const { Check, X } = window.Icons;
+  const { Check } = window.Icons;
   const cfg = GOAL_TYPE_MAP[draftType] || GOAL_TYPE_MAP.networth;
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: SP(10) }}>
@@ -1660,7 +1701,7 @@ function GoalEditForm({ editingId, draftType, draft, setDraftField, accountList,
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: SP(8) }}>
           <span style={GOAL_FIELD_LABEL_STYLE}>目標年月</span>
-          <input value={draft.year} onChange={(e) => setDraftField('year', e.target.value)} inputMode="numeric" placeholder="年" maxLength={4} style={{ ...GOAL_NUM_INPUT_STYLE, flex: 'none', width: 72 }} />
+          <input value={draft.year} onChange={(e) => setDraftField('year', e.target.value)} inputMode="numeric" placeholder="西元年" maxLength={4} style={{ ...GOAL_NUM_INPUT_STYLE, flex: 'none', width: 72 }} />
           <span style={{ fontSize: FS(15), color: 'rgba(44,44,50,0.68)' }}>年</span>
           <input value={draft.month} onChange={(e) => setDraftField('month', e.target.value)} inputMode="numeric" placeholder="月" maxLength={2} style={{ ...GOAL_NUM_INPUT_STYLE, flex: 'none', width: 56 }} />
           <span style={{ fontSize: FS(15), color: 'rgba(44,44,50,0.68)' }}>月</span>
@@ -1700,11 +1741,12 @@ function GoalEditForm({ editingId, draftType, draft, setDraftField, accountList,
       {cfg.recurring && <>
         <div style={{ display: 'flex', gap: SP(4), padding: SP(4), borderRadius: RS(16), background: 'rgba(0,0,0,0.06)' }}>
           {goalSegToggle('month', draft.periodUnit, (v) => setDraftField('periodUnit', v), '以月為單位')}
+          {goalSegToggle('quarter', draft.periodUnit, (v) => setDraftField('periodUnit', v), '以季為單位')}
           {goalSegToggle('year', draft.periodUnit, (v) => setDraftField('periodUnit', v), '以年為單位')}
         </div>
         <div style={{ display: 'flex', gap: SP(4), padding: SP(4), borderRadius: RS(16), background: 'rgba(0,0,0,0.06)' }}>
           {goalSegToggle('amount', draft.targetMode, (v) => setDraftField('targetMode', v), '固定金額')}
-          {goalSegToggle('percent', draft.targetMode, (v) => setDraftField('targetMode', v), draft.periodUnit === 'month' ? '跟上個月比成長%' : '跟去年比成長%')}
+          {goalSegToggle('percent', draft.targetMode, (v) => setDraftField('targetMode', v), draft.periodUnit === 'month' ? '跟上個月比成長%' : draft.periodUnit === 'quarter' ? '跟上一季比成長%' : '跟去年比成長%')}
         </div>
         {draft.targetMode === 'amount' ?
         <div style={{ display: 'flex', alignItems: 'center', gap: SP(8) }}>
@@ -1719,8 +1761,8 @@ function GoalEditForm({ editingId, draftType, draft, setDraftField, accountList,
       </>}
 
       <div style={{ display: 'flex', gap: SP(8), justifyContent: 'flex-end', marginTop: SP(4) }}>
-        <button onClick={onCancel} style={{ width: 36, height: 36, borderRadius: RS(18), background: 'rgba(0,0,0,0.07)', border: 'none', color: 'rgba(44,44,50,0.7)', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer' }}><X size={16} /></button>
-        <button onClick={onSave} style={{ width: 36, height: 36, borderRadius: RS(18), background: TOKENS.ink, border: 'none', color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer' }}><Check size={16} /></button>
+        <button onClick={onCancel} style={{ height: 36, padding: PAD('0 16px'), borderRadius: RS(18), background: 'rgba(0,0,0,0.07)', border: 'none', color: 'rgba(44,44,50,0.7)', fontSize: FS(15), display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer' }}>取消</button>
+        <button onClick={onSave} style={{ height: 36, padding: PAD('0 16px'), borderRadius: RS(18), background: TOKENS.ink, border: 'none', color: '#fff', fontSize: FS(15), display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer' }}>確認</button>
       </div>
     </div>);
 }
@@ -1968,7 +2010,7 @@ function NetWorthSheet({ open, onClose, total, computedAcctGroups, computedHoldi
                         {p.done ? '🎉 已達成目標' : `還差 ${mask(Math.round(p.target - p.current))}`}
                       </div>
                     </>}
-                    {p.historyDots && <GoalHistoryDots {...p.historyDots} periodLabel={g.periodUnit === 'month' ? '月' : '年'} />}
+                    {p.historyDots && <GoalHistoryDots {...p.historyDots} periodLabel={g.periodUnit === 'month' ? '月' : g.periodUnit === 'quarter' ? '季' : '年'} />}
                   </div>}
                 </div>);
             })}
