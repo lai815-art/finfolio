@@ -1031,7 +1031,7 @@ function App() {
             const sh = parseFloat(data.shares) || 0;
             const pr = parseFloat(data.price) || 0;
             const gross = window.floorAmt(sh * pr);
-            const buyFee = data.fee != null && data.fee > 0 ? data.fee : (window.calcAutoFee(gross, sh, 0.1425, 1));
+            const buyFee = data.fee != null ? data.fee : (window.calcAutoFee(gross, sh, 0.1425, 1));
             const debit = data.net != null && data.net > 0 ? data.net : gross + buyFee;
             return [{
               kind: 'xfer', amount: debit,
@@ -1052,8 +1052,8 @@ function App() {
           const sh = parseFloat(data.shares) || 0;
           const pr = parseFloat(data.price) || 0;
           const gross = window.floorAmt(sh * pr);
-          const sellFee = data.fee != null && data.fee > 0 ? data.fee : window.calcAutoFee(gross, sh, 0.1425, 1);
-          const sellTax = data.tax != null && data.tax > 0 ? data.tax : window.calcAutoTax(gross, 0.003);
+          const sellFee = data.fee != null ? data.fee : window.calcAutoFee(gross, sh, 0.1425, 1);
+          const sellTax = data.tax != null ? data.tax : window.calcAutoTax(gross, 0.003);
           const proceeds = gross - sellFee - sellTax;
 
           // FIFO cost basis — exclude the trade being edited from history
