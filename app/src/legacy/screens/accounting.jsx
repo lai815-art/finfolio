@@ -328,6 +328,26 @@ function UnifiedVoice({ state, text, result, onStart, onReset }) {
 // Global singleton: only one dropdown open at a time
 if (!window.__ddId) window.__ddId = 0;
 
+// 下拉面板往上還是往下開、最高多少（畫布 px）。
+// bounds 是「會裁切內容的捲動容器」邊界，不是整個視窗——表單底部有固定的按鈕列，
+// 超出捲動容器的部分會被裁掉。傳進來的座標都是螢幕 px，scale 換算回畫布 px。
+export function ffDropdownPlacement({ fieldTop, fieldBottom, boundsTop, boundsBottom, scale }) {
+  const k = scale || 1;
+  const below = (boundsBottom - fieldBottom - 16) / k;
+  const above = (fieldTop - boundsTop - 16) / k;
+  const up = below < 220 && above > below;
+  return { up, maxH: Math.max(160, Math.min(340, up ? above : below)) };
+}
+
+// 往上找第一個會裁切內容的捲動容器；找不到就用整個視窗
+function ffClipBounds(el) {
+  for (let p = el.parentElement; p; p = p.parentElement) {
+    const oy = getComputedStyle(p).overflowY;
+    if (oy === 'auto' || oy === 'scroll') return p.getBoundingClientRect();
+  }
+  return { top: 0, bottom: window.innerHeight };
+}
+
 function DropField({ label, value, options, onChange, icon, groups, dotColor }) {
   const { ChevronDown } = window.Icons;
   const myId = React.useRef(++window.__ddId).current;
@@ -360,11 +380,13 @@ function DropField({ label, value, options, onChange, icon, groups, dotColor }) 
     const next = !open;
     if (next && ref.current) {
       const r = ref.current.getBoundingClientRect();
-      // Prefer the side with more room; clip the panel to fit that gap.
-      const below = window.innerHeight - r.bottom - 16;
-      const above = r.top - 16;
-      const up = below < 220 && above > below;
-      setDrop({ up, maxH: Math.max(160, Math.min(340, up ? above : below)) });
+      const b = ffClipBounds(ref.current);
+      // 螢幕 px → 畫布 px 的比例，直接從自己的量測推，不必知道 #scale 的存在
+      const scale = r.height / (ref.current.offsetHeight || r.height);
+      setDrop(ffDropdownPlacement({
+        fieldTop: r.top, fieldBottom: r.bottom,
+        boundsTop: b.top, boundsBottom: b.bottom, scale
+      }));
     }
     setOpen(next);
     if (next) window.dispatchEvent(new CustomEvent('dd:open', { detail: myId }));

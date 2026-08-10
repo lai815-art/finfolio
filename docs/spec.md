@@ -190,12 +190,13 @@ App 分四個主要分頁（底部 TabBar）＋一個全螢幕設定頁：
 
 ## Testing Decisions
 
-> 本節先前記錄為「完全沒有任何自動化測試」，已過期——`app/` 目前已有 vitest 單元測試（`compute.test.js`／`voice-parse.test.js`／`recurring.test.js`／`schema-migration.test.js`／`settings.backup.test.js`／`last-account.test.js`）與 Playwright e2e（`e2e/*.spec.js`）。`dashboard.jsx` 的圖表/UI 邏輯目前仍未涵蓋在內，沿用「只測純計算函式」的既有慣例，驗證靠手動操作畫面。
+> 本節先前記錄為「完全沒有任何自動化測試」，已過期——`app/` 目前已有 vitest 單元測試（`compute.test.js`／`voice-parse.test.js`／`recurring.test.js`／`schema-migration.test.js`／`settings.backup.test.js`／`last-account.test.js`／`accounting.dropdown.test.js`）與 Playwright e2e（`e2e/*.spec.js`）。`dashboard.jsx` 的圖表/UI 邏輯目前仍未涵蓋在內，沿用「只測純計算函式」的既有慣例，驗證靠手動操作畫面。
 
 已涵蓋的純計算函式：
 - `computeAccounts()` / `computeHoldings()`（compute.js）——輸入輸出明確，已有單元測試
 - `parseUtterance()`（voice-parse.js 的語音解析）——規則多、邊界案例多，已有單元測試
 - 分類→帳戶記憶的讀寫與失效過濾（`last-account.js`，`last-account.test.js`）——`ffRememberAccount`／`ffLastAccountFor`
+- 下拉面板的展開方向與高度（`accounting.jsx`，`accounting.dropdown.test.js`）——`ffDropdownPlacement`；DOM 量測留在 `DropField` 裡，純幾何計算抽出來測
 - 財務目標的聚合/進度計算（`dashboard.jsx`，`dashboard.goals.test.js`）——`ffIncomeForYear/Month`、`ffMonthlyBalance`/`ffYearlyBalance`、`ffResolvePeriodTarget`、`ffAchievementHistory`、`computeGoalProgress`；這些函式雖然定義在一個沒有任何 `export` 的「legacy 全域腳本」檔案裡，但 `dashboard.jsx` 本身仍是可以被 import 的 ES module（檔案開頭有 `import`），所以照樣可以個別加 `export` 讓測試檔案匯入，不用像 `compute.js` 一樣整個抽成獨立檔案。`dashboard.jsx` 其餘的圖表/UI 渲染邏輯仍未涵蓋，沿用手動操作驗證。
 
 完整的測試涵蓋範圍與優先順序，另外開一份 `docs/test.md` 規劃，不在本文件展開。
