@@ -193,6 +193,7 @@ import { computeAccounts, computeHoldings, tradeChrono, fifoConsume,
   excludeHiddenAccounts, excludeHiddenHoldings } from './compute.js';
 import { parseUtterance } from './voice-parse.js';
 import { ffRunRecurring } from './recurring.js';
+import { ffRememberAccount } from './last-account.js';
 
 const TAB_COLORS = [TOKENS.ink2, TOKENS.gray3, TOKENS.gray2, TOKENS.gray4, TOKENS.gray1, TOKENS.ink];
 
@@ -989,6 +990,10 @@ function App() {
           date: data.date,
           icon: isXfer ? '↔️' : FLOW_ICONS[data.category] || (data.kind === 'inc' ? '💰' : '📝')
         };
+        // 記住這個分類這次用的帳戶，下次選到同一分類時自動帶入
+        ffRememberAccount(data.kind, data.category, isXfer ?
+        { fromAccount: data.fromAccount, toAccount: data.toAccount } :
+        { account: data.account });
         if (data.recordId) {
           // edit in place
           if (String(data.recordId).startsWith('s-')) {

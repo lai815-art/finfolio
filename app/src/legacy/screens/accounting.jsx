@@ -1,5 +1,6 @@
 // Accounting / 智慧記帳 (收支轉帳 + 股票買賣，共用語音 AI)
 import { computeStockTrade, TAX_RATES } from '../compute.js';
+import { ffLastAccountFor } from '../last-account.js';
 
 const { useState: useStateAcc, useEffect: useEffectAcc, useRef: useRefAcc } = React;
 
@@ -106,6 +107,12 @@ function AccountingScreen({ onSaved, onDelete, initialDraft, masterData, compute
     const firstXferCat = (md.cat_xfer || ['轉帳'])[0] || '轉帳';
     const firstIncCat = (() => {const c = (md.cat_inc || [])[0];return c ? typeof c === 'string' ? c : c.name : '薪資';})();
     const defaultCat = draftKind === 'xfer' ? firstXferCat : draftKind === 'inc' ? firstIncCat : firstExpCat;
+    const initCat = draftFlow && draftFlow.category || defaultCat;
+    // 一開啟表單就把該分類上次用的帳戶帶入。編輯既有紀錄不套用（要維持原紀錄的帳戶），
+    // 語音已經解析出的帳戶欄位也不覆蓋。
+    const remembered = initialDraft && initialDraft.edit ? null : ffLastAccountFor(draftKind, initCat, allAccts);
+    const lastAcct = {};
+    Object.keys(remembered || {}).forEach((f) => {if (!(draftFlow && draftFlow[f])) lastAcct[f] = remembered[f];});
     return {
       kind: 'exp', amount: '',
       account: firstAcct,
@@ -114,8 +121,9 @@ function AccountingScreen({ onSaved, onDelete, initialDraft, masterData, compute
       xferFee: '',
       date: baseDate(), note: '',
       ...(draftFlow || {}),
+      ...lastAcct,
       // category 放在 spread 之後，且只有 draft 沒指定時才用預設（避免覆蓋 draft 帶來的分類）
-      category: draftFlow && draftFlow.category || defaultCat
+      category: initCat
     };
   });
   const updateFlow = (patch) => setFlow((f) => ({ ...f, ...patch }));
@@ -511,6 +519,13 @@ function FlowForm({ state, update, onSaved, onDelete, recordId, masterData }) {
   const curExpGroup = expGroupOf(state.category);
   const curExpItems = (expCatStruct.find((s) => s.group === curExpGroup) || { items: [] }).items;
 
+  // 換分類時一併帶入該分類上次用的帳戶（轉帳則是轉出/轉入兩欄）
+  const pickCategory = (category, kind) => {
+    const k = kind || state.kind;
+    const validNames = k === 'xfer' ? transferAccounts : allNames;
+    return { category, ...ffLastAccountFor(k, category, validNames) };
+  };
+
   return (
     <div style={{ display: 'flex', flexDirection: 'column', flex: 1, minHeight: 0, color: TOKENS.ink }}>
       <div style={{ flex: 1, minHeight: 0, overflowY: 'auto', overflowX: 'hidden', padding: PAD('4px 14px 12px') }}>
@@ -523,10 +538,11 @@ function FlowForm({ state, update, onSaved, onDelete, recordId, masterData }) {
             <button key={k.id} onClick={() => {
               const newCats = categoriesByKind[k.id];
               const newAccts = accountsByKind[k.id];
+              const newCat = newCats.includes(state.category) ? state.category : newCats[0];
               update({
                 kind: k.id,
-                category: newCats.includes(state.category) ? state.category : newCats[0],
-                account: newAccts.includes(state.account) ? state.account : newAccts[0]
+                account: newAccts.includes(state.account) ? state.account : newAccts[0],
+                ...pickCategory(newCat, k.id)
               });
             }} style={{
               flex: 1, borderRadius: RS(18),
@@ -611,7 +627,7 @@ function FlowForm({ state, update, onSaved, onDelete, recordId, masterData }) {
             <div style={{ flex: 1, minWidth: 0 }}>
               <DropField label="分類" value={state.category}
             options={categoriesByKind.xfer.length ? categoriesByKind.xfer : ['日常轉帳', '投資轉入', '繳卡費']}
-            onChange={(v) => update({ category: v })}
+            onChange={(v) => update(pickCategory(v))}
             icon={<Tag size={16} />} />
             </div>
             <div style={{ flex: '0 0 128px', minWidth: 0, overflow: 'hidden', height: 52, padding: PAD('0 14px'),
@@ -635,12 +651,12 @@ function FlowForm({ state, update, onSaved, onDelete, recordId, masterData }) {
           options={expCatStruct.map((s) => s.group)}
           onChange={(g) => {
             const s = expCatStruct.find((x) => x.group === g);
-            update({ category: s && s.items.length ? s.items[0] : g });
+            update(pickCategory(s && s.items.length ? s.items[0] : g));
           }}
           icon={<Tag size={16} />} />
             <DropField label="項目" value={state.category}
           options={curExpItems}
-          onChange={(v) => update({ category: v })}
+          onChange={(v) => update(pickCategory(v))}
           icon={<Tag size={16} />} />
           </div>
           <SectionLabel>帳戶</SectionLabel>
@@ -657,7 +673,7 @@ function FlowForm({ state, update, onSaved, onDelete, recordId, masterData }) {
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: SP(10) }}>
             <DropField label="分類" value={state.category}
           options={categoriesByKind[state.kind]}
-          onChange={(v) => update({ category: v })}
+          onChange={(v) => update(pickCategory(v))}
           icon={<Tag size={16} />} />
             <DropField label="帳戶" value={state.account}
           options={accountsByKind[state.kind]}

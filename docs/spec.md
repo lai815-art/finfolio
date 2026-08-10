@@ -56,6 +56,7 @@ App 分四個主要分頁（底部 TabBar）＋一個全螢幕設定頁：
 20. As a 使用者, I want to 用語音說「午餐花了120用悠遊卡」之類的話, so that 系統自動解析出金額/分類/帳戶並帶入表單讓我確認
 21. As a 使用者, I want to 語音辨識失敗或裝置不支援時能改用文字輸入同一段話, so that 我仍然能用同一套解析邏輯記帳
 22. As a 使用者, I want to 編輯或刪除一筆已存在的記錄, so that 打錯的資料可以修正
+22a. As a 使用者, I want to 選到某個分類時自動帶入我上次記這個分類用的帳戶, so that 常態性的「餐飲刷現金、薪資進某銀行」不用每次重選帳戶
 
 **投資**
 23. As a 使用者, I want to 依證券戶分頁查看我的持倉，並在分頁下方看到該券商的總市值與未實現損益小結, so that 我能區分不同券商的部位，也不用自己心算加總
@@ -107,6 +108,7 @@ App 分四個主要分頁（底部 TabBar）＋一個全螢幕設定頁：
 | `ff_master_data` | 分類/帳戶/券商/交割戶/資產類別主檔 |
 | `ff_init_bal` | 各帳戶初始餘額 |
 | `ff_recurring` | 自動轉帳/定期支出規則（`type:'expense'`\|`'transfer'`） |
+| `ff_last_acct_by_cat` | 每個分類上次使用的帳戶，key 為 `kind:分類名`（見下方「分類記住上次的帳戶」章節） |
 | `ff_ai_keys` / `ff_default_model` | BYOK AI 金鑰與預設模型 |
 | `ff_lock_pin` / `ff_lock_salt` / `ff_lock_bio` / `ff_lock_cred` | App 鎖 PIN（雜湊存放，不存明碼）與生物辨識憑證 |
 | `ff_auto_snapshot` / `ff_last_auto_backup` | 未加密的本機自動快照 |
@@ -120,6 +122,14 @@ App 分四個主要分頁（底部 TabBar）＋一個全螢幕設定頁：
 - 刪除規則：大類底下還有子分類就擋下；以下幾個系統預設大類永遠不可刪除——支出：餐飲/交通/日常/投資損失；收入：主動/被動/投資收入。
 - 排序規則：不可刪除的大類固定排最前面，「其他」固定排最後，其餘大類維持原本相對順序；每次啟動 App 都會冪等校正既有資料的順序。
 - 舊資料沒有 `exp_groups`/`inc_groups` 欄位時，`migrateSchema()` 會自動補上目前使用的預設大類與顏色。
+
+**分類記住上次的帳戶**（`last-account.js`）
+- 存在 `ff_last_acct_by_cat`：`{ 'exp:早餐': {account}, 'inc:薪資': {account}, 'xfer:繳卡費': {fromAccount, toAccount} }`。key 加 `kind` 前綴，避免收入/支出的同名分類互相污染；值直接是可以丟給表單 `update()` 的 patch。
+- 記憶粒度到**項目層**（早餐/午餐各自獨立），不是大類；轉帳同時記轉出與轉入兩個帳戶。
+- 寫入時機：`handleSaved()`（app.jsx）存下每一筆 flow 時順便記，「儲存」與「再記一筆」都會經過。
+- 套用時機：開啟記一筆表單時（依預設分類）、切換分類時、切換記帳類型導致分類改變時。**編輯既有紀錄不套用**（要維持原紀錄的帳戶），語音已解析出的帳戶欄位也不覆蓋。
+- 記住的帳戶若已從主檔刪除，讀取時會被過濾掉、維持目前選擇，不會帶入不存在的帳戶。
+- 這個 key **不列入**「清除所有歷史資料」的 `FF_CLEAR_KEYS`——它屬於使用習慣設定，不是交易紀錄。
 
 **自動轉帳 / 定期支出**
 - 規則存在 `ff_recurring`：`{ id, type:'expense'|'transfer', name, enabled, dayOfMonth(1-28), lastRun:'YYYY-MM', ... }`；`expense` 額外有 `amount/category/account`，`transfer` 額外有 `fromAccount/toAccount/amount`（任意帳戶對任意帳戶，只支援固定金額，沒有「信用卡全額繳清」這種特殊模式）。
@@ -180,11 +190,12 @@ App 分四個主要分頁（底部 TabBar）＋一個全螢幕設定頁：
 
 ## Testing Decisions
 
-> 本節先前記錄為「完全沒有任何自動化測試」，已過期——`app/` 目前已有 vitest 單元測試（`compute.test.js`／`voice-parse.test.js`／`recurring.test.js`／`schema-migration.test.js`／`settings.backup.test.js`）與 Playwright e2e（`e2e/*.spec.js`）。`dashboard.jsx` 的圖表/UI 邏輯目前仍未涵蓋在內，沿用「只測純計算函式」的既有慣例，驗證靠手動操作畫面。
+> 本節先前記錄為「完全沒有任何自動化測試」，已過期——`app/` 目前已有 vitest 單元測試（`compute.test.js`／`voice-parse.test.js`／`recurring.test.js`／`schema-migration.test.js`／`settings.backup.test.js`／`last-account.test.js`）與 Playwright e2e（`e2e/*.spec.js`）。`dashboard.jsx` 的圖表/UI 邏輯目前仍未涵蓋在內，沿用「只測純計算函式」的既有慣例，驗證靠手動操作畫面。
 
 已涵蓋的純計算函式：
 - `computeAccounts()` / `computeHoldings()`（compute.js）——輸入輸出明確，已有單元測試
 - `parseUtterance()`（voice-parse.js 的語音解析）——規則多、邊界案例多，已有單元測試
+- 分類→帳戶記憶的讀寫與失效過濾（`last-account.js`，`last-account.test.js`）——`ffRememberAccount`／`ffLastAccountFor`
 - 財務目標的聚合/進度計算（`dashboard.jsx`，`dashboard.goals.test.js`）——`ffIncomeForYear/Month`、`ffMonthlyBalance`/`ffYearlyBalance`、`ffResolvePeriodTarget`、`ffAchievementHistory`、`computeGoalProgress`；這些函式雖然定義在一個沒有任何 `export` 的「legacy 全域腳本」檔案裡，但 `dashboard.jsx` 本身仍是可以被 import 的 ES module（檔案開頭有 `import`），所以照樣可以個別加 `export` 讓測試檔案匯入，不用像 `compute.js` 一樣整個抽成獨立檔案。`dashboard.jsx` 其餘的圖表/UI 渲染邏輯仍未涵蓋，沿用手動操作驗證。
 
 完整的測試涵蓋範圍與優先順序，另外開一份 `docs/test.md` 規劃，不在本文件展開。
