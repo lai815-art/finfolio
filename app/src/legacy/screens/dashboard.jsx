@@ -1,5 +1,6 @@
 // Dashboard / 資產整合看板
 import { ffRecurringDay } from '../recurring.js';
+import { ffAssetClassColorMap } from '../asset-class-color.js';
 
 const { useState: useStateDash, useEffect: useEffectDash, useRef: useRefDash, useMemo: useMemoDash } = React;
 
@@ -1799,9 +1800,11 @@ function NetWorthSheet({ open, onClose, total, computedAcctGroups, computedHoldi
 
   // 投資持倉：直接依使用者設定的股票類別（市值型 / 高息型 / 科技型 / 主動型 / 個股 / 債券 …）分組市值，
   // 不再用名稱關鍵字硬猜成「股票/債券/美股」三桶。
-  // 冷暖交錯的序列，且不與 現金(綠)/存款(深藍) 重複——舊序列第一個 inv1 就是存款的深藍，
-  // 相鄰兩塊在圓餅上幾乎分不出來。
-  const INV_COLORS = [TOKENS.orange, TOKENS.indigo, TOKENS.red, TOKENS.teal, TOKENS.gold2, TOKENS.blue, TOKENS.inv5, TOKENS.green2];
+  // 類別顏色依主檔順序指派（不看市值排名，否則報價一刷新顏色就跟著跳），
+  // 與投資分頁共用同一套規則。現金/存款維持固定的綠/深藍。
+  const classColor = ffAssetClassColorMap([
+  ...((masterData || {}).asset_class || []),
+  ...computedHoldings.map((g) => g.name || g.id)]);
   const cats = [];
   if (Math.abs(cash) >= 1) cats.push({ name: '現金', value: cash, color: TOKENS.green });
   if (Math.abs(deposit) >= 1) cats.push({ name: '存款', value: deposit, color: TOKENS.blue2 });
@@ -1812,8 +1815,8 @@ function NetWorthSheet({ open, onClose, total, computedAcctGroups, computedHoldi
     const b = g.name || g.id || '股票';
     buckets[b] = (buckets[b] || 0) + mv;
   });
-  Object.keys(buckets).sort((a, b) => buckets[b] - buckets[a]).forEach((b, i) => {
-    cats.push({ name: b, value: buckets[b], color: INV_COLORS[i % INV_COLORS.length] });
+  Object.keys(buckets).sort((a, b) => buckets[b] - buckets[a]).forEach((b) => {
+    cats.push({ name: b, value: buckets[b], color: classColor[b] || TOKENS.gray3 });
   });
 
   const assets = cats.filter((c) => c.value > 0);

@@ -131,6 +131,13 @@ App 分四個主要分頁（底部 TabBar）＋一個全螢幕設定頁：
 - 記住的帳戶若已從主檔刪除，讀取時會被過濾掉、維持目前選擇，不會帶入不存在的帳戶。
 - 這個 key **不列入**「清除所有歷史資料」的 `FF_CLEAR_KEYS`——它屬於使用習慣設定，不是交易紀錄。
 
+**股票類別配色**（`asset-class-color.js`）
+- 同一個股票類別在資產配置圓餅、投資主頁持倉卡、投資配置頁三處是同一個顏色。顏色依類別在 `ff_master_data.asset_class` 裡的**順序**指派（`ffAssetClassColorMap`），不看市值——市值排名會隨報價變動，顏色會跟著跳。
+- 呼叫端統一用「主檔順序在前、只出現在持倉裡的類別接在後面」組類別清單，所以新增/刪除類別會讓顏色重新指派，但三個頁面永遠一致。
+- 調色盤用 token key（`orange/indigo/red/teal/gold2/blue/inv5/green2`）搭配 hex fallback：Design System 頁改 token 會連動，測試環境沒有 `window.TOKENS` 也能跑。刻意避開資產配置圓餅裡固定的 現金（綠）/ 存款（深藍）。
+- 投資配置頁的圓餅是**逐檔個股**，每檔的顏色 = 所屬類別的基準色 + 類別內深淺（`ffClassShade`，類別內市值最大的用基準色，其餘往亮的方向漸層、最多混 55% 白），所以圓餅切片跟清單的類別徽章對得上。
+- 券商分頁的顏色（`invest.jsx` 的 `TAB_COLORS_INV`）是另一條分類軸，不走這套。
+
 **自動轉帳 / 定期支出**
 - 規則存在 `ff_recurring`：`{ id, type:'expense'|'transfer', name, enabled, dayOfMonth(1-28), lastRun:'YYYY-MM', ... }`；`expense` 額外有 `amount/category/account`，`transfer` 額外有 `fromAccount/toAccount/amount`（任意帳戶對任意帳戶，只支援固定金額，沒有「信用卡全額繳清」這種特殊模式）。
 - 執行時機：`ffRunRecurring()`（app.jsx）每次開 App 時檢查所有規則，把「上次產生之後、到本月為止且已過扣款日」的月份補記成真正的 `flow` 紀錄（`auto:true`），之後跟手動記帳資料走同一套渲染路徑。
@@ -190,12 +197,13 @@ App 分四個主要分頁（底部 TabBar）＋一個全螢幕設定頁：
 
 ## Testing Decisions
 
-> 本節先前記錄為「完全沒有任何自動化測試」，已過期——`app/` 目前已有 vitest 單元測試（`compute.test.js`／`voice-parse.test.js`／`recurring.test.js`／`schema-migration.test.js`／`settings.backup.test.js`／`last-account.test.js`／`accounting.dropdown.test.js`）與 Playwright e2e（`e2e/*.spec.js`）。`dashboard.jsx` 的圖表/UI 邏輯目前仍未涵蓋在內，沿用「只測純計算函式」的既有慣例，驗證靠手動操作畫面。
+> 本節先前記錄為「完全沒有任何自動化測試」，已過期——`app/` 目前已有 vitest 單元測試（`compute.test.js`／`voice-parse.test.js`／`recurring.test.js`／`schema-migration.test.js`／`settings.backup.test.js`／`last-account.test.js`／`accounting.dropdown.test.js`／`asset-class-color.test.js`）與 Playwright e2e（`e2e/*.spec.js`）。`dashboard.jsx` 的圖表/UI 邏輯目前仍未涵蓋在內，沿用「只測純計算函式」的既有慣例，驗證靠手動操作畫面。
 
 已涵蓋的純計算函式：
 - `computeAccounts()` / `computeHoldings()`（compute.js）——輸入輸出明確，已有單元測試
 - `parseUtterance()`（voice-parse.js 的語音解析）——規則多、邊界案例多，已有單元測試
 - 分類→帳戶記憶的讀寫與失效過濾（`last-account.js`，`last-account.test.js`）——`ffRememberAccount`／`ffLastAccountFor`
+- 股票類別配色（`asset-class-color.js`，`asset-class-color.test.js`）——`ffAssetClassColorMap`／`ffClassShade`／`ffMixHex`／`ffAssetClassPalette`
 - 下拉面板的展開方向與高度（`accounting.jsx`，`accounting.dropdown.test.js`）——`ffDropdownPlacement`；DOM 量測留在 `DropField` 裡，純幾何計算抽出來測
 - 財務目標的聚合/進度計算（`dashboard.jsx`，`dashboard.goals.test.js`）——`ffIncomeForYear/Month`、`ffMonthlyBalance`/`ffYearlyBalance`、`ffResolvePeriodTarget`、`ffAchievementHistory`、`computeGoalProgress`；這些函式雖然定義在一個沒有任何 `export` 的「legacy 全域腳本」檔案裡，但 `dashboard.jsx` 本身仍是可以被 import 的 ES module（檔案開頭有 `import`），所以照樣可以個別加 `export` 讓測試檔案匯入，不用像 `compute.js` 一樣整個抽成獨立檔案。`dashboard.jsx` 其餘的圖表/UI 渲染邏輯仍未涵蓋，沿用手動操作驗證。
 

@@ -1,5 +1,6 @@
 // Investment Portfolio / 投資組合（依投資類型分頁）
 import { mergeHoldingsByCode, sumHoldingsByBroker } from '../compute.js';
+import { ffAssetClassColorMap, ffClassShade } from '../asset-class-color.js';
 
 const { useState: useStateInv, useMemo: useMemoInv } = React;
 
@@ -370,9 +371,7 @@ function InvestScreen({ hideAmounts, onOpenDetail, savedTrades = [], computedHol
   const brokerTotals = sumHoldingsByBroker(allItems);
 
   // ── Category colour map (for the overview donut: 股票/債券/… 主題) ──
-  const catClasses = [...new Set([...(md.asset_class || []), ...computedHoldings.map((g) => g.id)])];
-  const catColorMap = {};
-  catClasses.forEach((c, i) => {catColorMap[c] = TAB_COLORS_INV[i % TAB_COLORS_INV.length];});
+  const catColorMap = ffAssetClassColorMap([...(md.asset_class || []), ...computedHoldings.map((g) => g.id)]);
 
   // ── Tabs: 依券商分類 ──
   // 被隱藏的證券戶不開分頁（md 是完整資料，持倉那側的 computedHoldings 已濾過）
@@ -566,7 +565,6 @@ function InvestBreakdownSheet({ open, onClose, computedHoldings = [], masterData
   const swipeRef = React.useRef({ x: 0, y: 0, active: false }); // 圖表左右滑動翻頁
   if (!open) return null;
 
-  const TAB_COLORS_INV = [TOKENS.incBlue, TOKENS.orange, TOKENS.green, TOKENS.indigo, TOKENS.red, TOKENS.teal, TOKENS.gold2, TOKENS.gray3];
   const allItems = computedHoldings.flatMap((g) =>
   (g.items || []).map((it) => {
     const mvT = it.mvTWD !== undefined ? it.mvTWD : it.mv !== undefined ? it.mv : (it.qty || 0) * (it.price || 0);
@@ -574,9 +572,7 @@ function InvestBreakdownSheet({ open, onClose, computedHoldings = [], masterData
     const pnlT = it.pnlTWD !== undefined ? it.pnlTWD : it.pnl !== undefined ? it.pnl : mvT - costT;
     return { ...it, assetClass: g.id, mvT, costT, pnlT };
   }));
-  const catClasses = [...new Set([...(masterData.asset_class || []), ...computedHoldings.map((g) => g.id)])];
-  const catColorMap = {};
-  catClasses.forEach((c, i) => {catColorMap[c] = TAB_COLORS_INV[i % TAB_COLORS_INV.length];});
+  const catColorMap = ffAssetClassColorMap([...(masterData.asset_class || []), ...computedHoldings.map((g) => g.id)]);
   const catMap = {};
   allItems.forEach((it) => {
     const k = it.assetClass || '其他';
@@ -592,8 +588,18 @@ function InvestBreakdownSheet({ open, onClose, computedHoldings = [], masterData
   const catData = catTotals.map((c) => ({ name: c.name, color: c.color, pct: portfolioMv > 0 ? c.mv / portfolioMv * 100 : 0 }));
   // 所有個股持倉（依市值排序）+ 每檔配色。
   // 先按代號合併多券商部位——投資配置看的是整體配置，同一檔不該因為分散在兩家券商就拆成兩列。
-  const holdings = mergeHoldingsByCode(allItems).filter((it) => it.mvT > 0).sort((a, b) => b.mvT - a.mvT)
-  .map((h, i) => ({ ...h, color: TAB_COLORS_INV[i % TAB_COLORS_INV.length], pct: portfolioMv > 0 ? h.mvT / portfolioMv * 100 : 0 }));
+  const sortedHoldings = mergeHoldingsByCode(allItems).filter((it) => it.mvT > 0).sort((a, b) => b.mvT - a.mvT);
+  // 每檔的顏色 = 所屬股票類別的基準色 + 類別內深淺，這樣圓餅切片跟下面清單的類別徽章對得上。
+  const classCount = {};
+  sortedHoldings.forEach((h) => {const c = h.assetClass || '其他';classCount[c] = (classCount[c] || 0) + 1;});
+  const classRank = {};
+  const holdings = sortedHoldings.map((h) => {
+    const c = h.assetClass || '其他';
+    const i = classRank[c] = classRank[c] === undefined ? 0 : classRank[c] + 1;
+    return { ...h,
+      color: ffClassShade(catColorMap[c] || TOKENS.gray4, i, classCount[c]),
+      pct: portfolioMv > 0 ? h.mvT / portfolioMv * 100 : 0 };
+  });
   // 帶上 value（市值）：圓餅圖點選某片時中央要顯示該檔標的的市值。
   const holdingData = holdings.map((h) => ({ name: h.name || h.code, value: h.mvT, color: h.color, pct: h.pct }));
   const StatDonut = window.StatDonut;
