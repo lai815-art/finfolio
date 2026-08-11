@@ -1,6 +1,6 @@
 // Dashboard / 資產整合看板
 import { ffRecurringDay } from '../recurring.js';
-import { ffAssetClassColorMap } from '../asset-class-color.js';
+import { ffAssetClassColorMap, ffClassShade } from '../asset-class-color.js';
 
 const { useState: useStateDash, useEffect: useEffectDash, useRef: useRefDash, useMemo: useMemoDash } = React;
 
@@ -905,10 +905,9 @@ function MonthlyStatsSheet({ open, onClose, savedFlows, masterData, hideAmounts,
   const { X, ChevronRight, ChevronDown, TrendUp, TrendDown } = window.Icons;
   const StatDonut = window.StatDonut;
   const [shown, setShown] = useStateDash(false);
-  const [view, setView] = useStateDash('spend'); // spend | month | year
-  const [monthOffset, setMonthOffset] = useStateDash(0);
-  const [yearOffset, setYearOffset] = useStateDash(0);
-  const [decadeOffset, setDecadeOffset] = useStateDash(0);
+  const [tab, setTab] = useStateDash('exp'); // exp | inc | trend
+  const [unit, setUnit] = useStateDash('month'); // month | year（聚合單位，三個頁籤都能選）
+  const [offset, setOffset] = useStateDash(0); // 期間位移，0=當期，只會是 0 或負數
   const [expanded, setExpanded] = useStateDash(null);
   const [selIdx, setSelIdx] = useStateDash(null); // 圖表點選的月/年（顯示金額小視窗）
   const [hiddenSeries, setHiddenSeries] = useStateDash(() => new Set()); // 折線圖圖例點選隱藏的線
@@ -919,23 +918,28 @@ function MonthlyStatsSheet({ open, onClose, savedFlows, masterData, hideAmounts,
   });
   const swipeRef = useRefDash({ x: 0, y: 0, active: false }); // 圖表左右滑動切換期間
   useEffectDash(() => {
-    if (open) { setMonthOffset(0); setYearOffset(0); setDecadeOffset(0); setExpanded(null); setSelIdx(null); setView('spend'); setHiddenSeries(new Set()); const t = setTimeout(() => setShown(true), 20); return () => clearTimeout(t); }
+    if (open) { setTab('exp'); setUnit('month'); setOffset(0); setExpanded(null); setSelIdx(null); setHiddenSeries(new Set()); const t = setTimeout(() => setShown(true), 20); return () => clearTimeout(t); }
     setShown(false);
   }, [open]);
   if (!open) return null;
 
   const now = nowDate || new Date();
+  // 期間粒度：支出/收入直接吃 unit；趨勢頁的「月」是看一整年的 12 個月、「年」是看十年，各往上推一級。
+  // 6 種 tab×unit 組合壓成 3 種粒度，之後的期間邏輯只認 scale，不認 tab/unit。
+  const scaleOf = (t, u) => t === 'trend' ? u === 'month' ? 'year' : 'decade' : u;
+  const scale = scaleOf(tab, unit);
+  const per = ffStatsPeriod(now, scale, offset);
+  const prevPer = ffStatsPeriod(now, scale, offset - 1); // 上一期比較用，重用同一支函式
+  const canNext = offset < 0;
+
   // 收入大類：依 cat_inc 的 group 對應到顯示名，大類清單來自 masterData.inc_groups（使用者可自訂新增/刪除）
   const INC_LABEL = { '主動': '主動收入', '被動': '被動收入', '投資收入': '投資收入', '其他': '其他' };
   const incGroupDefs = masterData.inc_groups || [];
-  const catIncGroup = {};
-  (masterData.cat_inc || []).forEach((c) => { const o = typeof c === 'string' ? { name: c, group: '其他' } : c; catIncGroup[o.name] = o.group || '其他'; });
-  const incGroupOf = (cat) => { const g = catIncGroup[cat] || '其他'; return INC_LABEL[g] || g; };
+  const incGroupOf = ffCatGroupOf(masterData, 'inc');
   const INC_GROUPS = incGroupDefs.map((g) => ({ k: INC_LABEL[g.name] || g.name, c: g.color || TOKENS.gray3 }));
-  // 支出：投資損失（賣股虧損）不算「消費」，消費分析排除
-  const catExpGroup = {};
-  (masterData.cat_exp || []).forEach((c) => { const o = typeof c === 'string' ? { name: c, group: c } : c; catExpGroup[o.name] = o.group || ''; });
-  const isInvestExp = (cat) => catExpGroup[cat] === '投資損失';
+  // 投資損失（賣股虧損）算進總支出，但趨勢頁要把它從「消費支出」折線拆出來單獨看
+  const expGroupOf = ffCatGroupOf(masterData, 'exp');
+  const isInvestExp = (cat) => expGroupOf(cat) === '投資損失';
 
   const dOf = (f) => f.date instanceof Date ? f.date : new Date(f.date);
   // 統計一律換算台幣：外幣帳戶依 curMap[帳戶] 幣別換算，不以面額直接加總
@@ -949,49 +953,41 @@ function MonthlyStatsSheet({ open, onClose, savedFlows, masterData, hideAmounts,
     if (f.kind === 'exp') { a.exp += v; if (isInvestExp(f.cat)) a.investLoss += v; }
   };
 
-  // ── 消費分析（月）──
-  const viewDate = new Date(now.getFullYear(), now.getMonth() + monthOffset, 1);
-  const spY = viewDate.getFullYear(), spM = viewDate.getMonth();
-  const EXP_COLORS = [TOKENS.red, TOKENS.orange, TOKENS.gold, TOKENS.red2, TOKENS.gold2, '#A85638', '#D9A05B', TOKENS.indigo, TOKENS.teal, TOKENS.gray4];
-  // 消費分析改以「大類」彙總（餐飲/交通/日常/娛樂/醫療/教育/金融保險/其他），排除投資損失。
-  const aggSpend = (y, m) => {
-    const map = {};
-    savedFlows.forEach((f) => { if (f.kind !== 'exp') return; const d = dOf(f); if (d.getFullYear() !== y || d.getMonth() !== m) return; if (isInvestExp(f.cat)) return; const k = catExpGroup[f.cat] || '其他'; map[k] = (map[k] || 0) + amtOf(f); });
-    return map;
-  };
-  // 子分類明細（下鑽用）：同一大類底下依實際 cat 名稱彙總
-  const aggSubSpend = (y, m, group) => {
-    const map = {};
-    savedFlows.forEach((f) => { if (f.kind !== 'exp') return; const d = dOf(f); if (d.getFullYear() !== y || d.getMonth() !== m) return; if (isInvestExp(f.cat)) return; if ((catExpGroup[f.cat] || '其他') !== group) return; map[f.cat] = (map[f.cat] || 0) + amtOf(f); });
-    return map;
-  };
-  const spendMap = aggSpend(spY, spM);
-  const spendTotal = Object.values(spendMap).reduce((a, v) => a + v, 0);
-  const spendCats = Object.entries(spendMap).sort((a, b) => b[1] - a[1]).map(([k, v], i) => ({ name: k, value: v, color: EXP_COLORS[i % EXP_COLORS.length], pct: spendTotal > 0 ? v / spendTotal * 100 : 0 }));
-  // 月對月比較：跟上個月同一份聚合邏輯比較
-  const prevSpDate = new Date(spY, spM - 1, 1);
-  const prevSpendMap = aggSpend(prevSpDate.getFullYear(), prevSpDate.getMonth());
-  const prevSpendTotal = Object.values(prevSpendMap).reduce((a, v) => a + v, 0);
-  // 子分類下鑽：expanded = 目前展開檢視的大類名稱（null = 未展開）
-  const subMap = expanded ? aggSubSpend(spY, spM, expanded) : null;
+  // ── 分類分析（支出／收入 × 月／年 共用同一組聚合）──
+  // 大類彙總＋下鑽子分類都走 ffCatTotals，差別只在 kind 與 per.month（null=整年）。
+  const isInc = tab === 'inc';
+  const kind = isInc ? 'inc' : 'exp';
+  // 支出頁與收入頁共用同一份 JSX，兩者的差異全部收在這幾個 derived 值裡
+  const amtColor = isInc ? TOKENS.incBlue : TOKENS.red;
+  const amtSign = isInc ? '+' : '-';
+  const totalLabel = isInc ? '總收入' : '總支出';
+  const kindWord = isInc ? '收入' : '支出';
+  const periodWord = per.month == null ? '本年度' : '本月';
+  const cmpWord = per.month == null ? '較去年' : '較上月';
+  // 金額語意：支出增加=紅(壞)、減少=綠(好)；收入反過來
+  const deltaColor = (up) => up === isInc ? TOKENS.green : TOKENS.red;
+  const groupColors = ffGroupColorMap(masterData, kind); // 大類色 = 設定頁設定的顏色
+  const catMap = ffCatTotals(savedFlows, masterData, kind, per.year, per.month);
+  const catTotal = Object.values(catMap).reduce((a, v) => a + v, 0);
+  const catList = Object.entries(catMap).sort((a, b) => b[1] - a[1]).map(([k, v]) => ({ name: k, value: v, color: groupColors[k] || TOKENS.gray3, pct: catTotal > 0 ? v / catTotal * 100 : 0 }));
+  // 跟上一期比較（上月／去年）：同一支函式換 prevPer 即可
+  const prevCatMap = ffCatTotals(savedFlows, masterData, kind, prevPer.year, prevPer.month);
+  const prevCatTotal = Object.values(prevCatMap).reduce((a, v) => a + v, 0);
+  // 子分類下鑽：expanded = 目前展開檢視的大類名稱（null = 未展開）；顏色用母大類色的深淺漸層
+  const subMap = expanded ? ffCatTotals(savedFlows, masterData, kind, per.year, per.month, expanded) : null;
   const subTotal = subMap ? Object.values(subMap).reduce((a, v) => a + v, 0) : 0;
-  const subCats = subMap ? Object.entries(subMap).sort((a, b) => b[1] - a[1]).map(([k, v], i) => ({ name: k, value: v, color: EXP_COLORS[i % EXP_COLORS.length], pct: subTotal > 0 ? v / subTotal * 100 : 0 })) : [];
+  const subEntries = subMap ? Object.entries(subMap).sort((a, b) => b[1] - a[1]) : [];
+  const subBase = groupColors[expanded] || TOKENS.gray3;
+  const subCats = subEntries.map(([k, v], i) => ({ name: k, value: v, color: ffClassShade(subBase, i, subEntries.length), pct: subTotal > 0 ? v / subTotal * 100 : 0 }));
 
-  // ── 每月收支（年）──
-  const viewYear = now.getFullYear() + yearOffset;
+  // ── 趨勢：月單位＝某一年的 12 個月 ──
   const months = Array.from({ length: 12 }, emptyAgg);
-  savedFlows.forEach((f) => { const d = dOf(f); if (d.getFullYear() !== viewYear) return; addFlow(months[d.getMonth()], f); });
-  // 去年同期疊加（僅月檢視用）：同一份聚合邏輯，年份改成上一年
-  const prevYearMonths = Array.from({ length: 12 }, emptyAgg);
-  savedFlows.forEach((f) => { const d = dOf(f); if (d.getFullYear() !== viewYear - 1) return; addFlow(prevYearMonths[d.getMonth()], f); });
+  savedFlows.forEach((f) => { const d = dOf(f); if (d.getFullYear() !== per.year) return; addFlow(months[d.getMonth()], f); });
 
-  // ── 年度收支（十年）──
-  const decadeEnd = now.getFullYear() + decadeOffset * 10;
-  const decadeYears = Array.from({ length: 10 }, (_, i) => decadeEnd - 9 + i);
+  // ── 趨勢：年單位＝十年 ──
+  const decadeYears = per.years || [];
   const yearAgg = {}; decadeYears.forEach((y) => { yearAgg[y] = emptyAgg(); });
   savedFlows.forEach((f) => { const y = dOf(f).getFullYear(); if (yearAgg[y]) addFlow(yearAgg[y], f); });
-
-  const canNextMonth = monthOffset < 0, canNextYear = yearOffset < 0, canNextDecade = decadeOffset < 0;
 
   // 點選月/年 → 彈出視窗顯示該期間數字（圖表與表格共用同一個選取狀態）
   const toggleSel = (i) => setSelIdx(selIdx === i ? null : i);
@@ -1008,11 +1004,9 @@ function MonthlyStatsSheet({ open, onClose, savedFlows, masterData, hideAmounts,
   }),
   { k: '消費支出', c: TOKENS.red, dashed: true, val: (a) => (a.exp || 0) - (a.investLoss || 0) }];
   // 整合圖：收支餘額柱狀（背景）＋ 上述折線（前景），共用同一數值刻度。
-  const spendSeries = CHART_SERIES.find((s) => s.k === '消費支出');
-  const ComboChart = ({ data, labels, hiddenSeries, prevData }) => {
+  const ComboChart = ({ data, labels, hiddenSeries }) => {
     const visibleSeries = CHART_SERIES.filter((s) => !hiddenSeries.has(s.k));
     const hideNet = hiddenSeries.has('餘額');
-    const showYoY = !!prevData && !hiddenSeries.has('去年同期');
     const W = 340, H = 172, pL = 16, pR = 12, pT = 14, pB = 22, n = data.length;
     const chartH = H - pT - pB;
     const nets = data.map((a) => a.inc - a.exp);
@@ -1020,7 +1014,6 @@ function MonthlyStatsSheet({ open, onClose, savedFlows, masterData, hideAmounts,
     data.forEach((a, i) => {
       visibleSeries.forEach((s) => { const v = s.val(a); maxPos = Math.max(maxPos, v); maxNeg = Math.max(maxNeg, -v); });
       if (!hideNet) { maxPos = Math.max(maxPos, nets[i]); maxNeg = Math.max(maxNeg, -nets[i]); }
-      if (showYoY) { const v = spendSeries.val(prevData[i]); maxPos = Math.max(maxPos, v); maxNeg = Math.max(maxNeg, -v); }
     });
     maxPos = maxPos || 1;
     const range = maxPos + maxNeg || 1;
@@ -1042,12 +1035,6 @@ function MonthlyStatsSheet({ open, onClose, savedFlows, masterData, hideAmounts,
         {/* 選取虛線 */}
         {selIdx != null && selIdx < n &&
         <line x1={xAt(selIdx)} y1={pT} x2={xAt(selIdx)} y2={H - pB} stroke="rgba(0,0,0,0.28)" strokeWidth="1.5" strokeDasharray="3 3" />}
-        {/* 去年同期參考線（僅月檢視）：淡灰色虛線，疊在消費支出線同一份數值，只做淡入不畫線，
-            避免跟真正的消費支出線搶視覺。 */}
-        {showYoY &&
-        <polyline points={prevData.map((a, i) => `${xAt(i).toFixed(1)},${yAt(spendSeries.val(a)).toFixed(1)}`).join(' ')}
-          fill="none" stroke={TOKENS.gray4} strokeWidth="1.5" strokeDasharray="2 3" strokeLinejoin="round" strokeLinecap="round"
-          style={{ opacity: 0, animation: 'fadeInStat 400ms ease-out 120ms forwards' }} />}
         {/* 折線：依圖例勾選顯示，圖例切換顯示時（重新掛載）動畫都會重播一次。
             實線用 pathLength=1 + drawLine 做「畫出來」效果；虛線（消費支出）本身已有 dash 花紋，
             兩種 dasharray 疊在一起會互相干擾，改用單純淡入。 */}
@@ -1066,12 +1053,12 @@ function MonthlyStatsSheet({ open, onClose, savedFlows, masterData, hideAmounts,
       </svg>);
   };
   // 點選後的彈出視窗（取代原本的列展開／圖下小視窗）
-  const curData = view === 'month' ? months : decadeYears.map((y) => yearAgg[y]);
+  const curData = unit === 'month' ? months : decadeYears.map((y) => yearAgg[y]);
   const SelPopup = () => {
     if (selIdx == null || !curData[selIdx]) return null;
     const a = curData[selIdx];const net = a.inc - a.exp;
     const invLoss = a.investLoss || 0; const spend = a.exp - invLoss; // 消費支出 = 總支出 − 投資損失
-    const label = view === 'month' ? `${viewYear} 年 ${selIdx + 1} 月` : `${decadeYears[selIdx]} 年`;
+    const label = unit === 'month' ? `${per.year} 年 ${selIdx + 1} 月` : `${decadeYears[selIdx]} 年`;
     const row = (lbl, v, color, sign, dot) =>
     <div style={{ display: 'flex', alignItems: 'center', gap: SP(8), padding: PAD('6px 0') }}>
       {dot ? <span style={{ width: 8, height: 8, borderRadius: 4, flexShrink: 0, background: color }} /> : <span style={{ width: 8, flexShrink: 0 }} />}
@@ -1159,13 +1146,23 @@ function MonthlyStatsSheet({ open, onClose, savedFlows, masterData, hideAmounts,
 
   const cardStyle = { background: TOKENS.surface, borderRadius: RS(20), border: '1px solid rgba(0,0,0,0.07)', padding: PAD('16px 12px') };
   const secTitle = (t) => <span style={{ fontSize: FS(14), color: 'rgba(0,0,0,0.62)', fontWeight: 700, letterSpacing: 1 }}>{t}</span>;
-  const segBtn = (id, lbl) => { const on = view === id; return <button key={id} onClick={() => { setView(id); setExpanded(null); setSelIdx(null); }} style={{ flex: 1, height: 44, borderRadius: RS(14), border: 'none', background: on ? TOKENS.surface : 'transparent', boxShadow: on ? SH('0 2px 8px rgba(0,0,0,0.12)') : 'none', color: on ? TOKENS.ink : 'rgba(44,44,50,0.65)', fontSize: FS(16), fontWeight: on ? 700 : 500, cursor: 'pointer' }}>{lbl}</button>; };
+  // 切頁籤/切單位的唯一入口：期間粒度變了才把 offset 歸零，
+  // 粒度沒變（例如支出↔收入）就保留期間，方便對照同一個月的收入與支出。
+  // 下鑽狀態只在換頁籤時清掉（大類名在支出/收入之間不通用）；切月/年單位要留在同一個大類裡。
+  const pick = (t, u) => {
+    if (scaleOf(t, u) !== scale) setOffset(0);
+    if (t !== tab) setExpanded(null);
+    setTab(t);setUnit(u);setSelIdx(null);
+  };
+  const segBtn = (id, lbl) => { const on = tab === id; return <button key={id} onClick={() => pick(id, unit)} style={{ flex: 1, height: 44, borderRadius: RS(14), border: 'none', background: on ? TOKENS.surface : 'transparent', boxShadow: on ? SH('0 2px 8px rgba(0,0,0,0.12)') : 'none', color: on ? TOKENS.ink : 'rgba(44,44,50,0.65)', fontSize: FS(16), fontWeight: on ? 700 : 500, cursor: 'pointer' }}>{lbl}</button>; };
+  // 月/年單位切換：同 segBtn 的視覺（白底+陰影=選中），縮小成塞得進期間列右側的尺寸
+  const unitBtn = (id, lbl) => { const on = unit === id; return <button key={id} onClick={() => pick(tab, id)} style={{ width: 34, height: 30, borderRadius: RS(10), border: 'none', background: on ? TOKENS.surface : 'transparent', boxShadow: on ? SH('0 1px 4px rgba(0,0,0,0.14)') : 'none', color: on ? TOKENS.ink : 'rgba(44,44,50,0.6)', fontSize: FS(14), fontWeight: on ? 700 : 500, cursor: 'pointer' }}>{lbl}</button>; };
   const stepper = (onClick, enabled, flip) => <button onClick={onClick} disabled={!enabled} style={{ width: 38, height: 38, borderRadius: RS(12), flexShrink: 0, background: TOKENS.surface, border: '1px solid rgba(0,0,0,0.12)', color: TOKENS.ink, opacity: enabled ? 1 : 0.35, cursor: enabled ? 'pointer' : 'default', display: 'flex', alignItems: 'center', justifyContent: 'center' }}><ChevronRight size={18} style={flip ? { transform: 'rotate(180deg)' } : undefined} /></button>;
 
-  const periodLabel = view === 'spend' ? `${spY} 年 ${spM + 1} 月` : view === 'month' ? `${viewYear} 年` : `${decadeYears[0]}–${decadeYears[9]}`;
-  const prevStep = () => { if (view === 'spend') setMonthOffset(monthOffset - 1);else if (view === 'month') setYearOffset(yearOffset - 1);else setDecadeOffset(decadeOffset - 1);setExpanded(null);setSelIdx(null); };
-  const nextEnabled = view === 'spend' ? canNextMonth : view === 'month' ? canNextYear : canNextDecade;
-  const nextStep = () => { if (!nextEnabled) return; if (view === 'spend') setMonthOffset(monthOffset + 1);else if (view === 'month') setYearOffset(yearOffset + 1);else setDecadeOffset(decadeOffset + 1);setExpanded(null);setSelIdx(null); };
+  // 切期間不動下鑽狀態：在某個大類裡前後翻月/年，留在同一個大類看它的子分類變化。
+  const stepPeriod = (d) => { setOffset(offset + d);setSelIdx(null); };
+  const prevStep = () => stepPeriod(-1);
+  const nextStep = () => { if (canNext) stepPeriod(1); };
   // 圖表左右滑動切換期間：右滑 → 上一期（較早）；左滑 → 下一期（較新）。
   const onSwipeStart = (e) => { const p = e.touches ? e.touches[0] : e; swipeRef.current = { x: p.clientX, y: p.clientY, active: true }; };
   const onSwipeEnd = (e) => {
@@ -1196,18 +1193,26 @@ function MonthlyStatsSheet({ open, onClose, savedFlows, masterData, hideAmounts,
 
         <div style={{ padding: "0 10px 10px" }}>
           <div style={{ display: 'flex', gap: SP(4), padding: SP(4), borderRadius: RS(18), background: 'rgba(0,0,0,0.06)' }}>
-            {segBtn('spend', '消費分析')}{segBtn('month', '每月收支')}{segBtn('year', '年度收支')}
+            {segBtn('exp', '支出')}{segBtn('inc', '收入')}{segBtn('trend', '趨勢')}
           </div>
         </div>
 
         <div style={{ flex: 1, overflowY: 'auto', padding: "0px 10px 32px", display: 'flex', flexDirection: 'column', gap: SP(16) }}>
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: SP(16), paddingTop: SP(4) }}>
+          {/* 期間列：月/年單位切換器靠左，左右箭頭＋期間文字靠右。
+              期間文字固定 minWidth，切換月份時箭頭才不會左右跳動。 */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: SP(8), paddingTop: SP(4) }}>
+            <div style={{ display: 'flex', gap: SP(2), padding: SP(3), borderRadius: RS(13), background: 'rgba(0,0,0,0.06)' }}>
+              {unitBtn('month', '月')}{unitBtn('year', '年')}
+            </div>
+            <div style={{ flex: 1 }} />
             {stepper(prevStep, true, true)}
-            <div style={{ fontSize: FS(21), fontWeight: 700, color: TOKENS.ink, letterSpacing: 0.3, minWidth: 150, textAlign: 'center' }}>{periodLabel}</div>
-            {stepper(nextStep, nextEnabled)}
+            <div style={{ fontSize: FS(21), fontWeight: 700, color: TOKENS.ink, letterSpacing: 0.3, minWidth: 132, textAlign: 'center' }}>{per.label}</div>
+            {stepper(nextStep, canNext)}
           </div>
 
-          {view === 'spend' &&
+          {/* 分類分析頁（支出／收入共用）：刻意直接內嵌 JSX，不抽成元件內的子元件——
+              StatDonut 有自己的 state 與進場動畫，父層每次 render 產生新的元件型別會讓它整個重掛。 */}
+          {tab !== 'trend' &&
           <div style={{ ...cardStyle, padding: PAD('20px 16px') }}
             onTouchStart={onSwipeStart} onTouchEnd={onSwipeEnd}
             onMouseDown={onSwipeStart} onMouseUp={onSwipeEnd}>
@@ -1217,47 +1222,47 @@ function MonthlyStatsSheet({ open, onClose, savedFlows, masterData, hideAmounts,
                 <ChevronRight size={16} style={{ transform: 'rotate(180deg)' }} />{expanded}
               </button>
               {subCats.length === 0 ?
-              <div style={{ fontSize: FS(17), color: 'rgba(44,44,50,0.55)', textAlign: 'center', padding: PAD('24px 0') }}>本月此大類尚無消費紀錄</div> :
+              <div style={{ fontSize: FS(17), color: 'rgba(44,44,50,0.55)', textAlign: 'center', padding: PAD('24px 0') }}>{periodWord}此大類尚無{kindWord}紀錄</div> :
               <>
-                {StatDonut && <StatDonut key={`${spY}-${spM}-${expanded}`} data={subCats} total={subTotal} label={expanded} color={TOKENS.red} mask={mask} />}
+                {StatDonut && <StatDonut key={`${tab}-${per.year}-${per.month}-${expanded}`} data={subCats} total={subTotal} label={expanded} color={amtColor} mask={mask} />}
                 <div style={{ marginTop: SP(18), display: 'flex', flexDirection: 'column' }}>
                   {subCats.map((c, i) =>
                   <div key={c.name} style={{ display: 'flex', alignItems: 'center', gap: SP(12), padding: PAD('12px 2px'), borderTop: i === 0 ? '1px solid rgba(0,0,0,0.07)' : 'none', borderBottom: '1px solid rgba(0,0,0,0.07)' }}>
                     <div style={{ width: 40, height: 40, borderRadius: RS(12), flexShrink: 0, background: `${c.color}22`, border: `1px solid ${c.color}55`, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                      {(() => {const Ico = window.Icons[flowIconName({ cat: c.name, kind: 'exp' })] || window.Icons.Receipt;return <Ico size={20} style={{ color: c.color }} />;})()}
+                      {(() => {const Ico = window.Icons[flowIconName({ cat: c.name, kind })] || window.Icons.Receipt;return <Ico size={20} style={{ color: c.color }} />;})()}
                     </div>
                     <div style={{ flex: 1, minWidth: 0 }}>
                       <div style={{ fontSize: FS(19), fontWeight: 500, color: TOKENS.ink, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{c.name}</div>
                       <div style={{ fontSize: FS(14), color: 'rgba(44,44,50,0.62)', marginTop: SP(1) }}>{c.pct.toFixed(1)}%</div>
                     </div>
-                    <div style={{ fontFamily: TOKENS.fontMono, fontSize: FS(19), fontWeight: 600, flexShrink: 0, color: TOKENS.red }}>-{mask(c.value)}</div>
+                    <div style={{ fontFamily: TOKENS.fontMono, fontSize: FS(19), fontWeight: 600, flexShrink: 0, color: amtColor }}>{amtSign}{mask(c.value)}</div>
                   </div>
                   )}
                 </div>
               </>
               }
             </> :
-            spendCats.length === 0 ?
-            <div style={{ fontSize: FS(17), color: 'rgba(44,44,50,0.55)', textAlign: 'center', padding: PAD('24px 0') }}>本月尚無消費紀錄</div> :
+            catList.length === 0 ?
+            <div style={{ fontSize: FS(17), color: 'rgba(44,44,50,0.55)', textAlign: 'center', padding: PAD('24px 0') }}>{periodWord}尚無{kindWord}紀錄</div> :
             <>
-              {StatDonut && <StatDonut key={`${spY}-${spM}`} data={spendCats} total={spendTotal} label="總支出" color={TOKENS.red} mask={mask} />}
-              {prevSpendTotal > 0 && (() => {
-                const delta = spendTotal - prevSpendTotal, pct = delta / prevSpendTotal * 100, up = delta > 0;
-                const color = up ? TOKENS.red : TOKENS.green; // 消費增加=紅(壞)，減少=綠(好)——跟收入線紅綠語意相反
+              {StatDonut && <StatDonut key={`${tab}-${per.year}-${per.month}`} data={catList} total={catTotal} label={totalLabel} color={amtColor} mask={mask} />}
+              {prevCatTotal > 0 && (() => {
+                const delta = catTotal - prevCatTotal, pct = delta / prevCatTotal * 100, up = delta > 0;
+                const color = deltaColor(up);
                 const Ico = up ? TrendUp : TrendDown;
                 return (
                   <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: SP(4), marginTop: SP(10), fontSize: FS(14), color }}>
-                    <Ico size={14} />較上月{up ? '+' : ''}{pct.toFixed(1)}%（{up ? '+' : '-'}{mask(Math.abs(delta))}）
+                    <Ico size={14} />{cmpWord}{up ? '+' : ''}{pct.toFixed(1)}%（{up ? '+' : '-'}{mask(Math.abs(delta))}）
                   </div>);
               })()}
               <div style={{ marginTop: SP(18), display: 'flex', flexDirection: 'column' }}>
-                {spendCats.map((c, i) => {
-                  const prevV = prevSpendMap[c.name] || 0;
+                {catList.map((c, i) => {
+                  const prevV = prevCatMap[c.name] || 0;
                   const chg = prevV > 0 ? (c.value - prevV) / prevV * 100 : null;
                   return (
                   <button key={c.name} onClick={() => setExpanded(c.name)} style={{ width: '100%', display: 'flex', alignItems: 'center', gap: SP(12), padding: PAD('12px 2px'), borderTop: i === 0 ? '1px solid rgba(0,0,0,0.07)' : 'none', borderBottom: '1px solid rgba(0,0,0,0.07)', borderLeft: 'none', borderRight: 'none', background: 'transparent', textAlign: 'left', cursor: 'pointer' }}>
                     <div style={{ width: 40, height: 40, borderRadius: RS(12), flexShrink: 0, background: `${c.color}22`, border: `1px solid ${c.color}55`, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                      {(() => {const Ico = window.Icons[flowIconName({ cat: c.name, kind: 'exp' })] || window.Icons.Receipt;return <Ico size={20} style={{ color: c.color }} />;})()}
+                      {(() => {const Ico = window.Icons[flowIconName({ cat: c.name, kind })] || window.Icons.Receipt;return <Ico size={20} style={{ color: c.color }} />;})()}
                     </div>
                     <div style={{ flex: 1, minWidth: 0 }}>
                       <div style={{ fontSize: FS(19), fontWeight: 500, color: TOKENS.ink, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{c.name}</div>
@@ -1266,10 +1271,10 @@ function MonthlyStatsSheet({ open, onClose, savedFlows, masterData, hideAmounts,
                         {prevV === 0 ?
                         <span style={{ fontSize: FS(12), color: TOKENS.gold }}>新增</span> :
                         Math.abs(chg) >= 0.5 &&
-                        <span style={{ fontSize: FS(12), color: chg > 0 ? TOKENS.red : TOKENS.green }}>{chg > 0 ? '▲' : '▼'}{Math.abs(chg).toFixed(1)}%</span>}
+                        <span style={{ fontSize: FS(12), color: deltaColor(chg > 0) }}>{chg > 0 ? '▲' : '▼'}{Math.abs(chg).toFixed(1)}%</span>}
                       </div>
                     </div>
-                    <div style={{ fontFamily: TOKENS.fontMono, fontSize: FS(19), fontWeight: 600, flexShrink: 0, color: TOKENS.red }}>-{mask(c.value)}</div>
+                    <div style={{ fontFamily: TOKENS.fontMono, fontSize: FS(19), fontWeight: 600, flexShrink: 0, color: amtColor }}>{amtSign}{mask(c.value)}</div>
                     <ChevronRight size={16} style={{ flexShrink: 0, color: 'rgba(44,44,50,0.3)' }} />
                   </button>);
                 })}
@@ -1279,12 +1284,12 @@ function MonthlyStatsSheet({ open, onClose, savedFlows, masterData, hideAmounts,
           </div>
           }
 
-          {(view === 'month' || view === 'year') &&
+          {tab === 'trend' &&
           <>
             <div style={cardStyle}
               onTouchStart={onSwipeStart} onTouchEnd={onSwipeEnd}
               onMouseDown={onSwipeStart} onMouseUp={onSwipeEnd}>
-              <div style={{ marginBottom: SP(6) }}>{secTitle(view === 'month' ? '每月收支' : '年度收支')}</div>
+              <div style={{ marginBottom: SP(6) }}>{secTitle(unit === 'month' ? '每月收支' : '年度收支')}</div>
               {/* 整合圖：主動收入／被動收入／投資損益／其他／消費支出 折線＋收支餘額柱狀。
                   圖例可點擊：單獨隱藏/顯示某一條線，也可以連續點掉其他線只留一條看。 */}
               <div style={{ display: 'flex', flexWrap: 'wrap', gap: SP(10), marginBottom: SP(8), paddingLeft: SP(2) }}>
@@ -1310,28 +1315,19 @@ function MonthlyStatsSheet({ open, onClose, savedFlows, masterData, hideAmounts,
                     textDecoration: off ? 'line-through' : 'none', transition: 'color 160ms' }}>
                     <span style={{ width: 10, height: 10, borderRadius: RS(2), background: off ? 'rgba(0,0,0,0.18)' : NET_POS, opacity: off ? 1 : 0.45, transition: 'background 160ms' }} />餘額
                   </button>); })()}
-                {view === 'month' && (() => { const off = hiddenSeries.has('去年同期'); return (
-                  <button onClick={() => toggleSeries('去年同期')} style={{
-                    display: 'flex', alignItems: 'center', gap: SP(4), fontSize: FS(13),
-                    color: off ? 'rgba(44,44,50,0.32)' : 'rgba(44,44,50,0.68)',
-                    background: 'transparent', border: 'none', padding: 0, cursor: 'pointer',
-                    textDecoration: off ? 'line-through' : 'none', transition: 'color 160ms' }}>
-                    <span style={{ width: 12, height: 3, borderRadius: RS(2), background: off ? 'rgba(0,0,0,0.18)' : TOKENS.gray4, opacity: off ? 1 : 0.7, transition: 'background 160ms' }} />去年同期
-                  </button>); })()}
               </div>
-              <ComboChart key={view + '-' + (view === 'month' ? viewYear : decadeYears[0])}
-              data={curData} labels={view === 'month' ? monthLabels : yearLabels} hiddenSeries={hiddenSeries}
-              prevData={view === 'month' ? prevYearMonths : undefined} />
-              <div style={{ fontSize: FS(12), color: 'rgba(44,44,50,0.55)', marginTop: SP(4), paddingLeft: SP(2) }}>點圖或下方列表可查看該{view === 'month' ? '月' : '年'}明細</div>
+              <ComboChart key={unit + '-' + (unit === 'month' ? per.year : decadeYears[0])}
+              data={curData} labels={unit === 'month' ? monthLabels : yearLabels} hiddenSeries={hiddenSeries} />
+              <div style={{ fontSize: FS(12), color: 'rgba(44,44,50,0.55)', marginTop: SP(4), paddingLeft: SP(2) }}>點圖或下方列表可查看該{unit === 'month' ? '月' : '年'}明細</div>
             </div>
             <div style={{ ...cardStyle, padding: PAD('14px') }}>
-              <StatTable rows={view === 'month' ? monthRows : yearRows} unitLabel={view === 'month' ? '月' : '年'} onRowTap={(idx) => setSelIdx(idx)} />
+              <StatTable rows={unit === 'month' ? monthRows : yearRows} unitLabel={unit === 'month' ? '月' : '年'} onRowTap={(idx) => setSelIdx(idx)} />
             </div>
           </>
           }
         </div>
       </div>
-      {(view === 'month' || view === 'year') && <SelPopup />}
+      {tab === 'trend' && <SelPopup />}
     </div>);
 }
 
@@ -1373,6 +1369,73 @@ export const GOAL_TYPE_MAP = Object.fromEntries(GOAL_TYPES.map((t) => [t.key, t]
 // 該元件的私有 closure、未對外匯出，這裡刻意重新實作一份小型獨立版本，避免跨元件耦合。
 // 年/月兩種版本共用同一套分類判斷，只差在日期篩選的粒度。
 const INC_GROUP_LABEL = { '主動': '主動收入', '被動': '被動收入', '投資收入': '投資收入', '其他': '其他' };
+
+/* ── 收支統計的分類彙總與期間計算 ────────────────────────────────────
+   支出/收入 × 月/年 × 大類/子分類 共 8 種組合都走同一組函式，
+   純邏輯無 React/DOM，方便單獨做單元測試。 */
+
+// cat → 大類名。收入套 INC_GROUP_LABEL 顯示名（'主動'→'主動收入'），支出用 group 原名。
+// 回傳 closure：呼叫端只建一次表，逐筆掃 flows 時不重複掃 cat_inc/cat_exp。
+export function ffCatGroupOf(masterData, kind) {
+  const list = (kind === 'inc' ? masterData.cat_inc : masterData.cat_exp) || [];
+  const catGroup = {};
+  // 舊資料的分類是純字串陣列：收入沒有大類資訊就歸「其他」，支出則以自己為大類。
+  list.forEach((c) => { const o = typeof c === 'string' ? { name: c, group: kind === 'inc' ? '其他' : c } : c; catGroup[o.name] = o.group || '其他'; });
+  return (cat) => {
+    const g = catGroup[cat] || '其他';
+    return kind === 'inc' ? INC_GROUP_LABEL[g] || g : g;
+  };
+}
+
+// 分類彙總：某期間內某 kind 的金流依「大類」加總；帶 group 時改成該大類底下的子分類（實際 cat 名）。
+// month 用 1-12（與 ffIncomeForMonth 一致），傳 null 代表整年。回傳 { [名稱]: 台幣金額 }。
+export function ffCatTotals(savedFlows, masterData, kind, year, month, group = null) {
+  const curMap = window.buildCurMap(masterData);
+  const groupOf = ffCatGroupOf(masterData, kind);
+  const map = {};
+  (savedFlows || []).forEach((f) => {
+    if (f.kind !== kind || !f.date) return;
+    const d = f.date instanceof Date ? f.date : new Date(f.date);
+    if (d.getFullYear() !== year) return;
+    if (month != null && d.getMonth() + 1 !== month) return;
+    const g = groupOf(f.cat);
+    if (group != null && g !== group) return;
+    const key = group != null ? f.cat : g;
+    map[key] = (map[key] || 0) + window.fxToTWD(f.amount, curMap[f.account]);
+  });
+  return map;
+}
+
+// 大類 → 使用者在設定頁設定的顏色（exp_groups / inc_groups）。收入的 key 是顯示名。
+// 主檔裡已被刪除、但歷史紀錄還在的大類查不到值，由呼叫端 fallback 到灰色。
+export function ffGroupColorMap(masterData, kind) {
+  const defs = (kind === 'inc' ? masterData.inc_groups : masterData.exp_groups) || [];
+  const map = {};
+  defs.forEach((g) => {
+    const key = kind === 'inc' ? INC_GROUP_LABEL[g.name] || g.name : g.name;
+    if (g.color) map[key] = g.color;
+  });
+  return map;
+}
+
+// 三種期間粒度 × offset（0=當期，負數往過去）→ 期間描述。
+// month=null 代表整年；years 只有 decade 粒度會有。
+export function ffStatsPeriod(now, scale, offset) {
+  if (scale === 'month') {
+    const d = new Date(now.getFullYear(), now.getMonth() + offset, 1);
+    const year = d.getFullYear(), month = d.getMonth() + 1;
+    return { year, month, label: `${year} 年 ${month} 月` };
+  }
+  if (scale === 'year') {
+    const year = now.getFullYear() + offset;
+    return { year, month: null, label: `${year} 年` };
+  }
+  // decade：以 offset 那一頁的最後一年往前推 10 年
+  const end = now.getFullYear() + offset * 10;
+  const years = Array.from({ length: 10 }, (_, i) => end - 9 + i);
+  return { year: end, month: null, years, label: `${years[0]}–${years[9]}` };
+}
+
 function incGroupLabelOf(masterData, cat) {
   const catIncGroup = {};
   (masterData.cat_inc || []).forEach((c) => { const o = typeof c === 'string' ? { name: c, group: '其他' } : c; catIncGroup[o.name] = o.group || '其他'; });

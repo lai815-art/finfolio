@@ -31,9 +31,9 @@ App 分四個主要分頁（底部 TabBar）＋一個全螢幕設定頁：
 
 **看板**
 1. As a 使用者, I want to 一眼看到本月的總收入與總支出（換算成台幣）, so that 我知道這個月花超過還是省下來
-2. As a 使用者, I want to 點開本月收支摘要看消費分類圓餅圖（排除投資損失），圓餅圖進場時有展開動畫, so that 我知道錢花在哪個類別最多
-3. As a 使用者, I want to 切到「每月收支」分頁看近 12 個月的收支走勢圖（主動收入/被動收入/投資損益/其他/消費支出），折線進場有畫出動畫，且能點圖例單獨隱藏/顯示某一條線, so that 我能看出收支的季節性變化，也能只留下我想比較的那幾條線
-4. As a 使用者, I want to 切到「年度收支」分頁看多年（每頁 10 年）的收支走勢, so that 我能評估長期的財務趨勢
+2. As a 使用者, I want to 點開本月收支摘要，在「支出」或「收入」分頁自由切換「月/年」聚合單位，看該期間的大類圓餅圖（支出含投資損失，即總支出；圓餅圖進場時有展開動畫）與大類清單、下鑽子分類，並跟上一期（上月/去年）比較增減, so that 我能用同一套畫面看月支出、年支出、月收入、年收入，知道錢花在哪個類別最多
+3. As a 使用者, I want to 切到「趨勢」分頁選「月」看某一年 12 個月的收支走勢圖（主動收入/被動收入/投資損益/其他/消費支出），折線進場有畫出動畫，且能點圖例單獨隱藏/顯示某一條線, so that 我能看出收支的季節性變化，也能只留下我想比較的那幾條線
+4. As a 使用者, I want to 切到「趨勢」分頁選「年」看多年（每頁 10 年）的收支走勢, so that 我能評估長期的財務趨勢
 5. As a 使用者, I want to 點圖表上任一根柱子/任一列看細項彈窗, so that 我能追查某個月/某年為什麼特別高或低
 6. As a 使用者, I want to 點開「資產淨額明細」看現金/存款/各投資分類的圓餅圖與負債明細, so that 我知道淨資產的組成
 7. As a 使用者, I want to 用日期列左右滑動或點日曆挑選任一天, so that 我能回顧某一天發生了什麼交易
@@ -148,8 +148,17 @@ App 分四個主要分頁（底部 TabBar）＋一個全螢幕設定頁：
 - 純 CSS `@keyframes`（`fillArc`/`drawLine`/`growBar`/`fadeInStat`，定義在 index.html），沒有用任何動畫函式庫。
 - 折線用 SVG `pathLength="1"` 技巧：把整條線正規化成 0–1，`stroke-dashoffset` 從 1 動畫到 0 做「畫出來」效果；虛線（消費支出，本身已有 dash 花紋）改用單純淡入，避免兩種 dasharray 互相干擾。
 - 圓餅圖用 CSS 自訂屬性（`--arcFrom`/`--arcTo`）讓每段弧線各自動畫到自己的 `stroke-dashoffset` 終點。
-- 折線圖圖例可點擊：`MonthlyStatsSheet` 用 `hiddenSeries`（Set）記錄被隱藏的線，`ComboChart` 依可見的線重新計算 Y 軸範圍（隱藏掉大數值的線後，其餘線會自動放大顯示）；圖表容器加了 `key`（依所在月/年年份），切換月份/年份時整組圖表會重新掛載、動畫重播一次。「餘額」柱狀與（僅月檢視）「去年同期」參考線雖然不在 `CHART_SERIES` 裡，一樣是 `hiddenSeries` 的成員、也一起納入 Y 軸重算。
-- 消費分析支援子分類下鑽：點大類列會用 `expanded` state（原本宣告但沒渲染用途的死 state）切到該大類底下依實際 `cat` 名稱彙總的第二層圓餅圖，切換月份會自動退出下鑽畫面。月對月比較（總額與各類別）直接拿上個月同一份聚合邏輯來對照，無資料時不顯示避免出現 `Infinity%`。
+- 折線圖圖例可點擊：`MonthlyStatsSheet` 用 `hiddenSeries`（Set）記錄被隱藏的線，`ComboChart` 依可見的線重新計算 Y 軸範圍（隱藏掉大數值的線後，其餘線會自動放大顯示）；圖表容器加了 `key`（依 `unit`＋期間年份），切換單位/期間時整組圖表會重新掛載、動畫重播一次。「餘額」柱狀雖然不在 `CHART_SERIES` 裡，一樣是 `hiddenSeries` 的成員、也一起納入 Y 軸重算。曾有一條「去年同期」消費支出參考線（僅月檢視），已整個移除。
+
+**收支統計的三大頁籤與月/年單位**（`MonthlyStatsSheet`，dashboard.jsx）
+- 頁籤是 `tab`（`exp`／`inc`／`trend`），聚合單位是 `unit`（`month`／`year`），兩者自由組合共 6 種。但**期間軸只有三種粒度**：`scaleOf(tab, unit)` 把支出/收入直接映射到 `unit`，趨勢頁的「月」是看一整年的 12 個月、「年」是看十年，各往上推一級（`year`／`decade`）。因此只需要**一個** `offset` state（0=當期，只會是 0 或負數），`canNext` 就是單一的 `offset < 0`，期間文字與前後切換全部只認 `scale`、不認 `tab`/`unit`。
+- 切換的唯一入口是 `pick(tab, unit)`：**期間粒度沒變就保留期間**（例如支出↔收入可以對照同一個月），粒度變了才把 `offset` 歸零。
+- 下鑽狀態（`expanded`）**只在換頁籤時清掉**——大類名在支出/收入之間不通用（「投資損失」在收入頁不存在）。切月/年單位、前後翻期間都留在同一個大類裡，讓使用者能在某個大類內比較各期間的子分類變化；該期間該大類沒紀錄時就顯示空狀態文案，不自動退回上一層。`selIdx`（趨勢頁的選取）在任何切換都重設，因為它是 `curData` 的索引，12 ↔ 10 長度不同。`hiddenSeries` 刻意跨頁籤/單位保留，因為圖例選擇只屬於趨勢頁，且 `CHART_SERIES` 的 key 在月/年兩種單位下完全相同。
+- 支出頁與收入頁**共用同一份 JSX**，差異全走 derived 變數（`amtColor`/`amtSign`/`totalLabel`/`kindWord`/`periodWord`/`cmpWord`/`deltaColor`）。**刻意不抽成元件內的子元件**——`StatDonut` 有自己的 state 與進場動畫，父層每次 render 產生新的元件型別會讓它整個卸載重掛（跟財務目標表單那個手機鍵盤 bug 同一個根因）。
+- 聚合一律走模組層級的 `ffCatTotals(savedFlows, masterData, kind, year, month, group)`：支出/收入 × 月/年 × 大類/子分類 8 種組合同一支函式，`month=null` 代表整年，帶 `group` 就切到該大類底下依實際 `cat` 名稱彙總的第二層。上一期比較不用另寫日期算術，直接把 `offset - 1` 丟給 `ffStatsPeriod`；無資料時不顯示比較，避免出現 `Infinity%`。`ffCatGroupOf` 是「cat → 大類」的 resolver factory（回傳 closure，逐筆掃 flows 時不重複建表）。
+- 配色：大類用 `masterData.exp_groups`／`inc_groups` 裡使用者自己設定的 `color`（與設定頁、趨勢頁折線同色，不另設色盤；主檔已刪除但仍有歷史紀錄的大類 fallback 到 `TOKENS.gray3`）；下鑽的子分類用 `ffClassShade` 對母大類顏色做深淺漸層。金額語意：支出用 `TOKENS.red`、增加=紅（壞）；收入用 `TOKENS.incBlue`、增加=綠（好），由 `deltaColor(up)` 一行涵蓋四種情形。
+- **總支出的定義**：支出頁圓餅總額 ≡ 趨勢頁 aggregate 的 `a.exp` ≡ StatTable 的「總支出」欄 ≡ SelPopup 的「消費支出＋投資損失」，四處一致（投資損失已納入支出分析，不再像舊版「消費分析」那樣排除）。但趨勢圖那條**「消費支出」虛線刻意是 `exp − investLoss`**，不等於支出頁的總支出——那條線的用途是看消費趨勢，混進賣股虧損會失真。這是設計而非 bug。
+- 既有邊界特性：`offset = 0` 是**未過完的當期**，跟完整的上一期比會偏低（月/年皆然），沿用改版前「當月 vs 上整月」的行為。
 
 **財務目標**（`NetWorthSheet` 的「財務目標」頁籤，dashboard.jsx）
 - `GOAL_TYPES` 設定陣列驅動類型選單與表單欄位：`networth`（淨資產於指定年月達標）、`account`（單一帳戶餘額達標，無期限）、`passive_income`／`balance`（收入目標／收支結餘，皆為週期性目標）。新增目標先選類型、再依類型顯示對應欄位；類型建立後不可更改，要換類型只能刪除重建。`passive_income` 這個 key 沿用舊資料的 `type` 值沒有改名，只有 UI 上的 label 改叫「收入目標」。
@@ -205,6 +214,7 @@ App 分四個主要分頁（底部 TabBar）＋一個全螢幕設定頁：
 - 分類→帳戶記憶的讀寫與失效過濾（`last-account.js`，`last-account.test.js`）——`ffRememberAccount`／`ffLastAccountFor`
 - 股票類別配色（`asset-class-color.js`，`asset-class-color.test.js`）——`ffAssetClassColorMap`／`ffClassShade`／`ffMixHex`／`ffAssetClassPalette`
 - 下拉面板的展開方向與高度（`accounting.jsx`，`accounting.dropdown.test.js`）——`ffDropdownPlacement`；DOM 量測留在 `DropField` 裡，純幾何計算抽出來測
+- 收支統計的分類聚合與期間計算（`dashboard.jsx`，`dashboard.stats.test.js`）——`ffCatTotals`（含「投資損失有被納入支出」與「同名 cat 在收入/支出間不互相污染」兩條回歸防護）、`ffStatsPeriod`（跨年/十年邊界、上一期＝`offset-1`）、`ffGroupColorMap`、`ffCatGroupOf`；`MonthlyStatsSheet` 的 UI 渲染（期間列排版、`pick()` 的 reset 行為、圓餅實際顏色）仍靠手動操作驗證
 - 財務目標的聚合/進度計算（`dashboard.jsx`，`dashboard.goals.test.js`）——`ffIncomeForYear/Month`、`ffMonthlyBalance`/`ffYearlyBalance`、`ffResolvePeriodTarget`、`ffAchievementHistory`、`computeGoalProgress`；這些函式雖然定義在一個沒有任何 `export` 的「legacy 全域腳本」檔案裡，但 `dashboard.jsx` 本身仍是可以被 import 的 ES module（檔案開頭有 `import`），所以照樣可以個別加 `export` 讓測試檔案匯入，不用像 `compute.js` 一樣整個抽成獨立檔案。`dashboard.jsx` 其餘的圖表/UI 渲染邏輯仍未涵蓋，沿用手動操作驗證。
 
 完整的測試涵蓋範圍與優先順序，另外開一份 `docs/test.md` 規劃，不在本文件展開。
