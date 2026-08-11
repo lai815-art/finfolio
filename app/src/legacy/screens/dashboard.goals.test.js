@@ -26,22 +26,22 @@ describe('ffIncomeForYear / ffIncomeForMonth', () => {
   const flows = [
     flow('inc', '股息', 1000, '2024-03-10'),
     flow('inc', '債息', 500, '2024-03-20'),
-    flow('inc', '薪資', 5000, '2024-03-15'), // 主動收入
+    flow('inc', '薪資', 5000, '2024-03-15'), // 主動
     flow('exp', '股息', 999, '2024-03-01'),  // 支出，不算（kind!=='inc'）
     flow('inc', '股息', 300, '2023-12-25'),  // 不同年
   ];
 
-  it('不指定 group 時預設只加總被動收入分組的當年金額（沿用舊行為）', () => {
+  it('不指定 group 時預設只加總「被動」大類的當年金額（沿用舊行為）', () => {
     expect(ffIncomeForYear(flows, masterData, 2024)).toBe(1500);
   });
 
-  it('不指定 group 時預設只加總被動收入分組的當月金額', () => {
+  it('不指定 group 時預設只加總「被動」大類的當月金額', () => {
     expect(ffIncomeForMonth(flows, masterData, 2024, 3)).toBe(1500);
     expect(ffIncomeForMonth(flows, masterData, 2024, 4)).toBe(0);
   });
 
-  it('指定 group 為「主動收入」時只加總主動分組', () => {
-    expect(ffIncomeForYear(flows, masterData, 2024, '主動收入')).toBe(5000);
+  it('指定 group 為「主動」時只加總主動大類', () => {
+    expect(ffIncomeForYear(flows, masterData, 2024, '主動')).toBe(5000);
   });
 
   it('group 為 total 時不分大類，加總全部收入', () => {
@@ -58,10 +58,10 @@ describe('ffIncomeForQuarter', () => {
   const flows = [
     flow('inc', '股息', 1000, '2024-03-10'), // Q1
     flow('inc', '股息', 700, '2024-04-05'),  // Q2
-    flow('inc', '薪資', 5000, '2024-03-15'), // Q1，主動收入
+    flow('inc', '薪資', 5000, '2024-03-15'), // Q1，主動
   ];
 
-  it('只加總指定年季的被動收入（預設 group）', () => {
+  it('只加總指定年季的「被動」大類（預設 group）', () => {
     expect(ffIncomeForQuarter(flows, masterData, 2024, 1)).toBe(1000);
     expect(ffIncomeForQuarter(flows, masterData, 2024, 2)).toBe(700);
     expect(ffIncomeForQuarter(flows, masterData, 2024, 3)).toBe(0);
@@ -271,7 +271,7 @@ describe('computeGoalProgress', () => {
   it('passive_income 類型指定 incomeGroup 時依該大類彙總，不再固定只算被動收入', () => {
     window.TODAY_DATE = new Date(2024, 5, 15);
     const ctxMixed = { ...baseCtx, savedFlows: [...savedFlows, flow('inc', '薪資', 200000, '2024-06-01')] };
-    const goal = { type: 'passive_income', periodUnit: 'year', targetMode: 'amount', amount: 100000, incomeGroup: '主動收入' };
+    const goal = { type: 'passive_income', periodUnit: 'year', targetMode: 'amount', amount: 100000, incomeGroup: '主動' };
     const p = computeGoalProgress(goal, ctxMixed);
     expect(p.current).toBe(200000); // 只算薪資（主動），不含股息
   });

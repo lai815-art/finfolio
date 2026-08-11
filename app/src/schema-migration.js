@@ -4,7 +4,7 @@
 //
 // User records may live for years across app updates. Every release bumps
 // SCHEMA_VERSION and adds an idempotent step here; data is never wiped.
-export const SCHEMA_VERSION = 4;
+export const SCHEMA_VERSION = 5;
 
 export function migrateSchema() {
   try {
@@ -37,6 +37,28 @@ export function migrateSchema() {
           ensure('台股', '投資收入', '美股');
           ensure('美股', '投資收入', '投資收入');
           localStorage.setItem('ff_master_data', JSON.stringify(md));
+        }
+      } catch (e) {/* 解析失敗就跳過，不影響其他資料 */}
+    }
+    // v4 → v5: 收入大類的顯示名對照表（'主動'→'主動收入'）已移除，全 App 一律顯示實際大類名。
+    // 儲蓄目標的 incomeGroup 存的是舊的顯示名，不改就會對不到大類、收入目標進度變 0。
+    // 使用者若真的把大類命名成「被動收入」，該名稱會出現在 inc_groups 裡，此時不改寫。
+    if (cur < 5) {
+      try {
+        var goals = JSON.parse(localStorage.getItem('ff_savings_goals') || 'null');
+        if (Array.isArray(goals)) {
+          var mdG = JSON.parse(localStorage.getItem('ff_master_data') || 'null');
+          var groupNames = (mdG && Array.isArray(mdG.inc_groups) ? mdG.inc_groups : []).map(function (g) {return g && g.name;});
+          var LABEL_TO_NAME = { '主動收入': '主動', '被動收入': '被動' };
+          var goalsChanged = false;
+          goals.forEach(function (g) {
+            if (!g || !g.incomeGroup) return;
+            var real = LABEL_TO_NAME[g.incomeGroup];
+            if (!real || groupNames.indexOf(g.incomeGroup) >= 0) return;
+            g.incomeGroup = real;
+            goalsChanged = true;
+          });
+          if (goalsChanged) localStorage.setItem('ff_savings_goals', JSON.stringify(goals));
         }
       } catch (e) {/* 解析失敗就跳過，不影響其他資料 */}
     }

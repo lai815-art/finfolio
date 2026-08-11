@@ -43,11 +43,11 @@ describe('ffCatGroupOf', () => {
     expect(groupOf('不存在的分類')).toBe('其他');
   });
 
-  it('收入套用 INC_GROUP_LABEL 顯示名', () => {
+  it('收入直接用主檔的大類名，不做顯示名轉換', () => {
     const groupOf = ffCatGroupOf(masterData, 'inc');
-    expect(groupOf('薪資')).toBe('主動收入');
-    expect(groupOf('股息')).toBe('被動收入');
-    expect(groupOf('台股')).toBe('投資收入'); // 顯示名與原名相同
+    expect(groupOf('薪資')).toBe('主動');
+    expect(groupOf('股息')).toBe('被動');
+    expect(groupOf('台股')).toBe('投資收入');
     expect(groupOf('不存在的分類')).toBe('其他');
   });
 
@@ -95,10 +95,10 @@ describe('ffCatTotals', () => {
     expect(ffCatTotals(flows, masterData, 'inc', 2024, 3)['投資收入']).toBe(5000);
   });
 
-  it('收入依大類顯示名加總，不在 cat_inc 的分類落到「其他」', () => {
+  it('收入依大類加總，不在 cat_inc 的分類落到「其他」', () => {
     const withUnknown = [...flows, flow('inc', '中獎', 200, '2024-03-13')];
     expect(ffCatTotals(withUnknown, masterData, 'inc', 2024, 3)).toEqual({
-      '主動收入': 60000, '被動收入': 1000, '投資收入': 5000, '其他': 200,
+      '主動': 60000, '被動': 1000, '投資收入': 5000, '其他': 200,
     });
   });
 
@@ -154,10 +154,10 @@ describe('ffGroupColorMap', () => {
     expect(map['餐飲']).toBe('#B85C4A');
   });
 
-  it('收入的 key 是顯示名而非主檔原名', () => {
+  it('收入的 key 就是主檔的大類名', () => {
     const map = ffGroupColorMap(masterData, 'inc');
-    expect(map['主動收入']).toBe('#4A6E8C');
-    expect(map['主動']).toBeUndefined();
+    expect(map['主動']).toBe('#4A6E8C');
+    expect(map['主動收入']).toBeUndefined();
   });
 
   it('沒設 color 的大類、以及主檔已刪除的大類都回 undefined 而不丟例外', () => {

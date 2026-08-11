@@ -317,8 +317,7 @@ function DailyView({ date, hideAmounts, extraFlows = [], extraTrades = [], onEdi
     if (t.kind === 'inc') {
       const items = (masterData.cat_inc || []).map((c) => typeof c === 'string' ? { name: c, group: '主動' } : c);
       const hit = items.find((c) => c.name === t.cat);
-      const g = hit ? hit.group : '其他';
-      return { '主動': '主動收入', '被動': '被動收入' }[g] || g;
+      return hit ? hit.group : '其他';
     }
     return '';
   };
@@ -932,11 +931,10 @@ function MonthlyStatsSheet({ open, onClose, savedFlows, masterData, hideAmounts,
   const prevPer = ffStatsPeriod(now, scale, offset - 1); // 上一期比較用，重用同一支函式
   const canNext = offset < 0;
 
-  // 收入大類：依 cat_inc 的 group 對應到顯示名，大類清單來自 masterData.inc_groups（使用者可自訂新增/刪除）
-  const INC_LABEL = { '主動': '主動收入', '被動': '被動收入', '投資收入': '投資收入', '其他': '其他' };
+  // 收入大類：依 cat_inc 的 group 彙總，大類清單來自 masterData.inc_groups（使用者可自訂新增/刪除/改名）
   const incGroupDefs = masterData.inc_groups || [];
   const incGroupOf = ffCatGroupOf(masterData, 'inc');
-  const INC_GROUPS = incGroupDefs.map((g) => ({ k: INC_LABEL[g.name] || g.name, c: g.color || TOKENS.gray3 }));
+  const INC_GROUPS = incGroupDefs.map((g) => ({ k: g.name, c: g.color || TOKENS.gray3 }));
   // 投資損失（賣股虧損）算進總支出，但趨勢頁要把它從「消費支出」折線拆出來單獨看
   const expGroupOf = ffCatGroupOf(masterData, 'exp');
   const isInvestExp = (cat) => expGroupOf(cat) === '投資損失';
@@ -996,11 +994,10 @@ function MonthlyStatsSheet({ open, onClose, savedFlows, masterData, hideAmounts,
   // 顯示為「投資損益」；最後固定加一條消費支出(總支出−投資損失)。
   const CHART_SERIES = [
   ...incGroupDefs.map((g) => {
-    const aggKey = INC_LABEL[g.name] || g.name;
     if (g.name === '投資收入') {
-      return { k: '投資損益', c: g.color || TOKENS.gold, val: (a) => (a.groups[aggKey] || 0) - (a.investLoss || 0) };
+      return { k: '投資損益', c: g.color || TOKENS.gold, val: (a) => (a.groups[g.name] || 0) - (a.investLoss || 0) };
     }
-    return { k: aggKey, c: g.color || TOKENS.gray3, val: (a) => a.groups[aggKey] || 0 };
+    return { k: g.name, c: g.color || TOKENS.gray3, val: (a) => a.groups[g.name] || 0 };
   }),
   { k: '消費支出', c: TOKENS.red, dashed: true, val: (a) => (a.exp || 0) - (a.investLoss || 0) }];
   // 整合圖：收支餘額柱狀（背景）＋ 上述折線（前景），共用同一數值刻度。
@@ -1290,7 +1287,7 @@ function MonthlyStatsSheet({ open, onClose, savedFlows, masterData, hideAmounts,
               onTouchStart={onSwipeStart} onTouchEnd={onSwipeEnd}
               onMouseDown={onSwipeStart} onMouseUp={onSwipeEnd}>
               <div style={{ marginBottom: SP(6) }}>{secTitle(unit === 'month' ? '每月收支' : '年度收支')}</div>
-              {/* 整合圖：主動收入／被動收入／投資損益／其他／消費支出 折線＋收支餘額柱狀。
+              {/* 整合圖：各收入大類／投資損益／消費支出 折線＋收支餘額柱狀。
                   圖例可點擊：單獨隱藏/顯示某一條線，也可以連續點掉其他線只留一條看。 */}
               <div style={{ display: 'flex', flexWrap: 'wrap', gap: SP(10), marginBottom: SP(8), paddingLeft: SP(2) }}>
                 {CHART_SERIES.map((s) => {
@@ -1368,23 +1365,19 @@ export const GOAL_TYPE_MAP = Object.fromEntries(GOAL_TYPES.map((t) => [t.key, t]
 // 或選 'total' 不分大類、全部收入加總。複製 MonthlyStatsSheet 的 incGroupOf/amtOf 邏輯——那是
 // 該元件的私有 closure、未對外匯出，這裡刻意重新實作一份小型獨立版本，避免跨元件耦合。
 // 年/月兩種版本共用同一套分類判斷，只差在日期篩選的粒度。
-const INC_GROUP_LABEL = { '主動': '主動收入', '被動': '被動收入', '投資收入': '投資收入', '其他': '其他' };
 
 /* ── 收支統計的分類彙總與期間計算 ────────────────────────────────────
    支出/收入 × 月/年 × 大類/子分類 共 8 種組合都走同一組函式，
    純邏輯無 React/DOM，方便單獨做單元測試。 */
 
-// cat → 大類名。收入套 INC_GROUP_LABEL 顯示名（'主動'→'主動收入'），支出用 group 原名。
+// cat → 大類名（就是使用者在設定頁設定的名稱，不做任何顯示名轉換）。
 // 回傳 closure：呼叫端只建一次表，逐筆掃 flows 時不重複掃 cat_inc/cat_exp。
 export function ffCatGroupOf(masterData, kind) {
   const list = (kind === 'inc' ? masterData.cat_inc : masterData.cat_exp) || [];
   const catGroup = {};
   // 舊資料的分類是純字串陣列：收入沒有大類資訊就歸「其他」，支出則以自己為大類。
   list.forEach((c) => { const o = typeof c === 'string' ? { name: c, group: kind === 'inc' ? '其他' : c } : c; catGroup[o.name] = o.group || '其他'; });
-  return (cat) => {
-    const g = catGroup[cat] || '其他';
-    return kind === 'inc' ? INC_GROUP_LABEL[g] || g : g;
-  };
+  return (cat) => catGroup[cat] || '其他';
 }
 
 // 分類彙總：某期間內某 kind 的金流依「大類」加總；帶 group 時改成該大類底下的子分類（實際 cat 名）。
@@ -1406,15 +1399,12 @@ export function ffCatTotals(savedFlows, masterData, kind, year, month, group = n
   return map;
 }
 
-// 大類 → 使用者在設定頁設定的顏色（exp_groups / inc_groups）。收入的 key 是顯示名。
+// 大類 → 使用者在設定頁設定的顏色（exp_groups / inc_groups）。
 // 主檔裡已被刪除、但歷史紀錄還在的大類查不到值，由呼叫端 fallback 到灰色。
 export function ffGroupColorMap(masterData, kind) {
   const defs = (kind === 'inc' ? masterData.inc_groups : masterData.exp_groups) || [];
   const map = {};
-  defs.forEach((g) => {
-    const key = kind === 'inc' ? INC_GROUP_LABEL[g.name] || g.name : g.name;
-    if (g.color) map[key] = g.color;
-  });
+  defs.forEach((g) => { if (g.color) map[g.name] = g.color; });
   return map;
 }
 
@@ -1436,25 +1426,24 @@ export function ffStatsPeriod(now, scale, offset) {
   return { year: end, month: null, years, label: `${years[0]}–${years[9]}` };
 }
 
-function incGroupLabelOf(masterData, cat) {
+function incGroupOf(masterData, cat) {
   const catIncGroup = {};
   (masterData.cat_inc || []).forEach((c) => { const o = typeof c === 'string' ? { name: c, group: '其他' } : c; catIncGroup[o.name] = o.group || '其他'; });
-  const g = catIncGroup[cat] || '其他';
-  return INC_GROUP_LABEL[g] || g;
+  return catIncGroup[cat] || '其他';
 }
-export function ffIncomeForYear(savedFlows, masterData, year, group = '被動收入') {
+export function ffIncomeForYear(savedFlows, masterData, year, group = '被動') {
   const curMap = window.buildCurMap(masterData);
   const amtOf = (f) => window.fxToTWD(f.amount, curMap[f.account]);
   let total = 0;
   (savedFlows || []).forEach((f) => {
     if (f.kind !== 'inc' || !f.date) return;
     if (new Date(f.date).getFullYear() !== year) return;
-    if (group !== 'total' && incGroupLabelOf(masterData, f.cat) !== group) return;
+    if (group !== 'total' && incGroupOf(masterData, f.cat) !== group) return;
     total += amtOf(f);
   });
   return total;
 }
-export function ffIncomeForMonth(savedFlows, masterData, year, month /* 1-12 */, group = '被動收入') {
+export function ffIncomeForMonth(savedFlows, masterData, year, month /* 1-12 */, group = '被動') {
   const curMap = window.buildCurMap(masterData);
   const amtOf = (f) => window.fxToTWD(f.amount, curMap[f.account]);
   let total = 0;
@@ -1462,12 +1451,12 @@ export function ffIncomeForMonth(savedFlows, masterData, year, month /* 1-12 */,
     if (f.kind !== 'inc' || !f.date) return;
     const d = f.date instanceof Date ? f.date : new Date(f.date);
     if (d.getFullYear() !== year || d.getMonth() + 1 !== month) return;
-    if (group !== 'total' && incGroupLabelOf(masterData, f.cat) !== group) return;
+    if (group !== 'total' && incGroupOf(masterData, f.cat) !== group) return;
     total += amtOf(f);
   });
   return total;
 }
-export function ffIncomeForQuarter(savedFlows, masterData, year, quarter /* 1-4 */, group = '被動收入') {
+export function ffIncomeForQuarter(savedFlows, masterData, year, quarter /* 1-4 */, group = '被動') {
   const curMap = window.buildCurMap(masterData);
   const amtOf = (f) => window.fxToTWD(f.amount, curMap[f.account]);
   let total = 0;
@@ -1475,7 +1464,7 @@ export function ffIncomeForQuarter(savedFlows, masterData, year, quarter /* 1-4 
     if (f.kind !== 'inc' || !f.date) return;
     const d = f.date instanceof Date ? f.date : new Date(f.date);
     if (d.getFullYear() !== year || Math.ceil((d.getMonth() + 1) / 3) !== quarter) return;
-    if (group !== 'total' && incGroupLabelOf(masterData, f.cat) !== group) return;
+    if (group !== 'total' && incGroupOf(masterData, f.cat) !== group) return;
     total += amtOf(f);
   });
   return total;
@@ -1901,7 +1890,7 @@ function NetWorthSheet({ open, onClose, total, computedAcctGroups, computedHoldi
   const [draftTargetMode, setDraftTargetMode] = useStateDash('amount');
   const [draftPercentValue, setDraftPercentValue] = useStateDash('');
   const [draftPeriodUnit, setDraftPeriodUnit] = useStateDash('year');
-  const [draftIncomeGroup, setDraftIncomeGroup] = useStateDash('被動收入');
+  const [draftIncomeGroup, setDraftIncomeGroup] = useStateDash('被動');
   const setGoals = (next) => { setGoalsRaw(next); ffSetSavingsGoals(next); };
   useEffectDash(() => { if (open) setEditingId(null); }, [open]);
 
@@ -1923,7 +1912,7 @@ function NetWorthSheet({ open, onClose, total, computedAcctGroups, computedHoldi
     setDraftType(type);
     setDraftName(''); setDraftAmount(''); setDraftYear(''); setDraftMonth('');
     setDraftAccountName(''); setDraftTargetMode('amount'); setDraftPercentValue(''); setDraftPeriodUnit('year');
-    setDraftIncomeGroup('被動收入');
+    setDraftIncomeGroup('被動');
     setEditingId('new');
   };
   const startEdit = (g) => {
@@ -1937,7 +1926,7 @@ function NetWorthSheet({ open, onClose, total, computedAcctGroups, computedHoldi
     setDraftTargetMode(g.targetMode || 'amount');
     setDraftPercentValue(g.percentValue ? String(g.percentValue) : '');
     setDraftPeriodUnit(g.periodUnit || 'year');
-    setDraftIncomeGroup(g.incomeGroup || '被動收入');
+    setDraftIncomeGroup(g.incomeGroup || '被動');
   };
   const saveGoal = () => {
     const name = draftName.trim() || '儲蓄目標';
@@ -1974,7 +1963,7 @@ function NetWorthSheet({ open, onClose, total, computedAcctGroups, computedHoldi
   // 收入目標的追蹤範圍選單：大類清單來自 masterData.inc_groups（使用者可自訂新增/刪除），
   // 「總收入」是額外加的固定選項（sentinel 'total'，不分大類全部加總）。
   const incGroupOptions = [{ key: 'total', label: '總收入' },
-    ...(masterData.inc_groups || []).map((g) => ({ key: INC_GROUP_LABEL[g.name] || g.name, label: INC_GROUP_LABEL[g.name] || g.name }))];
+    ...(masterData.inc_groups || []).map((g) => ({ key: g.name, label: g.name }))];
   // GoalEditForm/GoalTypePicker 是模組層級元件（見上方定義），draft 狀態透過這兩個東西傳入，
   // 而不是讓它們直接閉包捕捉一堆 draftXxx state。
   const draft = { name: draftName, amount: draftAmount, year: draftYear, month: draftMonth,

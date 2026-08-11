@@ -947,11 +947,10 @@ function nextAutoGroupColor(groupDefs) {
 }
 
 /* ── IncomeGroupManager: 主動 / 被動 / 其他（大類本身也可新增/編輯/刪除） ── */
-function IncomeGroupManager({ items, onChange, groupDefs, onGroupsChange, onBlocked, groupLabels, lockedGroups }) {
+function IncomeGroupManager({ items, onChange, groupDefs, onGroupsChange, onBlocked, lockedGroups }) {
   const { Plus, X, Check, Trash, Pencil } = window.Icons;
   const GROUPS = (groupDefs || []).map((g) => g.name);
   const GROUP_COLORS = Object.fromEntries((groupDefs || []).map((g) => [g.name, g.color]));
-  const GROUP_LABELS = groupLabels || {};
   const [editing, setEditing] = useStateSet(null); // { group, idx }
   const [editVal, setEditVal] = useStateSet('');
   const [adding, setAdding] = useStateSet(null); // group string
@@ -1031,7 +1030,6 @@ function IncomeGroupManager({ items, onChange, groupDefs, onGroupsChange, onBloc
     <div style={{ display: 'flex', flexDirection: 'column', gap: SP(16) }}>
       {GROUPS.map((g) => {
         const gc = GROUP_COLORS[g] || TOKENS.gray3;
-        const gl = GROUP_LABELS[g] || g;
         const gItems = normalised.filter((c) => c.group === g);
         return (
           <div key={g}>
@@ -1057,7 +1055,7 @@ function IncomeGroupManager({ items, onChange, groupDefs, onGroupsChange, onBloc
               <>
                 <div style={{ fontSize: FS(16), fontWeight: 600, color: gc, letterSpacing: 0.5,
                   textTransform: 'uppercase', flex: 1 }}>
-                  {gl}
+                  {g}
                 </div>
                 <button onClick={() => startEditGroup(g)} style={{ width: 26, height: 26, borderRadius: RS(7), flexShrink: 0,
                   background: 'rgba(0,0,0,0.06)', border: '1px solid rgba(0,0,0,0.12)',
@@ -1121,7 +1119,7 @@ function IncomeGroupManager({ items, onChange, groupDefs, onGroupsChange, onBloc
             <div style={{ display: 'flex', gap: SP(8) }}>
                 <input autoFocus value={addVal} onChange={(e) => setAddVal(e.target.value)}
               onKeyDown={(e) => e.key === 'Enter' && addItem(g)}
-              placeholder={`新增${gl}…`}
+              placeholder={`新增${g}…`}
               style={{ flex: 1, minWidth: 0, height: 36, padding: PAD('0 12px'), borderRadius: RS(10),
                 background: TOKENS.surface, border: `1px solid ${gc}55`,
                 fontSize: FS(18), color: TOKENS.ink, outline: 'none' }} />
@@ -1137,7 +1135,7 @@ function IncomeGroupManager({ items, onChange, groupDefs, onGroupsChange, onBloc
               height: 34, padding: PAD('0 14px'), borderRadius: RS(10),
               background: `${gc}10`, border: `1px dashed ${gc}55`, color: gc,
               fontSize: FS(17), fontWeight: 500, display: 'flex', alignItems: 'center', gap: SP(5) }}>
-                <Plus size={13} /> 新增{gl}項目
+                <Plus size={13} /> 新增{g}項目
               </button>
             }
           </div>);
@@ -1251,12 +1249,11 @@ function CategoriesManager({ data, onChange, onGroupsChange, onBlocked, color })
       {tab === 'cat_inc' ?
       <IncomeGroupManager items={data.cat_inc} onChange={(items) => onChange(items, tab)}
       groupDefs={data.inc_groups} onGroupsChange={(g) => onGroupsChange('inc_groups', g)}
-      onBlocked={onBlocked} lockedGroups={['主動', '被動', '投資收入']}
-      groupLabels={{ '主動': '主動收入', '被動': '被動收入', '投資收入': '投資收入', '其他': '其他' }} /> :
+      onBlocked={onBlocked} lockedGroups={['主動', '被動', '投資收入']} /> :
       tab === 'cat_exp' ?
       <IncomeGroupManager items={data.cat_exp} onChange={(items) => onChange(items, tab)}
       groupDefs={data.exp_groups} onGroupsChange={(g) => onGroupsChange('exp_groups', g)}
-      onBlocked={onBlocked} lockedGroups={['餐飲', '交通', '日常', '投資損失']} groupLabels={{}} /> :
+      onBlocked={onBlocked} lockedGroups={['餐飲', '交通', '日常', '投資損失']} /> :
       <StringListManager key={tab} items={data[tab]}
       onChange={(items) => onChange(items, tab)} color={color}
       placeholder={tab === 'asset_class' ? '新增股票類別…' : '新增分類…'} />

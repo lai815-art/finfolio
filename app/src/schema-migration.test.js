@@ -103,6 +103,35 @@ describe('migrateSchema', () => {
     expect(md.inc_groups.map((g) => g.name)).toEqual(['主動', '被動', '投資收入', '其他']);
   });
 
+  // 收入大類的顯示名對照表移除後，儲蓄目標存的舊顯示名要改回實際大類名，否則進度算不出來。
+  it('rewrites savings goal incomeGroup from the old display label to the real group name', () => {
+    localStorage.setItem('ff_master_data', JSON.stringify({
+      inc_groups: [{ name: '主動', color: '#1' }, { name: '被動', color: '#2' }]
+    }));
+    localStorage.setItem('ff_savings_goals', JSON.stringify([
+      { id: 'g1', type: 'passive_income', incomeGroup: '被動收入' },
+      { id: 'g2', type: 'passive_income', incomeGroup: '主動收入' },
+      { id: 'g3', type: 'passive_income', incomeGroup: 'total' },
+      { id: 'g4', type: 'networth' }
+    ]));
+
+    migrateSchema();
+
+    const goals = JSON.parse(localStorage.getItem('ff_savings_goals'));
+    expect(goals.map((g) => g.incomeGroup)).toEqual(['被動', '主動', 'total', undefined]);
+  });
+
+  it('keeps incomeGroup untouched when the user really named a group 被動收入', () => {
+    localStorage.setItem('ff_master_data', JSON.stringify({
+      inc_groups: [{ name: '被動收入', color: '#1' }]
+    }));
+    localStorage.setItem('ff_savings_goals', JSON.stringify([{ id: 'g1', incomeGroup: '被動收入' }]));
+
+    migrateSchema();
+
+    expect(JSON.parse(localStorage.getItem('ff_savings_goals'))[0].incomeGroup).toBe('被動收入');
+  });
+
   // 歷史匯入以前是照檔案原樣寫入代號的，帶字母尾碼的債券 ETF 可能存成小寫（00720b）。
   // 小寫代號抓不到收盤價，同一檔混用大小寫還會在持股頁被拆成兩列。
   it('upper-cases stock codes in existing trades, leaving already-upper-case ones untouched', () => {

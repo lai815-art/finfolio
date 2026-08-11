@@ -32,7 +32,7 @@ App 分四個主要分頁（底部 TabBar）＋一個全螢幕設定頁：
 **看板**
 1. As a 使用者, I want to 一眼看到本月的總收入與總支出（換算成台幣）, so that 我知道這個月花超過還是省下來
 2. As a 使用者, I want to 點開本月收支摘要，在「支出」或「收入」分頁自由切換「月/年」聚合單位，看該期間的大類圓餅圖（支出含投資損失，即總支出；圓餅圖進場時有展開動畫）與大類清單、下鑽子分類，並跟上一期（上月/去年）比較增減, so that 我能用同一套畫面看月支出、年支出、月收入、年收入，知道錢花在哪個類別最多
-3. As a 使用者, I want to 切到「趨勢」分頁選「月」看某一年 12 個月的收支走勢圖（主動收入/被動收入/投資損益/其他/消費支出），折線進場有畫出動畫，且能點圖例單獨隱藏/顯示某一條線, so that 我能看出收支的季節性變化，也能只留下我想比較的那幾條線
+3. As a 使用者, I want to 切到「趨勢」分頁選「月」看某一年 12 個月的收支走勢圖（各收入大類/投資損益/消費支出），折線進場有畫出動畫，且能點圖例單獨隱藏/顯示某一條線, so that 我能看出收支的季節性變化，也能只留下我想比較的那幾條線
 4. As a 使用者, I want to 切到「趨勢」分頁選「年」看多年（每頁 10 年）的收支走勢, so that 我能評估長期的財務趨勢
 5. As a 使用者, I want to 點圖表上任一根柱子/任一列看細項彈窗, so that 我能追查某個月/某年為什麼特別高或低
 6. As a 使用者, I want to 點開「資產淨額明細」看現金/存款/各投資分類的圓餅圖與負債明細, so that 我知道淨資產的組成
@@ -113,7 +113,7 @@ App 分四個主要分頁（底部 TabBar）＋一個全螢幕設定頁：
 | `ff_lock_pin` / `ff_lock_salt` / `ff_lock_bio` / `ff_lock_cred` | App 鎖 PIN（雜湊存放，不存明碼）與生物辨識憑證 |
 | `ff_auto_snapshot` / `ff_last_auto_backup` | 未加密的本機自動快照 |
 | `ff_savings_goals` | 財務目標陣列，每筆依 `type` 有不同欄位（見下方「財務目標」章節）；舊版單一目標 `ff_savings_goal` 讀取時自動遷移進來 |
-| `ff_schema_version` | schema migration 版本號（目前 `SCHEMA_VERSION=4`） |
+| `ff_schema_version` | schema migration 版本號（目前 `SCHEMA_VERSION=5`） |
 
 備份/還原、自動快照、清除功能都是**掃描所有 `ff_*` 開頭的 key**來運作，之後新增任何 `ff_*` key 會自動被納入，不需要額外改動備份邏輯。
 
@@ -163,7 +163,7 @@ App 分四個主要分頁（底部 TabBar）＋一個全螢幕設定頁：
 **財務目標**（`NetWorthSheet` 的「財務目標」頁籤，dashboard.jsx）
 - `GOAL_TYPES` 設定陣列驅動類型選單與表單欄位：`networth`（淨資產於指定年月達標）、`account`（單一帳戶餘額達標，無期限）、`passive_income`／`balance`（收入目標／收支結餘，皆為週期性目標）。新增目標先選類型、再依類型顯示對應欄位；類型建立後不可更改，要換類型只能刪除重建。`passive_income` 這個 key 沿用舊資料的 `type` 值沒有改名，只有 UI 上的 label 改叫「收入目標」。
 - 週期性目標（`recurring: true` 的兩種）沒有目標年月欄位，改成 `periodUnit: 'month'|'quarter'|'year'` 讓使用者自選，以及 `targetMode: 'amount'|'percent'`：固定金額直接比 `amount`；%成長模式比對象是「上一期實際值」（`percentValue`，例如 4 代表比上一期成長 4%），基準每期自動滾動往前推進，上一期沒資料時顯示「尚無上一期資料可比較」。三種單位的聚合函式（`ffIncomeForYear/Month/Quarter`、`ffYearlyBalance`/`ffMonthlyBalance`/`ffQuarterlyBalance`）透過 `PERIOD_METRIC_GETTERS` 對照表查表呼叫，不用為月/季/年各寫一次判斷；季度用 `Math.ceil(month/3)` 換算成 1-4，歷史圓點的期間序列由 `ffQuarterSeries` 產生（往回抓 9 期，約 2 年）。
-- 收入目標（`passive_income` 類型）的追蹤範圍：一個下拉選單（`<select>`），`goal.incomeGroup` 存的是「大類顯示名稱」（例如 `被動收入`、`投資收入`，跟 `MonthlyStatsSheet` 的 `INC_LABEL` 轉換規則一致）或 sentinel 值 `'total'`（不分大類，全部收入加總）。選單清單動態產生自 `masterData.inc_groups`（使用者可自訂新增/刪除大類，新增的大類會自動出現在選單裡），最前面固定加一個「總收入」。舊資料沒有 `incomeGroup` 欄位時，`ffIncomeForYear/Month` 的第 4 個參數預設 `'被動收入'`，維持改版前「固定只算被動收入」的行為，不用另外寫遷移程式。
+- 收入目標（`passive_income` 類型）的追蹤範圍：一個下拉選單（`<select>`），`goal.incomeGroup` 存的是**實際大類名稱**（`masterData.inc_groups` 的 `name`，例如 `被動`、`投資收入`）或 sentinel 值 `'total'`（不分大類，全部收入加總）。選單清單動態產生自 `masterData.inc_groups`（使用者可自訂新增/刪除/改名大類，新增的大類會自動出現在選單裡），最前面固定加一個「總收入」。舊資料沒有 `incomeGroup` 欄位時，`ffIncomeForYear/Month` 的第 4 個參數預設 `'被動'`，維持改版前「固定只算被動收入」的行為。schema v5 之前存的是舊的顯示名（`被動收入`），由 `migrateSchema` 一次性改寫回實際大類名。
 - 股票已實現損益曾是第三種週期性目標，後來整個拿掉（`GOAL_TYPES` 移除該項、`ffRealizedPnlForYear/Month` 一併刪除，未保留過渡相容），現在只剩收入目標／收支結餘兩種週期性目標。
 - 歷史達成率（週期性目標專屬）：對每個「有資料的過去期間」重新解析當期目標值（%模式一樣滾動跟上一期比），畫成小圓點列＋「近N期達成X次」文字；不需要另外儲存歷史快照，全部即時從 `savedFlows` 現算，向前推算的期數受 `savedFlows` 最早一筆記錄裁剪，避免對沒有資料的期間生出假的「未達成」圓點。
 - `account` 類型的進度計算：一般帳戶直接用 `computedAcctGroups` 裡的 `amountTWD`；若選到的是證券戶（比對 `masterData.brokers`），要額外加上 `computedHoldings` 裡 `broker` 相符的持倉市值加總，否則只會看到交割戶現金、少算股票市值。帳戶選單排除信用卡群組（負債，拿來當餘額目標語意不合）。
@@ -230,6 +230,6 @@ App 分四個主要分頁（底部 TabBar）＋一個全螢幕設定頁：
 
 ## Further Notes
 
-- **README 的待辦清單已經過期，請勿照抄**：README 列的 7 項待辦裡，「加密備份匯出入」與「真實每日收盤市價」其實都已經做完了；「資料版本/migration」已經有基礎機制（`SCHEMA_VERSION=4`）但可能還不完整；只有配色、賣股標示、初始餘額 id、AI 顧問正式上線這幾項是真的還沒做。建議找時間更新 README，避免之後又照著舊清單重工。
+- **README 的待辦清單已經過期，請勿照抄**：README 列的 7 項待辦裡，「加密備份匯出入」與「真實每日收盤市價」其實都已經做完了；「資料版本/migration」已經有基礎機制（`SCHEMA_VERSION=5`）但可能還不完整；只有配色、賣股標示、初始餘額 id、AI 顧問正式上線這幾項是真的還沒做。建議找時間更新 README，避免之後又照著舊清單重工。
 - `project/` 資料夾是另存的設計原型，跟 `app/` 的實際程式碼是兩條線，兩邊如果之後要同步視覺設計，需要人工比對，沒有自動化的設計稿轉程式碼流程。
 - 本文件依照 `mattpocock/skills` 的 `to-spec` 模板搭配 `/grill-me` 質詢流程產出，撰寫過程中的關鍵決策記錄在對話紀錄中（範圍、AI 顧問處理方式、README 落差的處理方式等）。
