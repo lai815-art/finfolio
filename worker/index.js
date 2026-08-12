@@ -4,11 +4,20 @@
  *   GET /quotes?codes=2330,0050,00679B
  *     → { date, prices: { "2330": 2400, ... }, fx: { USD: 31.5 }, source }
  *
+ *   GET /fundamentals?codes=2330,AAPL
+ *     → { date, items: { "2330": { epsAnnual, epsQuarters, epsTTM, epsTTMPrev, forward?, source } },
+ *         missing, partial, forwardSource }
+ *
+ *   GET /estimates?code=2330
+ *     → { date, code, symbol, currency, periods, target, ratings, source }
+ *
  * Privacy: only stock CODES are sent here — never holdings, amounts or identity.
  * Taiwan price: TWSE MIS latest trade/close (server-side, no CORS), with the
  *   TWSE/TPEX daily-close open data as a fallback.
  * US stocks require a Finnhub key (env.FINNHUB_KEY); without it, US codes are
  *   omitted and the app falls back to the user's transaction price.
+ * EPS: Taiwan via FinMind (keyless); US via SEC EDGAR, which needs a contact
+ *   e-mail in env.SEC_CONTACT — without it US codes report no EPS.
  */
 
 const CORS = {
@@ -26,6 +35,18 @@ const todayStr = () => {
 };
 
 const isTW = (code) => /^\d/.test(String(code || ''));
+// 查詢用大寫、去重；回應時再照「前端問的那個寫法」把值放回去。
+// 前端是用 livePrices[trade.code] 直接取值的，只回大寫 key 的話，資料裡存成小寫的
+// 代號一樣拿不到值（而且是靜默的：UI 只會顯示不到收盤價，不會報錯）。
+function parseCodes(url) {
+  const askedBy = new Map(); // 大寫代號 → 前端原本的寫法（可能有多種）
+  (url.searchParams.get('codes') || '').split(',').map((s) => s.trim()).filter(Boolean).forEach((c) => {
+    const n = norm(c);
+    if (!askedBy.has(n)) askedBy.set(n, []);
+    askedBy.get(n).push(c);
+  });
+  return { askedBy, codes: [...askedBy.keys()] };
+}
 // 查上游一律用大寫代號。MIS 的 ex_ch 區分大小寫：tse_00720b.tw 回空值，tse_00720B.tw 才有價，
 // 所以帶字母尾碼的代號（債券 ETF 00720B/00751B/00795B…）只要大小寫不合就整檔查不到。
 const norm = (code) => String(code || '').trim().toUpperCase();
@@ -333,6 +354,351 @@ async function getUSList(env, ctx) {
   return list;
 }
 
+/* ─── Fundamentals（EPS）────────────────────────────────────────────────
+ * 只回「單季 EPS 聚合出來的年度 EPS 與 TTM」，本益比與 PEG 一律交給前端算：
+ * 現價本來就在前端手上，而且使用者要能手動覆寫成長率，指標留在前端才有單一計算點。
+ * 這也讓這裡不必再多抓 TWSE BWIBBU_ALL / TPEx 本益比兩份全市場總表。
+ */
+
+// 財報是季頻資料，快取以「月」為單位；跨月自然重抓一次。
+// 版本號隨回傳形狀變動要 bump：快取是以「月」為單位，不換 key 的話舊形狀會活到下個月。
+// v4：預估搬去獨立的日快取後，這份月快取只存 EPS，先前把 forward 一起塞進去的舊項目要作廢。
+const FUND_KEY = (code) => new Request(`https://ff-cache.local/fund/v4/${code}/${todayStr().slice(0, 7)}`);
+const daysBetween = (a, b) => Math.round((Date.parse(b) - Date.parse(a)) / 86400000);
+const round2 = (n) => Math.round(n * 100) / 100;
+
+// SEC 要求每個請求都帶「名稱 + 聯絡 email」形式的 User-Agent，格式不合就直接 403
+// （實測 'FinFolio/1.0 (…github.com/…)' 這種帶括號的寫法會被擋）。這個 repo 是公開的，
+// 信箱不寫死在程式碼裡：沒設定 env.SEC_CONTACT 就整個不打 SEC，美股當作查無 EPS——
+// 比照 FINNHUB_KEY 的做法，要開只需 `npx wrangler secret put SEC_CONTACT`。
+const secHeaders = (env) => ({ 'User-Agent': env.SEC_CONTACT });
+
+// 前端的每股盈餘圖表可切「年/季」，季圖只畫最近三年，再往前的季資料細到看不出趨勢。
+const EPS_QUARTERS_KEPT = 12;
+
+// 單季 EPS 序列 → { epsAnnual, epsQuarters, epsTTM, epsTTMPrev }。台股與美股共用同一套聚合。
+// 年度只收「湊滿四季」的年份——少一季的和拿去算成長率會憑空多出一個假的衰退年。
+function aggregateEps(quarters) {
+  const byEnd = new Map();
+  quarters.forEach((q) => { if (q && q.end && q.val != null) byEnd.set(q.end, q.val); });
+  const sorted = [...byEnd.entries()].map(([end, val]) => ({ end, val })).sort((a, b) => (a.end < b.end ? -1 : 1));
+
+  const years = {};
+  sorted.forEach((q) => { const y = q.end.slice(0, 4); (years[y] = years[y] || []).push(q.val); });
+  const epsAnnual = {};
+  Object.keys(years).forEach((y) => {
+    if (years[y].length === 4) epsAnnual[y] = round2(years[y].reduce((a, b) => a + b, 0));
+  });
+
+  // 往回數第 back 組的四季加總。四季的頭尾必須相距約九個月（Q1 季底→Q4 季底），
+  // 中間缺一季就回 null：寧可沒有 TTM，也不要拿三季的和當成一年在算本益比。
+  const ttmAt = (back) => {
+    const end = sorted.length - back;
+    if (end < 4) return null;
+    const seg = sorted.slice(end - 4, end);
+    const span = daysBetween(seg[0].end, seg[3].end);
+    if (span < 240 || span > 310) return null;
+    return round2(seg.reduce((a, q) => a + q.val, 0));
+  };
+
+  return {
+    epsAnnual,
+    epsQuarters: sorted.slice(-EPS_QUARTERS_KEPT).map((q) => ({ end: q.end, val: round2(q.val) })),
+    epsTTM: ttmAt(0), epsTTMPrev: ttmAt(4),
+  };
+}
+
+// 台股單季 EPS：FinMind 的 TaiwanStockFinancialStatements（type=EPS）給的是「單季」值，
+// 不是累計數（實測 2330 2020 四季相加 19.97，與公告全年 EPS 相符），可以直接餵給 aggregateEps。
+async function getTWEps(code) {
+  const from = `${Number(todayStr().slice(0, 4)) - 6}-01-01`;
+  const url = 'https://api.finmindtrade.com/api/v4/data?dataset=TaiwanStockFinancialStatements' +
+    `&data_id=${encodeURIComponent(code)}&start_date=${from}`;
+  const r = await fetch(url, { cf: { cacheTtl: 86400 } });
+  if (!r.ok) return null;
+  const d = await r.json();
+  const rows = (d && Array.isArray(d.data) ? d.data : []).filter((x) => x && x.type === 'EPS');
+  if (!rows.length) return null;
+  return rows.map((x) => ({ end: String(x.date), val: num(x.value) }));
+}
+
+// ticker → CIK 對照（約 1MB，全市場一份），快取一天。SEC 的 companyconcept 只吃 CIK。
+async function getCikMap(env, ctx) {
+  const cache = caches.default;
+  const key = new Request(`https://ff-cache.local/sec-cik/v1/${todayStr()}`);
+  try {
+    const hit = await cache.match(key);
+    if (hit) return hit.json();
+  } catch (e) { /* 讀不到就重建 */ }
+  const map = {};
+  try {
+    const r = await fetch('https://www.sec.gov/files/company_tickers.json', { headers: secHeaders(env), cf: { cacheTtl: 86400 } });
+    if (r.ok) {
+      const d = await r.json();
+      Object.keys(d || {}).forEach((k) => {
+        const row = d[k];
+        if (row && row.ticker && row.cik_str) map[String(row.ticker).toUpperCase()] = String(row.cik_str).padStart(10, '0');
+      });
+    }
+  } catch (e) { /* ignore — 這次就當查無資料 */ }
+  if (Object.keys(map).length > 100) {
+    ctx.waitUntil(cache.put(key, new Response(JSON.stringify(map), {
+      headers: { 'Content-Type': 'application/json', 'Cache-Control': 'public, max-age=86400' },
+    })));
+  }
+  return map;
+}
+
+// SEC XBRL 的單筆事實只有 start/end，沒有「這是第幾季」；用區間長度分辨年報與季報。
+const isAnnualFact = (f) => { const d = daysBetween(f.start, f.end); return d >= 340 && d <= 400; };
+const isQuarterFact = (f) => { const d = daysBetween(f.start, f.end); return d >= 80 && d <= 100; };
+
+// 10-Q 只涵蓋前三個會計季，第四季只出現在 10-K 的全年數字裡，所以季序列固定會缺 Q4。
+// 用「全年 − 該年已知的三季」把缺的那一季補回來，TTM 才算得出來。
+function fillMissingQuarter(annuals, quarters) {
+  const out = quarters.slice();
+  annuals.forEach((a) => {
+    const inside = out.filter((q) => q.end > a.start && q.end <= a.end);
+    if (inside.length !== 3) return;
+    // 三季都落在年度結束前兩個月以上 → 缺的必定是最後一季，季底就是年度結束日。
+    if (inside.some((q) => daysBetween(q.end, a.end) < 60)) return;
+    if (out.some((q) => q.end === a.end)) return;
+    out.push({ end: a.end, val: round2(a.val - inside.reduce((s, q) => s + q.val, 0)) });
+  });
+  return out;
+}
+
+// 美股單季 EPS：SEC EDGAR companyconcept（免金鑰、官方、含歷史）。
+// 稀釋 EPS 為主，公司沒報就退回基本 EPS。
+async function getUSEps(code, env, ctx) {
+  if (!env || !env.SEC_CONTACT) return null; // 沒設聯絡信箱就不打 SEC
+  const cikMap = await getCikMap(env, ctx);
+  const cik = cikMap[norm(code)];
+  if (!cik) return null;
+  for (const tag of ['EarningsPerShareDiluted', 'EarningsPerShareBasic']) {
+    try {
+      const r = await fetch(`https://data.sec.gov/api/xbrl/companyconcept/CIK${cik}/us-gaap/${tag}.json`, {
+        headers: secHeaders(env), cf: { cacheTtl: 86400 },
+      });
+      if (!r.ok) continue;
+      const d = await r.json();
+      const facts = (d && d.units && d.units['USD/shares']) || [];
+      if (!facts.length) continue;
+      // 同一期間會被多份報告重覆申報（後期報告含重編值）；以最後申報的為準。
+      const pick = (list) => {
+        const by = new Map();
+        list.forEach((f) => {
+          const prev = by.get(f.end);
+          if (!prev || String(f.filed) > String(prev.filed)) by.set(f.end, f);
+        });
+        return [...by.values()];
+      };
+      const annuals = pick(facts.filter(isAnnualFact)).map((f) => ({ start: f.start, end: f.end, val: f.val }));
+      const quarters = pick(facts.filter(isQuarterFact)).map((f) => ({ end: f.end, val: f.val }));
+      if (!annuals.length && !quarters.length) continue;
+      return fillMissingQuarter(annuals, quarters);
+    } catch (e) { /* 換下一個 tag */ }
+  }
+  return null;
+}
+
+/* ── 分析師共識 EPS 預估（Yahoo）──────────────────────────────────────
+   PEG 的原意是用「未來」成長折現本益比，但 FinMind 與 SEC 都只有已公布的財報。
+   台股的法人共識在免費來源幾乎不存在（FinMind 103 個資料集沒有任何預估類；
+   TWSE 的上市公司財測全市場只有個位數家申報），Yahoo 是唯一拿得到的地方。
+
+   代價是 quoteSummary 需要 cookie + crumb，屬於非正規管道，Yahoo 隨時可以關掉。
+   所以整條路徑都是 best-effort：拿不到就沒有 forward 欄位，EPS 主資料不受影響。 */
+const YH_UA = 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36';
+
+// cookie + crumb 取一次共用。呼叫端要在扇出前先取好，否則每個代號都會各自撞一次
+// 快取未命中，把 Yahoo 的限流打爆（本機 IP 就是這樣被鎖了一個多小時）。
+async function getYahooAuth(ctx) {
+  const cache = caches.default;
+  const key = new Request(`https://ff-cache.local/yh-auth/v1/${todayStr()}`);
+  try {
+    const hit = await cache.match(key);
+    if (hit) return hit.json();
+  } catch (e) { /* 讀不到就重取 */ }
+  try {
+    const r1 = await fetch('https://fc.yahoo.com', { headers: { 'User-Agent': YH_UA } });
+    const cookie = (r1.headers.getSetCookie ? r1.headers.getSetCookie() : [])
+      .map((c) => c.split(';')[0]).join('; ');
+    if (!cookie) return null;
+    const r2 = await fetch('https://query1.finance.yahoo.com/v1/test/getcrumb', {
+      headers: { 'User-Agent': YH_UA, Cookie: cookie, Referer: 'https://finance.yahoo.com/' },
+    });
+    if (!r2.ok) return null;
+    const crumb = (await r2.text()).trim();
+    // 被限流時這個端點回的是「Too Many Requests」這串字而不是錯誤碼，長度與空白足以分辨。
+    if (!crumb || crumb.length > 30 || /\s/.test(crumb)) return null;
+    const auth = { cookie, crumb };
+    ctx.waitUntil(cache.put(key, new Response(JSON.stringify(auth), {
+      headers: { 'Content-Type': 'application/json', 'Cache-Control': 'public, max-age=21600' },
+    })).catch(() => {}));
+    return auth;
+  } catch (e) { return null; }
+}
+
+// 台股要試 .TW（上市）與 .TWO（上櫃）兩個後綴：實測 2330 只有 .TW 有、5274 只有 .TWO 有，
+// 猜錯後綴就是整檔 404，跟「沒有分析師覆蓋」長得一模一樣。
+const yahooSymbols = (code) => (isTW(code) ? [`${code}.TW`, `${code}.TWO`] : [code]);
+
+// 依序試每個後綴，回第一個查得到的。/fundamentals 的預估與 /estimates 的明細共用這支，
+// 後綴 fallback 只留一份。
+async function yahooQuoteSummary(code, auth, modules) {
+  if (!auth) return null;
+  for (const symbol of yahooSymbols(code)) {
+    try {
+      const u = `https://query1.finance.yahoo.com/v10/finance/quoteSummary/${encodeURIComponent(symbol)}` +
+        `?modules=${encodeURIComponent(modules)}&crumb=${encodeURIComponent(auth.crumb)}`;
+      const r = await fetch(u, {
+        headers: { 'User-Agent': YH_UA, Cookie: auth.cookie, Referer: 'https://finance.yahoo.com/' },
+        cf: { cacheTtl: 86400 },
+      });
+      if (!r.ok) continue;
+      const d = await r.json();
+      const res = d && d.quoteSummary && d.quoteSummary.result && d.quoteSummary.result[0];
+      if (res) return { res, symbol };
+    } catch (e) { /* 換下一個後綴 */ }
+  }
+  return null;
+}
+
+// Yahoo 的數值一律包成 { raw, fmt }，取不到時整個欄位可能不存在。
+const yhNum = (o) => (o && typeof o.raw === 'number' ? o.raw : null);
+
+async function getForwardEps(code, auth) {
+  const hit = await yahooQuoteSummary(code, auth, 'earningsTrend');
+  if (!hit) return null;
+  const trend = hit.res.earningsTrend && hit.res.earningsTrend.trend || [];
+  const avgOf = (period) => {
+    const t = trend.find((x) => x.period === period);
+    const e = t && t.earningsEstimate;
+    const v = yhNum(e && e.avg);
+    return v == null ? null : { avg: v, n: yhNum(e.numberOfAnalysts) };
+  };
+  // 0y = 本會計年度預估、+1y = 下一年度。兩個都要有才算得出預估成長率。
+  const y0 = avgOf('0y');
+  const y1 = avgOf('+1y');
+  if (!y0 || !y1) return null;
+  return { eps0y: round2(y0.avg), eps1y: round2(y1.avg), analysts: y1.n || null, symbol: hit.symbol };
+}
+
+/* ── 分析師預估明細（/estimates）─────────────────────────────────────
+   列表上只顯示一個平均值，但共識的「品質」比平均值更值得看：實測 2330 明年預估
+   平均 138.43、區間卻是 93.3～159.67，同一個 PEG 0.78 照最低估值算會變成 1.2。
+   所以這裡把區間、家數、以及預估最近被調升還是調降都帶出來。 */
+const EST_KEY = (code) => new Request(`https://ff-cache.local/est/v1/${code}/${todayStr()}`);
+const EST_PERIODS = ['0q', '+1q', '0y', '+1y'];
+
+function shapeEstimates(res, symbol) {
+  const trend = res.earningsTrend && res.earningsTrend.trend || [];
+  const periods = EST_PERIODS.map((key) => {
+    const t = trend.find((x) => x.period === key);
+    if (!t) return null;
+    const e = t.earningsEstimate || {};
+    const tr = t.epsTrend || {};
+    const rv = t.epsRevisions || {};
+    if (yhNum(e.avg) == null) return null;
+    return {
+      key, endDate: t.endDate || null,
+      avg: yhNum(e.avg), low: yhNum(e.low), high: yhNum(e.high),
+      analysts: yhNum(e.numberOfAnalysts), yearAgo: yhNum(e.yearAgoEps),
+      growth: yhNum(t.growth),
+      trend: { current: yhNum(tr.current), d30: yhNum(tr['30daysAgo']), d90: yhNum(tr['90daysAgo']) },
+      revisions: { up30: yhNum(rv.upLast30days), down30: yhNum(rv.downLast30days) },
+    };
+  }).filter(Boolean);
+
+  const fd = res.financialData || {};
+  const mean = yhNum(fd.targetMeanPrice);
+  const target = mean == null ? null : {
+    mean, high: yhNum(fd.targetHighPrice), low: yhNum(fd.targetLowPrice),
+    analysts: yhNum(fd.numberOfAnalystOpinions), key: fd.recommendationKey || null,
+  };
+
+  const recTrend = res.recommendationTrend && res.recommendationTrend.trend || [];
+  const r0 = recTrend[0];
+  const ratings = r0 ? {
+    strongBuy: r0.strongBuy || 0, buy: r0.buy || 0, hold: r0.hold || 0,
+    sell: r0.sell || 0, strongSell: r0.strongSell || 0,
+  } : null;
+
+  return { symbol, currency: fd.financialCurrency || null, periods, target, ratings };
+}
+
+async function getEstimates(code, auth, ctx) {
+  const cache = caches.default;
+  const key = EST_KEY(code);
+  try {
+    const hit = await cache.match(key);
+    if (hit) return hit.json();
+  } catch (e) { /* 讀不到就重查 */ }
+  // Yahoo 整個不可用時不寫快取，否則會把「暫時拿不到」記成「今天沒有」。
+  if (!auth) return null;
+  const hit = await yahooQuoteSummary(code, auth, 'earningsTrend,financialData,recommendationTrend');
+  const out = hit ? shapeEstimates(hit.res, hit.symbol) : { symbol: null, currency: null, periods: [], target: null, ratings: null };
+  ctx.waitUntil(cache.put(key, new Response(JSON.stringify(out), {
+    headers: { 'Content-Type': 'application/json', 'Cache-Control': 'public, max-age=86400' },
+  })).catch(() => {}));
+  return out;
+}
+
+// 法人預估獨立快取一天，不跟 EPS 綁在同一份月快取裡：分析師隨時在調預估，而且 Yahoo
+// 偶爾會抽風。綁在一起的話，一次暫時性失敗會讓這檔整整一個月都沒有預估，而且使用者
+// 從前端按刷新也救不回來（那只清得掉前端快取，清不掉這裡）。
+const FWD_KEY = (code) => new Request(`https://ff-cache.local/fwd/v1/${code}/${todayStr()}`);
+
+async function getForwardCached(code, auth, ctx) {
+  const cache = caches.default;
+  const key = FWD_KEY(code);
+  try {
+    const hit = await cache.match(key);
+    if (hit) { const v = await hit.json(); return v.forward || null; }
+  } catch (e) { /* 讀不到就重查 */ }
+  // Yahoo 整個不可用時不要寫快取，否則會把「暫時拿不到」記成「今天沒有」。
+  if (!auth) return null;
+  const forward = await getForwardEps(code, auth).catch(() => null);
+  ctx.waitUntil(cache.put(key, new Response(JSON.stringify({ forward }), {
+    headers: { 'Content-Type': 'application/json', 'Cache-Control': 'public, max-age=86400' },
+  })).catch(() => {}));
+  return forward;
+}
+
+// 單一代號的基本面。EPS 走月快取、預估走日快取，兩者在這裡合起來。
+// 查不到 EPS 就回 null，交給呼叫端記進 missing。
+async function getFundamental(code, env, ctx, yhAuth) {
+  const cache = caches.default;
+  const key = FUND_KEY(code);
+  let base = null;
+  try {
+    const hit = await cache.match(key);
+    if (hit) base = await hit.json();
+  } catch (e) { /* 讀不到就重查 */ }
+
+  if (!base) {
+    let quarters = null;
+    const source = isTW(code) ? 'finmind' : 'sec-edgar';
+    try {
+      quarters = isTW(code) ? await getTWEps(code) : await getUSEps(code, env, ctx);
+    } catch (e) { return null; }
+    if (!quarters || !quarters.length) return null;
+
+    const agg = aggregateEps(quarters);
+    // 年度與 TTM 全空表示這檔沒有 EPS 可談（ETF、債券 ETF、剛上市），當作查無資料。
+    if (!Object.keys(agg.epsAnnual).length && agg.epsTTM == null) return null;
+    base = { ...agg, source };
+    ctx.waitUntil(cache.put(key, new Response(JSON.stringify(base), {
+      headers: { 'Content-Type': 'application/json', 'Cache-Control': 'public, max-age=2592000' },
+    })).catch(() => {}));
+  }
+
+  // 預估是加分項，不是必要條件：Yahoo 掛掉或這檔沒人覆蓋，就只是少一個 forward 欄位。
+  const forward = await getForwardCached(code, yhAuth, ctx);
+  return forward ? { ...base, forward } : base;
+}
+
 export default {
   async fetch(request, env, ctx) {
     if (request.method === 'OPTIONS') return new Response(null, { status: 204, headers: CORS });
@@ -341,20 +707,42 @@ export default {
       const [list, us] = await Promise.all([getTWList(ctx), getUSList(env, ctx)]);
       return json({ stocks: list, us });
     }
-    if (url.pathname !== '/quotes') {
-      return new Response('FinFolio price service · /quotes?codes=2330,0050 · /stocks', { status: url.pathname === '/' ? 200 : 404, headers: CORS });
+    if (url.pathname === '/fundamentals') {
+      const { askedBy, codes } = parseCodes(url);
+      const items = {};
+      const missing = [];
+      // cookie + crumb 在扇出前先取好，所有代號共用一份。
+      const yhAuth = await getYahooAuth(ctx).catch(() => null);
+      const results = await Promise.all(codes.slice(0, 60).map(async (c) => {
+        try { return [c, await getFundamental(c, env, ctx, yhAuth)]; } catch (e) { return [c, null]; }
+      }));
+      results.forEach(([n, item]) => {
+        const originals = askedBy.get(n) || [n];
+        if (item) originals.forEach((c) => { items[c] = item; });
+        else originals.forEach((c) => missing.push(c));
+      });
+      // 比照 /quotes：缺資料只標 partial，永遠回 200，不讓前端整批丟棄查得到的部分。
+      // forwardSource 讓之後排查時分得出「Yahoo 沒回」與「這檔沒人覆蓋」——兩者在畫面上
+      // 都是沒有預估，但一個要修、一個是正常的。
+      return json({ date: todayStr(), items, missing, partial: missing.length > 0,
+        forwardSource: yhAuth ? 'yahoo' : 'unavailable' });
     }
-    // 查詢用大寫、去重；回應時再照「前端問的那個寫法」把價格放回去。
-    // 前端是用 livePrices[trade.code] 直接取值的，只回大寫 key 的話，資料裡存成小寫的
-    // 代號一樣拿不到價（而且是靜默的：UI 只會顯示不到收盤價，不會報錯）。
-    const asked = (url.searchParams.get('codes') || '').split(',').map((s) => s.trim()).filter(Boolean);
-    const askedBy = new Map(); // 大寫代號 → 前端原本的寫法（可能有多種）
-    asked.forEach((c) => {
-      const n = norm(c);
-      if (!askedBy.has(n)) askedBy.set(n, []);
-      askedBy.get(n).push(c);
-    });
-    const codes = [...askedBy.keys()];
+    if (url.pathname === '/estimates') {
+      const code = norm(url.searchParams.get('code') || '');
+      if (!code) return json({ date: todayStr(), code: '', periods: [], target: null, ratings: null, source: 'unavailable' });
+      const auth = await getYahooAuth(ctx).catch(() => null);
+      let out = null;
+      try { out = await getEstimates(code, auth, ctx); } catch (e) { /* best-effort */ }
+      // 比照其他端點：永遠回 200，拿不到就靠 source 講清楚是「Yahoo 沒回」而不是「這檔沒資料」。
+      return json({ date: todayStr(), code,
+        symbol: out && out.symbol || null, currency: out && out.currency || null,
+        periods: out && out.periods || [], target: out && out.target || null, ratings: out && out.ratings || null,
+        source: auth ? 'yahoo' : 'unavailable' });
+    }
+    if (url.pathname !== '/quotes') {
+      return new Response('FinFolio price service · /quotes?codes=2330,0050 · /stocks · /fundamentals?codes=2330,AAPL · /estimates?code=2330', { status: url.pathname === '/' ? 200 : 404, headers: CORS });
+    }
+    const { askedBy, codes } = parseCodes(url);
     const twCodes = codes.filter(isTW);
     const usCodes = codes.filter((c) => !isTW(c));
 

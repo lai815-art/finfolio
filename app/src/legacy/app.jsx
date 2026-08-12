@@ -9,6 +9,9 @@ window.navigator && window.navigator.standalone === true);
 // 獨立 App 不畫假狀態列：頂部留白用 index.html fit() 算好的 --ff-main-top
 // （畫布外探針量真實安全區、除以縮放比 k 校正，再收 8px）。
 // 舊寫法 env()−18px 沒做縮放校正、又收太多，右上角眼睛按鈕會頂進系統狀態列被切到。
+// ff_fundamentals 的快取形狀版本。Worker 的 /fundamentals 多回欄位時要 +1，
+// 否則快取是以「月」為單位，使用者要等到下個月才看得到新欄位。
+const FUND_CACHE_V = 3;
 const TOP_INSET = IS_STANDALONE ? 'var(--ff-main-top, 44px)' : '62px';
 const SBAR_H = TOP_INSET;
 const CONTENT_TOP = IS_STANDALONE ? `calc(${TOP_INSET} + 60px)` : '122px';
@@ -648,6 +651,7 @@ function App() {
   const [statsOpen, setStatsOpen] = useStateApp(false);
   const [netWorthOpen, setNetWorthOpen] = useStateApp(false);
   const [investBreakdownOpen, setInvestBreakdownOpen] = useStateApp(false);
+  const [valuationOpen, setValuationOpen] = useStateApp(false);
   const [acctDetail, setAcctDetail] = useStateApp(null);
   const [investDetail, setInvestDetail] = useStateApp(null);
   const [acctOverrides, setAcctOverrides] = useStateApp({});
@@ -681,6 +685,25 @@ function App() {
   });
   const savedTradesRef = React.useRef([]);
 
+  // 估值分析：關注清單（未持有但想追蹤的標的）與手動覆寫的成長率。
+  // 兩個 key 都是 ff_ 前綴，備份／還原／清除會自動涵蓋，不用改 settings。
+  const [watchlist, setWatchlist] = useStateApp(() => {
+    try {const s = localStorage.getItem('ff_watchlist');if (s) return JSON.parse(s);} catch {}
+    return [];
+  });
+  useEffectApp(() => {
+    try {localStorage.setItem('ff_watchlist', JSON.stringify(watchlist));} catch {}
+  }, [watchlist]);
+  const [valuationOverride, setValuationOverride] = useStateApp(() => {
+    try {const s = localStorage.getItem('ff_valuation_override');if (s) return JSON.parse(s);} catch {}
+    return {};
+  });
+  useEffectApp(() => {
+    try {localStorage.setItem('ff_valuation_override', JSON.stringify(valuationOverride));} catch {}
+  }, [valuationOverride]);
+  const watchlistRef = React.useRef([]);
+  useEffectApp(() => {watchlistRef.current = watchlist;}, [watchlist]);
+
   // Daily-close prices via the FinFolio price Worker (sends only stock codes).
   // Shows cached prices instantly; this refreshes in the background / on demand.
   // If the service is unset or unreachable, holdings fall back to the
@@ -695,7 +718,10 @@ function App() {
       const sh = parseFloat(t.shares) || 0;
       qty[t.code] = (qty[t.code] || 0) + (t.side === 'buy' ? sh : -sh);
     });
-    const codes = Object.keys(qty).filter((c) => qty[c] > 0);
+    // 關注清單的標的沒有持股數，但估值分析要有現價才算得出本益比，所以一併問。
+    const codes = [...new Set([
+      ...Object.keys(qty).filter((c) => qty[c] > 0),
+      ...watchlistRef.current.map((w) => w && w.code).filter(Boolean)])];
     if (!codes.length) return { ok: true, updated: 0, missing: 0 };
     const base = window.FF_PRICE_API;
     if (!base) return { ok: false, reason: '未設定報價服務' };
@@ -724,6 +750,71 @@ function App() {
       return { ok: true, updated: Object.keys(got).length, missing: missing.length, missingCodes: missing };
     } catch (e) {
       return { ok: false, reason: '連線失敗' }; // offline / blocked — keep cached prices
+    }
+  }, []);
+
+  // 基本面（EPS）供估值分析用。財報是季頻資料，跨月才重抓一次——每次開頁都問一輪
+  // 只是白白打上游（FinMind 無金鑰有流量限制），資料一個月內也不會變。
+  // 快取只認目前這個版本：Worker 回傳的欄位變了（例如加上季 EPS）就得整批重抓，
+  // 否則快取是以「月」為單位，使用者要等到下個月才看得到新欄位。
+  const [fundamentals, setFundamentals] = useStateApp(() => {
+    try {
+      const s = JSON.parse(localStorage.getItem('ff_fundamentals') || 'null');
+      if (s && s.items && s.v === FUND_CACHE_V) return s.items;
+    } catch (e) {}
+    return {};
+  });
+  const fetchFundamentals = React.useCallback(async (codes, force) => {
+    const want = [...new Set((codes || []).filter(Boolean))];
+    if (!want.length) return { ok: true, updated: 0, missing: 0 };
+    const base = window.FF_PRICE_API;
+    if (!base) return { ok: false, reason: '未設定報價服務' };
+    let cached = {};
+    let month = null;
+    try {
+      const s = JSON.parse(localStorage.getItem('ff_fundamentals') || 'null');
+      if (s && s.v === FUND_CACHE_V) { cached = s.items || {}; month = s.month || null; }
+    } catch (e) {}
+    const thisMonth = new Date().toISOString().slice(0, 7);
+    // 同月內只補「還沒問過的代號」；跨月、換快取版本或手動刷新才整批重抓。
+    const stale = force || month !== thisMonth;
+    const asked = stale ? want : want.filter((c) => cached[c] === undefined);
+    if (!asked.length) return { ok: true, updated: 0, missing: 0 };
+    try {
+      const res = await fetch(base + '/fundamentals?codes=' + encodeURIComponent(asked.join(',')));
+      if (!res.ok) return { ok: false, reason: '基本面服務錯誤 ' + res.status };
+      const data = await res.json();
+      const got = data && data.items ? data.items : {};
+      const missing = data && Array.isArray(data.missing) ? data.missing : [];
+      setFundamentals(() => {
+        // 查無資料的代號存成 null（ETF、債券 ETF 本來就沒有 EPS），下次才不會一直重問。
+        const merged = { ...(stale ? {} : cached), ...got };
+        missing.forEach((c) => { merged[c] = null; });
+        try { localStorage.setItem('ff_fundamentals', JSON.stringify({ items: merged, month: thisMonth, v: FUND_CACHE_V })); } catch (e) {}
+        return merged;
+      });
+      return { ok: true, updated: Object.keys(got).length, missing: missing.length };
+    } catch (e) {
+      return { ok: false, reason: '連線失敗' }; // offline — 沿用快取的基本面
+    }
+  }, []);
+
+  // 分析師預估明細：點進去才看的詳情，很少重複開，Worker 那邊已經有日快取，
+  // 所以只做記憶體 memo、不進 localStorage——多一個 ff_ key 就多一份快取版本要維護。
+  const estimatesRef = React.useRef({});
+  const fetchEstimates = React.useCallback(async (code) => {
+    if (!code) return { ok: false, reason: '缺代號' };
+    if (estimatesRef.current[code]) return { ok: true, data: estimatesRef.current[code] };
+    const base = window.FF_PRICE_API;
+    if (!base) return { ok: false, reason: '未設定報價服務' };
+    try {
+      const res = await fetch(base + '/estimates?code=' + encodeURIComponent(code));
+      if (!res.ok) return { ok: false, reason: '預估服務錯誤 ' + res.status };
+      const data = await res.json();
+      estimatesRef.current[code] = data;
+      return { ok: true, data };
+    } catch (e) {
+      return { ok: false, reason: '連線失敗' };
     }
   }, []);
 
@@ -784,11 +875,13 @@ function App() {
     };
   }, []);
 
-  // 同步 ref 並在持倉有變化時拉最新報價
+  // 同步 ref 並在持倉或關注清單有變化時拉最新報價。
+  // 關注清單也要進來：只看持股的話，未持有的關注標的永遠沒有現價，估值頁就算不出本益比
+  // （症狀是成長率有值、PE 一直是「—」）。
   useEffectApp(() => {
     savedTradesRef.current = savedTrades;
-    if (savedTrades.some((t) => t.code)) fetchLivePrices();
-  }, [savedTrades]);
+    if (savedTrades.some((t) => t.code) || watchlist.length) fetchLivePrices();
+  }, [savedTrades, watchlist]);
   const [dashWidget, setDashWidget] = useStateApp(() => {
     try {return localStorage.getItem('ff_dash_widget') || 'accounts';} catch {return 'accounts';}
   });
@@ -1223,6 +1316,7 @@ function App() {
         pricesFetchedAt={pricesFetchedAt}
         onRefreshPrices={fetchLivePrices}
         onOpenBreakdown={() => setInvestBreakdownOpen(true)}
+        onOpenValuation={() => setValuationOpen(true)}
         onOpenDetail={(d) => setInvestDetail({ ...d, mask: appMask, savedTrades: visibleTrades })} />}
         </div>
       }
@@ -1294,6 +1388,15 @@ function App() {
         return IBSheet ? <IBSheet open={investBreakdownOpen} onClose={() => setInvestBreakdownOpen(false)}
           computedHoldings={computedHoldings} masterData={masterData} mask={appMask}
           savedTrades={visibleTrades} savedFlows={visibleFlows} /> : null;
+      })()}
+
+      {(() => {
+        const VSheet = window.ValuationSheet;
+        return VSheet ? <VSheet open={valuationOpen} onClose={() => setValuationOpen(false)}
+          computedHoldings={computedHoldings} fundamentals={fundamentals} livePrices={livePrices}
+          watchlist={watchlist} setWatchlist={setWatchlist}
+          valuationOverride={valuationOverride} setValuationOverride={setValuationOverride}
+          onFetchFundamentals={fetchFundamentals} onFetchEstimates={fetchEstimates} /> : null;
       })()}
 
       {/* ── Detail sheets at phone-frame root (避免被 overflow 容器截切) ── */}

@@ -64,38 +64,41 @@ App 分四個主要分頁（底部 TabBar）＋一個全螢幕設定頁：
 25. As a 使用者, I want to 看到該持倉完整的買賣歷史（FIFO 先進先出配對成本）, so that 我能理解均價是怎麼算出來的
 26. As a 使用者, I want to 點頂端市值圓餅圖看「投資組合明細」——全部券商加總的持倉分布, so that 我能看整體資產配置
 27. As a 使用者, I want to 切到「投資收益」分頁看各年度的股息/債息/操作損益長條圖, so that 我能評估投資的長期報酬
+28. As a 使用者, I want to 進「追蹤」頁看每檔持股的本益比與本益成長比（PEG）, so that 我能判斷目前價格相對於獲利成長是偏貴還是偏便宜
+29. As a 使用者, I want to 把還沒買的標的加進追蹤清單，跟持股列在同一張表比 PEG, so that 我能在加碼前先比較過所有候選標的
+30. As a 使用者, I want to 手動覆寫某檔的成長率, so that 我能用自己的預估值取代財報回推的歷史成長率
 
 **設定**
-28. As a 使用者, I want to 新增/編輯/刪除記帳分類（收入/支出/轉帳/資產類別），支出/收入分類底下的「大類」本身也能新增/編輯/刪除, so that 分類符合我自己的記帳習慣
-29. As a 使用者, I want to 系統阻擋我刪除「仍有記錄在用」的分類或帳戶、阻擋我刪除「底下還有子分類」的大類，並讓幾個系統預設大類（支出：餐飲/交通/日常/投資損失；收入：主動/被動/投資收入）永遠不能被刪除, so that 我不會不小心弄出對不上帳的孤兒資料，也不會刪光系統賴以統計的基礎大類
-30. As a 使用者, I want to 重新命名帳戶/券商時，所有既有紀錄自動改用新名稱, so that 歷史資料不會斷掉
-31. As a 使用者, I want to 新增一般帳戶（銀行/信用卡/現金/電子支付/儲值卡/其他）, so that 我能追蹤名下所有帳戶
-32. As a 使用者, I want to 新增證券戶（含手續費率、折扣、交割帳戶、T+2 設定）, so that 股票買賣的手續費/交割能自動算對
-33. As a 使用者, I want to 設定每個帳戶的初始餘額, so that 淨資產計算從正確的起點開始
-34. As a 使用者, I want to 貼上自己的 Gemini/OpenAI/Claude API 金鑰並選一個當預設模型, so that 我能用 BYOK 方式使用 AI 相關功能（金鑰只存在我自己裝置上）
-35. As a 使用者, I want to 用密碼把所有資料加密匯出成一個備份檔, so that 我能自行保存或搬到別的裝置
-36. As a 使用者, I want to 用同一組密碼把備份檔還原回來, so that 換裝置或清資料後不會遺失歷史
-37. As a 使用者, I want to App 在背景自動做一份未加密的本機快照（開/關 App 時）, so that 意外的 App 狀態問題也有救援手段（但清瀏覽器資料時這份快照救不回來）
-38. As a 使用者, I want to 用「清除所有歷史資料」功能只清掉交易紀錄, so that 我能重新開始記帳但保留帳戶/分類等主檔設定
-39. As a 使用者, I want to 設定 App 鎖定 PIN 或生物辨識, so that 別人拿到我的手機也看不到資產資料
-40. As a 使用者, I want to 開啟「隱藏金額」開關把畫面上的數字都用遮罩蓋住, so that 在別人面前也能安心操作
-41. As a 使用者, I want to 設定「自動轉帳」（任意帳戶→任意帳戶，固定金額）或「定期支出」規則，每月到期自動補記入帳, so that 房租、Netflix、定期定額投資不用每次手動記
-42. As a 使用者, I want to 在月曆上看到哪幾天有排定的自動轉帳/定期支出（小點標記，每月重複顯示，不分過去未來），並且切到「未來」某一天時在看板當日顯示「預定」提示（金額不算入當日/當月收支，要等到當天真的執行才算數）, so that 我一眼就知道這個月哪幾天會有自動扣款，也不會被還沒發生的支出誤導
+31. As a 使用者, I want to 新增/編輯/刪除記帳分類（收入/支出/轉帳/資產類別），支出/收入分類底下的「大類」本身也能新增/編輯/刪除, so that 分類符合我自己的記帳習慣
+32. As a 使用者, I want to 系統阻擋我刪除「仍有記錄在用」的分類或帳戶、阻擋我刪除「底下還有子分類」的大類，並讓幾個系統預設大類（支出：餐飲/交通/日常/投資損失；收入：主動/被動/投資收入）永遠不能被刪除, so that 我不會不小心弄出對不上帳的孤兒資料，也不會刪光系統賴以統計的基礎大類
+33. As a 使用者, I want to 重新命名帳戶/券商時，所有既有紀錄自動改用新名稱, so that 歷史資料不會斷掉
+34. As a 使用者, I want to 新增一般帳戶（銀行/信用卡/現金/電子支付/儲值卡/其他）, so that 我能追蹤名下所有帳戶
+35. As a 使用者, I want to 新增證券戶（含手續費率、折扣、交割帳戶、T+2 設定）, so that 股票買賣的手續費/交割能自動算對
+36. As a 使用者, I want to 設定每個帳戶的初始餘額, so that 淨資產計算從正確的起點開始
+37. As a 使用者, I want to 貼上自己的 Gemini/OpenAI/Claude API 金鑰並選一個當預設模型, so that 我能用 BYOK 方式使用 AI 相關功能（金鑰只存在我自己裝置上）
+38. As a 使用者, I want to 用密碼把所有資料加密匯出成一個備份檔, so that 我能自行保存或搬到別的裝置
+39. As a 使用者, I want to 用同一組密碼把備份檔還原回來, so that 換裝置或清資料後不會遺失歷史
+40. As a 使用者, I want to App 在背景自動做一份未加密的本機快照（開/關 App 時）, so that 意外的 App 狀態問題也有救援手段（但清瀏覽器資料時這份快照救不回來）
+41. As a 使用者, I want to 用「清除所有歷史資料」功能只清掉交易紀錄, so that 我能重新開始記帳但保留帳戶/分類等主檔設定
+42. As a 使用者, I want to 設定 App 鎖定 PIN 或生物辨識, so that 別人拿到我的手機也看不到資產資料
+43. As a 使用者, I want to 開啟「隱藏金額」開關把畫面上的數字都用遮罩蓋住, so that 在別人面前也能安心操作
+44. As a 使用者, I want to 設定「自動轉帳」（任意帳戶→任意帳戶，固定金額）或「定期支出」規則，每月到期自動補記入帳, so that 房租、Netflix、定期定額投資不用每次手動記
+45. As a 使用者, I want to 在月曆上看到哪幾天有排定的自動轉帳/定期支出（小點標記，每月重複顯示，不分過去未來），並且切到「未來」某一天時在看板當日顯示「預定」提示（金額不算入當日/當月收支，要等到當天真的執行才算數）, so that 我一眼就知道這個月哪幾天會有自動扣款，也不會被還沒發生的支出誤導
 
 **AI 顧問（目前隱藏，未來版本開發）**
-43. As a 使用者, I want to （未來）在 AI 顧問分頁跟我自己選的 AI 模型對話討論資產配置, so that 我能得到客製化的理財建議
-44. As a 使用者, I want to （未來）看到系統依股票/債券/現金占比算出的健康度評分與提示, so that 我知道目前配置是否偏股或偏保守
+46. As a 使用者, I want to （未來）在 AI 顧問分頁跟我自己選的 AI 模型對話討論資產配置, so that 我能得到客製化的理財建議
+47. As a 使用者, I want to （未來）看到系統依股票/債券/現金占比算出的健康度評分與提示, so that 我知道目前配置是否偏股或偏保守
 
 **系統層級**
-45. As a 使用者, I want to App 發生未預期錯誤時顯示可重試的錯誤畫面而不是白屏, so that 我不會因為一個小 bug 就完全用不了 App
-46. As a 使用者, I want to 資料結構升級時自動做 migration, so that 舊版本存的資料在新版 App 上不會壞掉
+48. As a 使用者, I want to App 發生未預期錯誤時顯示可重試的錯誤畫面而不是白屏, so that 我不會因為一個小 bug 就完全用不了 App
+49. As a 使用者, I want to 資料結構升級時自動做 migration, so that 舊版本存的資料在新版 App 上不會壞掉
 
 **財務目標（資產配置與目標頁面的「財務目標」頁籤）**
-47. As a 使用者, I want to 設定多種類型的財務目標（淨資產於指定年月達標／單一帳戶餘額達標／收入目標／收支結餘），後兩種可選以月、季或年為單位、固定金額或跟上一期比成長%, so that 我能同時追蹤不同面向的財務計劃
+50. As a 使用者, I want to 設定多種類型的財務目標（淨資產於指定年月達標／單一帳戶餘額達標／收入目標／收支結餘），後兩種可選以月、季或年為單位、固定金額或跟上一期比成長%, so that 我能同時追蹤不同面向的財務計劃
 47b. As a 使用者, I want to 收入目標可指定追蹤範圍——任一收入大類（含自訂新增的大類）或「總收入」, so that 我能單獨追蹤主動/被動/投資等某一類收入，而不是只能追蹤被動收入
-48. As a 使用者, I want to 目標達成時卡片出現金色邊框＋彩紙動畫慶祝（只播一次，之後常駐金色邊框與勳章）, so that 我能清楚感受到達成的成就感
-49. As a 使用者, I want to 週期性目標（收入/結餘/股票損益）顯示近幾期的達成率小圓點, so that 我能看出自己是不是穩定達標
-50. As a 使用者, I want to 目標卡片依完成率由高到低排序（已達成 100% 的固定排最下面）、「新增目標」按鈕固定在最上方, so that 我能一眼看到最接近達成的目標，且新增入口不會隨清單長度移動位置
+51. As a 使用者, I want to 目標達成時卡片出現金色邊框＋彩紙動畫慶祝（只播一次，之後常駐金色邊框與勳章）, so that 我能清楚感受到達成的成就感
+52. As a 使用者, I want to 週期性目標（收入/結餘/股票損益）顯示近幾期的達成率小圓點, so that 我能看出自己是不是穩定達標
+53. As a 使用者, I want to 目標卡片依完成率由高到低排序（已達成 100% 的固定排最下面）、「新增目標」按鈕固定在最上方, so that 我能一眼看到最接近達成的目標，且新增入口不會隨清單長度移動位置
 
 ## Implementation Decisions
 
@@ -113,6 +116,9 @@ App 分四個主要分頁（底部 TabBar）＋一個全螢幕設定頁：
 | `ff_lock_pin` / `ff_lock_salt` / `ff_lock_bio` / `ff_lock_cred` | App 鎖 PIN（雜湊存放，不存明碼）與生物辨識憑證 |
 | `ff_auto_snapshot` / `ff_last_auto_backup` | 未加密的本機自動快照 |
 | `ff_savings_goals` | 財務目標陣列，每筆依 `type` 有不同欄位（見下方「財務目標」章節）；舊版單一目標 `ff_savings_goal` 讀取時自動遷移進來 |
+| `ff_watchlist` | 追蹤頁的自選清單 `[{code, name}]`（未持有但想追蹤的標的） |
+| `ff_valuation_override` | 追蹤頁手動覆寫的成長率 `{代號: {cagr, yoy, fwd}}` |
+| `ff_fundamentals` | Worker `/fundamentals` 回來的 EPS 快取 `{items, month, v}`，跨月或 `v` 不符才重抓 |
 | `ff_schema_version` | schema migration 版本號（目前 `SCHEMA_VERSION=5`） |
 
 備份/還原、自動快照、清除功能都是**掃描所有 `ff_*` 開頭的 key**來運作，之後新增任何 `ff_*` key 會自動被納入，不需要額外改動備份邏輯。
@@ -174,6 +180,40 @@ App 分四個主要分頁（底部 TabBar）＋一個全螢幕設定頁：
 - **`GoalEditForm`/`GoalTypePicker` 必須是模組層級元件，不能定義在 `NetWorthSheet` 內部**（已修正過一次真實的手機 bug）：一開始把這兩個表單用 `const GoalEditForm = () => {...}` 寫在 `NetWorthSheet` 函式裡面，結果每次父層 render（打一個字、`setDraftField` 觸發一次 state 更新）都會產生新的函式參考，React 判定成不同元件整個卸載重掛，手機上打第一個字鍵盤就收起來、完全無法輸入。修法是把這兩個元件搬到模組層級、draft 狀態透過 props（`draft`/`setDraftField`）傳入，而不是靠 closure 捕捉一堆 `draftXxx` state。之後在這類 bottom sheet 裡新增子表單元件都要留意這點。
 - 週期性目標的「固定金額／%成長」「以月／以季／以年」切換鈕比照 `segBtn`（見上面的圖表圖例章節與頁籤切換）視覺——白底+陰影＝選中、透明+淡字＝未選，跟 App 其他分段選擇器一致，不要另外做純黑底的樣式。
 
+**追蹤（PEG 估值）**（`valuation.js` + `screens/valuation.jsx`）
+- 入口在投資頁市值卡下方，開的是全螢幕 overlay（`window.ValuationSheet`），不是新分頁——底部五個主分頁維持不變。
+- **持股與自選標的合成同一張清單**，不分頁籤：同一檔兩邊都有時以持股那筆為準（它才帶現價與市值）。
+  只有「純自選」的標的列上會有垃圾桶可刪；持股是交易紀錄推出來的，這裡刪不掉也不該刪。
+- 加入追蹤走頁首的放大鏡按鈕（按了才展開搜尋列並自動聚焦），不常駐佔一張卡的高度。
+- 每股盈餘的年/季切換沿用收支統計月/年切換的視覺（`dashboard.jsx` 的 `unitBtn`）：淺灰底容器、
+  選中的按鈕白底加陰影。全 App 的單位切換器維持同一種長相。
+- **PEG = 本益比 ÷ EPS 成長率(%)**。並列三個成長率，各自看不同的東西：
+  - **預估成長率** = 分析師共識的下年度 EPS 成長（Yahoo `earningsTrend`），唯一真正前瞻的一個
+  - 歷史成長率 = 近 3 年「年度 EPS」的年化成長率（CAGR）
+  - 近期成長率 = 近四季 EPS（TTM）相對前一個 TTM 的年增率，反應最近的動能
+  - 三者都可被使用者手動覆寫（存 `ff_valuation_override`，`{cagr, yoy, fwd}`）
+- **主數字的優先序：預估 > 歷史 > 近期**，由 `ffValuationRow()` 收斂成 `pegMain` + `pegBasis`，
+  排序（`ffComparePeg`）也用同一個值——畫面上那個大數字跟排序依據必須是同一個，否則
+  「PEG 由低到高」看起來會像亂排。`pegBasis` 讓畫面標示得出「預估 PEG／歷史 PEG」，
+  沒有分析師覆蓋的標的則標「無法人預估」：兩者基準不同，不標的話跨標的比較會被誤讀。
+- **預估本益比用「本年度預估 EPS」、成長率用「下年度相對本年度」**，分子的基準年與分母的
+  成長區間才對得上。拿 trailing EPS 配預估成長率會系統性高估便宜程度。
+- 分析師家數會顯示出來，少於 3 位時額外標「家數少，參考性有限」——一兩個人的看法跟
+  三十幾位的共識不是同一回事。點這一行進**法人預估明細頁**（`EstimatesSheet`，疊在估值頁上的
+  `zIndex:90` overlay）。
+- **明細頁做在 App 內而不是外連 Yahoo**，理由有三：台灣版 Yahoo 根本沒有分析師預估頁（只有
+  「估價」，且是 VIP 付費、內容也不是分析師預估）；國際版只有英文；而且 `settings.jsx:2266`
+  記錄過 standalone 模式把控制權交給 Safari 會讓 App 視窗被永久降級成瀏覽器分頁。
+- 明細頁的重點是**區間而不是平均值**：實測 2330 明年預估平均 138.43、區間卻是 93.3～159.67，
+  同一個「預估 PEG 0.78」照最低估值算會變成 1.2。只給平均值等於把不確定性藏起來，所以
+  低～高區間、分析師家數、以及「30／90 天前的預估值與近 30 天調升／調降家數」都要攤開。
+- **Worker 只回原始 EPS，本益比與 PEG 都在前端算**：現價本來就在前端手上（`livePrices`），而且覆寫要有單一計算點。這也讓 Worker 不必再多抓 TWSE `BWIBBU_ALL` / TPEx 本益比兩份全市場總表。
+- 起點 EPS ≤ 0（由虧轉盈）算不出有意義的 CAGR、EPS ≤ 0 沒有本益比、成長率 ≤ 0 沒有 PEG——這些一律回 `null` 顯示「—」，不硬算出天文數字。ETF 與債券 ETF 本來就沒有 EPS，顯示「無 EPS 資料」。
+- 展開的個股明細可切「年/季」看每股盈餘：年度圖看長期趨勢，單季圖看轉折。舊快取沒有 `epsQuarters` 時不顯示切換鈕，免得切過去是一片空白。
+- 分區門檻 PEG < 1 偏低 / 1～2 合理 / > 2 偏高，文案一律用「偏低／合理／偏高」，不用「買進／賣出」；頁尾註明是估值參考、非投資建議。
+- 關注清單的代號會**併進 `/quotes` 的查詢**（`fetchLivePrices`）——沒有現價就算不出本益比。
+- 手動覆寫的輸入框 `OverrideInput` 必須留在**模組層級**，理由同下方「子元件不可定義在父元件內」的既有教訓。
+
 **核心計算邏輯**
 - `computeAccounts()`：從各帳戶初始餘額出發，依收支/轉帳/股票交易逐筆計算目前餘額；未來日期的紀錄不計入；信用卡類帳戶以「負債」方式顯示餘額。
 - `computeHoldings()`：依交易時間排序，用 **FIFO（先進先出）** 配對買賣成本，算出目前持股數量、均價、市值、未實現損益。
@@ -183,7 +223,30 @@ App 分四個主要分頁（底部 TabBar）＋一個全螢幕設定頁：
 **Worker API 合約（`finfolio-prices`）**
 - `GET /quotes?codes=...` → `{date, prices, fx, source}`：台股走 TWSE MIS 即時報價，缺的再補 TWSE/TPEx 收盤價；美股先查 Finnhub（需設定 `FINNHUB_KEY`），沒設定或查不到就 fallback 到 Yahoo Finance（不需金鑰）。
 - `GET /stocks` → 台股 + 美股清單。
-- 只有一個機密設定 `FINNHUB_KEY`（選用），其餘資料源皆為公開、免金鑰。
+- `GET /fundamentals?codes=...` → `{date, items: {代號: {epsAnnual, epsQuarters, epsTTM, epsTTMPrev, source}}, missing, partial}`：台股走 FinMind `TaiwanStockFinancialStatements`（免金鑰，給的是**單季** EPS）；美股走 SEC EDGAR `companyconcept`（免金鑰，但 User-Agent 必須是「名稱 + 聯絡 email」格式，否則 403）。
+  - 台股與美股共用同一支 `aggregateEps()`：單季 EPS → 年度 EPS（只收湊滿四季的年份）+ TTM（四季首尾須相距約九個月，缺季就回 `null`）。
+  - 美股的 10-Q 只涵蓋前三個會計季，第四季只出現在 10-K 的全年數字裡，所以季序列固定缺一季，用「全年 − 已知三季」補回來，TTM 才算得出來。
+  - `epsQuarters` 是最近 12 季的單季 EPS，供前端圖表切「年/季」；再往前的季資料細到看不出趨勢。
+  - `forward: { eps0y, eps1y, analysts, symbol }` 是分析師共識預估，來自 Yahoo `quoteSummary?modules=earningsTrend`。
+    台股要試 `.TW`（上市）與 `.TWO`（上櫃）兩個後綴——實測 2330 只有 `.TW` 有、5274 只有 `.TWO` 有，
+    猜錯後綴的 404 跟「沒有分析師覆蓋」長得一模一樣。
+  - Yahoo 的 quoteSummary 需要 cookie + crumb（非正規管道，隨時可能被關掉），所以整條路徑是
+    **best-effort**：拿不到就只是少一個 `forward` 欄位，EPS 主資料完全不受影響。cookie + crumb
+    在扇出前取一次共用並快取 6 小時——每個代號各取一次會把 Yahoo 的限流打爆。
+  - 回應帶 `forwardSource`（`yahoo` / `unavailable`），用來分辨「Yahoo 沒回」與「這檔沒人覆蓋」：
+    兩者在畫面上都是沒有預估，但一個要修、一個是正常的。
+  - **EPS 走月快取（`fund/vN`）、預估走日快取（`fwd/vN`），刻意分開**：分析師隨時在調預估，而且
+    Yahoo 偶爾抽風；綁在同一份月快取裡的話，一次暫時性失敗會讓這檔整整一個月都沒有預估，
+    而且使用者從前端按刷新也救不回來（那只清得掉前端快取）。
+  - 財報是季頻資料，逐檔快取一個月。**回傳欄位改變時兩邊的快取版本都要 bump**（Worker 的 `fund/vN` key 與前端的 `FUND_CACHE_V`），否則使用者要等到下個月才看得到新欄位。
+- `GET /estimates?code=2330` → `{date, code, symbol, currency, periods, target, ratings, source}`：分析師預估明細，
+  同樣走 Yahoo `quoteSummary`（modules 加上 `financialData` 與 `recommendationTrend`）。
+  - `periods` 是 `0q`／`+1q`／`0y`／`+1y` 四期的 `{avg, low, high, analysts, yearAgo, growth, trend:{current,d30,d90}, revisions:{up30,down30}}`
+  - `target` 是目標價（均值／高／低／家數／評等），`ratings` 是評等分布，兩者拿不到就是 `null`，不影響 `periods`
+  - 單一代號用 `?code=`（詳情用途），與 `/quotes`、`/fundamentals` 的 `?codes=` 批次語意刻意不同
+  - 快取一天；Yahoo 不可用時不寫快取，避免把「暫時拿不到」記成「今天沒有」
+  - 後綴 fallback 與 `/fundamentals` 的預估共用 `yahooQuoteSummary()`，`.TW` → `.TWO` 的邏輯只留一份
+- 兩個機密設定都是選用：`FINNHUB_KEY`（美股報價）與 `SEC_CONTACT`（美股 EPS 的聯絡信箱；repo 是公開的所以不寫死在程式碼裡，**沒設定就完全不打 SEC**，美股一律回報查無 EPS）。其餘資料源皆為公開、免金鑰。
 - 只傳股票代號，不傳使用者的持倉/金額/身分資訊。
 
 **AI 顧問架構決定（明確記錄，因為涉及資料安全）**
@@ -213,6 +276,11 @@ App 分四個主要分頁（底部 TabBar）＋一個全螢幕設定頁：
 - `parseUtterance()`（voice-parse.js 的語音解析）——規則多、邊界案例多，已有單元測試
 - 分類→帳戶記憶的讀寫與失效過濾（`last-account.js`，`last-account.test.js`）——`ffRememberAccount`／`ffLastAccountFor`
 - 股票類別配色（`asset-class-color.js`，`asset-class-color.test.js`）——`ffAssetClassColorMap`／`ffClassShade`／`ffMixHex`／`ffAssetClassPalette`
+- 估值指標（`valuation.js`，`valuation.test.js`）——`ffEpsCagr`／`ffTtmYoy`／`ffForwardGrowth`／`ffUpside`／`ffPe`／`ffPeg`／`ffPegZone`／`ffValuationRow`／`ffComparePeg`，重點在「算不出來時要回 null」的各種邊界（EPS ≤ 0、起點虧損、成長率 ≤ 0、年數不足）、主數字的優先序（預估 > 歷史 > 近期）與覆寫優先序
+- Worker 的 `/fundamentals`（`worker/index.test.js`）——季 EPS 聚合、季序列上限 12 季、缺季不算 TTM、SEC 缺季補算、大小寫攤回、沒設 `SEC_CONTACT` 時不打 SEC、上游失敗仍回 200
+- Worker 的 `/estimates`（`worker/index.test.js`）——四期欄位對應（重點驗低～高區間有帶出來）、`.TW` → `.TWO` fallback、缺 `financialData`／`recommendationTrend` 時 `periods` 仍完整、無覆蓋時回 200 空殼、Yahoo 被限流時不寫快取
+- Worker 的法人預估路徑——`.TW` → `.TWO` 後綴 fallback、整批只取一次 crumb、缺 `+1y` 不算預估、Yahoo 掛掉不影響 EPS 主資料、**暫時性失敗不會被寫進快取**（測試會連跑「Yahoo 掛掉」與「Yahoo 恢復」兩次）
+- 註：Worker 測試的 `ctx.waitUntil` 必須收下 promise 並在 `afterEach` 等它落地，且要清掉 Yahoo 的 cookie/crumb 快取；不做的話背景寫快取會在下一個測試進行中才完成，變成「單獨跑會過、整批跑會紅」的偶發污染
 - 下拉面板的展開方向與高度（`accounting.jsx`，`accounting.dropdown.test.js`）——`ffDropdownPlacement`；DOM 量測留在 `DropField` 裡，純幾何計算抽出來測
 - 收支統計的分類聚合與期間計算（`dashboard.jsx`，`dashboard.stats.test.js`）——`ffCatTotals`（含「投資損失有被納入支出」與「同名 cat 在收入/支出間不互相污染」兩條回歸防護）、`ffStatsPeriod`（跨年/十年邊界、上一期＝`offset-1`）、`ffGroupColorMap`、`ffCatGroupOf`；`MonthlyStatsSheet` 的 UI 渲染（期間列排版、`pick()` 的 reset 行為、圓餅實際顏色）仍靠手動操作驗證
 - 財務目標的聚合/進度計算（`dashboard.jsx`，`dashboard.goals.test.js`）——`ffIncomeForYear/Month`、`ffMonthlyBalance`/`ffYearlyBalance`、`ffResolvePeriodTarget`、`ffAchievementHistory`、`computeGoalProgress`；這些函式雖然定義在一個沒有任何 `export` 的「legacy 全域腳本」檔案裡，但 `dashboard.jsx` 本身仍是可以被 import 的 ES module（檔案開頭有 `import`），所以照樣可以個別加 `export` 讓測試檔案匯入，不用像 `compute.js` 一樣整個抽成獨立檔案。`dashboard.jsx` 其餘的圖表/UI 渲染邏輯仍未涵蓋，沿用手動操作驗證。
