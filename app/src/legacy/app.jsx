@@ -851,11 +851,13 @@ function App() {
     };
   }, []);
 
-  // 同步 ref 並在持倉有變化時拉最新報價
+  // 同步 ref 並在持倉或關注清單有變化時拉最新報價。
+  // 關注清單也要進來：只看持股的話，未持有的關注標的永遠沒有現價，估值頁就算不出本益比
+  // （症狀是成長率有值、PE 一直是「—」）。
   useEffectApp(() => {
     savedTradesRef.current = savedTrades;
-    if (savedTrades.some((t) => t.code)) fetchLivePrices();
-  }, [savedTrades]);
+    if (savedTrades.some((t) => t.code) || watchlist.length) fetchLivePrices();
+  }, [savedTrades, watchlist]);
   const [dashWidget, setDashWidget] = useStateApp(() => {
     try {return localStorage.getItem('ff_dash_widget') || 'accounts';} catch {return 'accounts';}
   });
