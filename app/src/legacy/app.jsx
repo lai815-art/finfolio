@@ -1393,7 +1393,7 @@ function App() {
       {(() => {
         const VSheet = window.ValuationSheet;
         return VSheet ? <VSheet open={valuationOpen} onClose={() => setValuationOpen(false)}
-          computedHoldings={computedHoldings} fundamentals={fundamentals} livePrices={livePrices}
+          fundamentals={fundamentals} livePrices={livePrices}
           watchlist={watchlist} setWatchlist={setWatchlist}
           valuationOverride={valuationOverride} setValuationOverride={setValuationOverride}
           onFetchFundamentals={fetchFundamentals} onFetchEstimates={fetchEstimates} /> : null;

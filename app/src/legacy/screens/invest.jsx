@@ -492,7 +492,7 @@ function InvestScreen({ hideAmounts, onOpenDetail, savedTrades = [], computedHol
         display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: SP(10) }}>
         <div>
           <div style={{ fontSize: FS(17), fontWeight: 600, color: TOKENS.ink }}>追蹤</div>
-          <div style={{ marginTop: SP(2), fontSize: FS(14), color: TOKENS.ink2 }}>本益成長比（PEG）·持股與自選標的</div>
+          <div style={{ marginTop: SP(2), fontSize: FS(14), color: TOKENS.ink2 }}>本益成長比（PEG）·自選追蹤標的</div>
         </div>
         <ChevronRight size={20} style={{ color: TOKENS.ink2, flexShrink: 0 }} />
       </div>

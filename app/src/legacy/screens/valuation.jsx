@@ -1,5 +1,4 @@
-// 追蹤 / 本益成長比（PEG）：持股與自選標的合成同一張清單比較
-import { mergeHoldingsByCode } from '../compute.js';
+// 追蹤 / 本益成長比（PEG）：手動加入的追蹤清單比較
 import { ffValuationRow, ffComparePeg, ffUpside } from '../valuation.js';
 
 const { useState: useStateVal, useEffect: useEffectVal } = React;
@@ -335,16 +334,13 @@ function ValuationRow({ row, expanded, onToggle, onOverride, onRemoveWatch, onOp
           </div>
           }
         </div>
-        {onRemoveWatch &&
-        // 只有「純追蹤」的標的能刪；持股是交易紀錄推出來的，這裡刪不掉也不該刪。
-        // stopPropagation：這顆按鈕在可點的整列裡面，不擋住就會順便把列展開／收合。
+        {/* stopPropagation：這顆按鈕在可點的整列裡面，不擋住就會順便把列展開／收合。 */}
         <button onClick={(e) => {e.stopPropagation();onRemoveWatch(row.code);}} title="從追蹤移除"
           style={{ width: 34, height: 34, flexShrink: 0, borderRadius: RS(10),
             background: 'transparent', border: 'none', color: TOKENS.gray4, cursor: 'pointer',
             display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
           <TrashVal size={17} />
         </button>
-        }
       </div>
 
       {row.hasFundamentals &&
@@ -403,7 +399,7 @@ function AddWatchRow({ universe, onAdd }) {
 }
 
 /* ─── Main sheet ─────────────────────────────────────────────────────── */
-function ValuationSheet({ open, onClose, computedHoldings = [], fundamentals = {}, livePrices = {},
+function ValuationSheet({ open, onClose, fundamentals = {}, livePrices = {},
   watchlist = [], setWatchlist, valuationOverride = {}, setValuationOverride, onFetchFundamentals, onFetchEstimates }) {
   const { ChevronRight, RefreshCw, Search } = window.Icons;
   const [searchOpen, setSearchOpen] = useStateVal(false);
@@ -427,15 +423,8 @@ function ValuationSheet({ open, onClose, computedHoldings = [], fundamentals = {
     });
   }, []);
 
-  // 持股（跨券商合併——估值看的是公司，不是分別放在哪家券商的部位）
-  const held = mergeHoldingsByCode(computedHoldings.flatMap((g) => g.items || [])).filter((it) => it.code);
-
-  // 持股與自選合成一張追蹤清單。同一檔兩邊都有時以持股那筆為準（它才帶現價與市值），
-  // 並記 watchOnly：只有純自選的標的能從清單刪除，持股是交易紀錄推出來的，刪不掉也不該刪。
-  const heldCodes = new Set(held.map((h) => h.code));
-  const tracked = [
-    ...held.map((h) => ({ ...h, watchOnly: false })),
-    ...watchlist.filter((w) => w && w.code && !heldCodes.has(w.code)).map((w) => ({ ...w, watchOnly: true }))];
+  // 追蹤清單完全由使用者手動加入，不自動帶入持股——想追蹤的標的跟持有的部位是兩件事。
+  const tracked = watchlist.filter((w) => w && w.code);
 
   // 開頁時補抓還沒有的基本面。財報是季頻資料，fetchFundamentals 內部只會問沒問過的代號。
   const codesKey = tracked.map((t) => t.code).join(',');
@@ -448,14 +437,14 @@ function ValuationSheet({ open, onClose, computedHoldings = [], fundamentals = {
 
   const rowsOf = (list) => list.map((s) => {
     const f = fundamentals[s.code];
-    const price = livePrices[s.code] != null ? livePrices[s.code] : s.price;
+    const price = livePrices[s.code];
     const r = ffValuationRow(s.code, f, price, valuationOverride[s.code]);
     // 自動值單獨算一次，明細頁的輸入框 placeholder 要顯示「不覆寫的話會是多少」
     const auto = ffValuationRow(s.code, f, price, null);
     // 查過但沒有（ETF/債券，存成 null）與「還沒查過」要分開講，否則報價服務掛掉時
     // 整頁都會顯示「無 EPS 資料」，看起來像每一檔都沒有財報。
     const fetched = Object.prototype.hasOwnProperty.call(fundamentals, s.code);
-    return { ...r, name: s.name, mvT: s.mvTWD != null ? s.mvTWD : 0, watchOnly: !!s.watchOnly,
+    return { ...r, name: s.name,
       autoCagr: auto.cagr, autoYoy: auto.yoy, autoFwd: auto.fwdGrowth, fetched };
   });
 
@@ -558,7 +547,7 @@ function ValuationSheet({ open, onClose, computedHoldings = [], fundamentals = {
             expanded={expanded === r.code}
             onToggle={() => setExpanded(expanded === r.code ? null : r.code)}
             onOverride={setOverride}
-            onRemoveWatch={r.watchOnly ? removeWatch : null}
+            onRemoveWatch={removeWatch}
             onOpenEstimates={setEstimatesFor} />
           )
           }
