@@ -9,4 +9,5 @@ import './screens/accounting.jsx';
 import './screens/advisor.jsx';
 import './screens/settings.jsx';
 import './screens/invest.jsx';
+import './screens/valuation.jsx';
 import './app.jsx';

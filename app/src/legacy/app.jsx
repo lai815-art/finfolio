@@ -648,6 +648,7 @@ function App() {
   const [statsOpen, setStatsOpen] = useStateApp(false);
   const [netWorthOpen, setNetWorthOpen] = useStateApp(false);
   const [investBreakdownOpen, setInvestBreakdownOpen] = useStateApp(false);
+  const [valuationOpen, setValuationOpen] = useStateApp(false);
   const [acctDetail, setAcctDetail] = useStateApp(null);
   const [investDetail, setInvestDetail] = useStateApp(null);
   const [acctOverrides, setAcctOverrides] = useStateApp({});
@@ -681,6 +682,25 @@ function App() {
   });
   const savedTradesRef = React.useRef([]);
 
+  // 估值分析：關注清單（未持有但想追蹤的標的）與手動覆寫的成長率。
+  // 兩個 key 都是 ff_ 前綴，備份／還原／清除會自動涵蓋，不用改 settings。
+  const [watchlist, setWatchlist] = useStateApp(() => {
+    try {const s = localStorage.getItem('ff_watchlist');if (s) return JSON.parse(s);} catch {}
+    return [];
+  });
+  useEffectApp(() => {
+    try {localStorage.setItem('ff_watchlist', JSON.stringify(watchlist));} catch {}
+  }, [watchlist]);
+  const [valuationOverride, setValuationOverride] = useStateApp(() => {
+    try {const s = localStorage.getItem('ff_valuation_override');if (s) return JSON.parse(s);} catch {}
+    return {};
+  });
+  useEffectApp(() => {
+    try {localStorage.setItem('ff_valuation_override', JSON.stringify(valuationOverride));} catch {}
+  }, [valuationOverride]);
+  const watchlistRef = React.useRef([]);
+  useEffectApp(() => {watchlistRef.current = watchlist;}, [watchlist]);
+
   // Daily-close prices via the FinFolio price Worker (sends only stock codes).
   // Shows cached prices instantly; this refreshes in the background / on demand.
   // If the service is unset or unreachable, holdings fall back to the
@@ -695,7 +715,10 @@ function App() {
       const sh = parseFloat(t.shares) || 0;
       qty[t.code] = (qty[t.code] || 0) + (t.side === 'buy' ? sh : -sh);
     });
-    const codes = Object.keys(qty).filter((c) => qty[c] > 0);
+    // 關注清單的標的沒有持股數，但估值分析要有現價才算得出本益比，所以一併問。
+    const codes = [...new Set([
+      ...Object.keys(qty).filter((c) => qty[c] > 0),
+      ...watchlistRef.current.map((w) => w && w.code).filter(Boolean)])];
     if (!codes.length) return { ok: true, updated: 0, missing: 0 };
     const base = window.FF_PRICE_API;
     if (!base) return { ok: false, reason: '未設定報價服務' };
@@ -724,6 +747,50 @@ function App() {
       return { ok: true, updated: Object.keys(got).length, missing: missing.length, missingCodes: missing };
     } catch (e) {
       return { ok: false, reason: '連線失敗' }; // offline / blocked — keep cached prices
+    }
+  }, []);
+
+  // 基本面（EPS）供估值分析用。財報是季頻資料，跨月才重抓一次——每次開頁都問一輪
+  // 只是白白打上游（FinMind 無金鑰有流量限制），資料一個月內也不會變。
+  const [fundamentals, setFundamentals] = useStateApp(() => {
+    try {
+      const s = JSON.parse(localStorage.getItem('ff_fundamentals') || 'null');
+      if (s && s.items) return s.items;
+    } catch (e) {}
+    return {};
+  });
+  const fetchFundamentals = React.useCallback(async (codes, force) => {
+    const want = [...new Set((codes || []).filter(Boolean))];
+    if (!want.length) return { ok: true, updated: 0, missing: 0 };
+    const base = window.FF_PRICE_API;
+    if (!base) return { ok: false, reason: '未設定報價服務' };
+    let cached = {};
+    let month = null;
+    try {
+      const s = JSON.parse(localStorage.getItem('ff_fundamentals') || 'null');
+      if (s) { cached = s.items || {}; month = s.month || null; }
+    } catch (e) {}
+    const thisMonth = new Date().toISOString().slice(0, 7);
+    // 同月內只補「還沒問過的代號」；跨月或手動刷新才整批重抓。
+    const stale = force || month !== thisMonth;
+    const asked = stale ? want : want.filter((c) => cached[c] === undefined);
+    if (!asked.length) return { ok: true, updated: 0, missing: 0 };
+    try {
+      const res = await fetch(base + '/fundamentals?codes=' + encodeURIComponent(asked.join(',')));
+      if (!res.ok) return { ok: false, reason: '基本面服務錯誤 ' + res.status };
+      const data = await res.json();
+      const got = data && data.items ? data.items : {};
+      const missing = data && Array.isArray(data.missing) ? data.missing : [];
+      setFundamentals(() => {
+        // 查無資料的代號存成 null（ETF、債券 ETF 本來就沒有 EPS），下次才不會一直重問。
+        const merged = { ...(stale ? {} : cached), ...got };
+        missing.forEach((c) => { merged[c] = null; });
+        try { localStorage.setItem('ff_fundamentals', JSON.stringify({ items: merged, month: thisMonth })); } catch (e) {}
+        return merged;
+      });
+      return { ok: true, updated: Object.keys(got).length, missing: missing.length };
+    } catch (e) {
+      return { ok: false, reason: '連線失敗' }; // offline — 沿用快取的基本面
     }
   }, []);
 
@@ -1223,6 +1290,7 @@ function App() {
         pricesFetchedAt={pricesFetchedAt}
         onRefreshPrices={fetchLivePrices}
         onOpenBreakdown={() => setInvestBreakdownOpen(true)}
+        onOpenValuation={() => setValuationOpen(true)}
         onOpenDetail={(d) => setInvestDetail({ ...d, mask: appMask, savedTrades: visibleTrades })} />}
         </div>
       }
@@ -1294,6 +1362,15 @@ function App() {
         return IBSheet ? <IBSheet open={investBreakdownOpen} onClose={() => setInvestBreakdownOpen(false)}
           computedHoldings={computedHoldings} masterData={masterData} mask={appMask}
           savedTrades={visibleTrades} savedFlows={visibleFlows} /> : null;
+      })()}
+
+      {(() => {
+        const VSheet = window.ValuationSheet;
+        return VSheet ? <VSheet open={valuationOpen} onClose={() => setValuationOpen(false)}
+          computedHoldings={computedHoldings} fundamentals={fundamentals} livePrices={livePrices}
+          watchlist={watchlist} setWatchlist={setWatchlist}
+          valuationOverride={valuationOverride} setValuationOverride={setValuationOverride}
+          onFetchFundamentals={fetchFundamentals} /> : null;
       })()}
 
       {/* ── Detail sheets at phone-frame root (避免被 overflow 容器截切) ── */}

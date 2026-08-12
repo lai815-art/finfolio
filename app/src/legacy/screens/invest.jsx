@@ -304,11 +304,11 @@ function InvestDetailSheet({ data, mask, onClose, savedTrades = [], onEditRecord
 
 /* ─── Main InvestScreen ──────────────────────────────────────────────── */
 
-function InvestScreen({ hideAmounts, onOpenDetail, savedTrades = [], computedHoldings = [], masterData = {}, hiddenAccts, pricesFetchedAt, onRefreshPrices, onOpenBreakdown }) {
+function InvestScreen({ hideAmounts, onOpenDetail, savedTrades = [], computedHoldings = [], masterData = {}, hiddenAccts, pricesFetchedAt, onRefreshPrices, onOpenBreakdown, onOpenValuation }) {
   const [activeTab, setActiveTab] = useStateInv('stock');
   const [refreshing, setRefreshing] = useStateInv(false);
   const [priceNote, setPriceNote] = useStateInv(''); // 報價更新失敗／部分缺價的提示，數秒後自動消失
-  const { RefreshCw } = window.Icons;
+  const { RefreshCw, ChevronRight } = window.Icons;
 
   // Drag-to-scroll for broker tab bar
   const tabBarRef = React.useRef(null);
@@ -483,6 +483,18 @@ function InvestScreen({ hideAmounts, onOpenDetail, savedTrades = [], computedHol
           </div>
           }
         </div>
+      </div>
+
+      {/* ── 估值分析入口（PEG）── */}
+      <div onClick={onOpenValuation} style={{ marginTop: SP(10), padding: PAD('13px 15px'),
+        borderRadius: RS(14), background: TOKENS.surface, border: '1px solid rgba(0,0,0,0.07)',
+        boxShadow: SH('0 2px 8px rgba(0,0,0,0.06)'), cursor: 'pointer',
+        display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: SP(10) }}>
+        <div>
+          <div style={{ fontSize: FS(17), fontWeight: 600, color: TOKENS.ink }}>估值分析</div>
+          <div style={{ marginTop: SP(2), fontSize: FS(14), color: TOKENS.ink2 }}>本益成長比（PEG）·持股與關注標的</div>
+        </div>
+        <ChevronRight size={20} style={{ color: TOKENS.ink2, flexShrink: 0 }} />
       </div>
 
       {/* ── Tab bar (horizontal scroll + drag) ── */}
