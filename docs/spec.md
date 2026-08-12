@@ -118,7 +118,7 @@ App 分四個主要分頁（底部 TabBar）＋一個全螢幕設定頁：
 | `ff_savings_goals` | 財務目標陣列，每筆依 `type` 有不同欄位（見下方「財務目標」章節）；舊版單一目標 `ff_savings_goal` 讀取時自動遷移進來 |
 | `ff_watchlist` | 估值分析的關注清單 `[{code, name}]`（未持有但想追蹤的標的） |
 | `ff_valuation_override` | 估值分析手動覆寫的成長率 `{代號: {cagr, yoy}}` |
-| `ff_fundamentals` | Worker `/fundamentals` 回來的 EPS 快取 `{items, month}`，跨月才重抓 |
+| `ff_fundamentals` | Worker `/fundamentals` 回來的 EPS 快取 `{items, month, v}`，跨月或 `v` 不符才重抓 |
 | `ff_schema_version` | schema migration 版本號（目前 `SCHEMA_VERSION=5`） |
 
 備份/還原、自動快照、清除功能都是**掃描所有 `ff_*` 開頭的 key**來運作，之後新增任何 `ff_*` key 會自動被納入，不需要額外改動備份邏輯。
@@ -188,6 +188,7 @@ App 分四個主要分頁（底部 TabBar）＋一個全螢幕設定頁：
   - 兩者都可被使用者手動覆寫（存 `ff_valuation_override`），覆寫就是「填自己的預估值」的入口
 - **Worker 只回原始 EPS，本益比與 PEG 都在前端算**：現價本來就在前端手上（`livePrices`），而且覆寫要有單一計算點。這也讓 Worker 不必再多抓 TWSE `BWIBBU_ALL` / TPEx 本益比兩份全市場總表。
 - 起點 EPS ≤ 0（由虧轉盈）算不出有意義的 CAGR、EPS ≤ 0 沒有本益比、成長率 ≤ 0 沒有 PEG——這些一律回 `null` 顯示「—」，不硬算出天文數字。ETF 與債券 ETF 本來就沒有 EPS，顯示「無 EPS 資料」。
+- 展開的個股明細可切「年/季」看每股盈餘：年度圖看長期趨勢，單季圖看轉折。舊快取沒有 `epsQuarters` 時不顯示切換鈕，免得切過去是一片空白。
 - 分區門檻 PEG < 1 偏低 / 1～2 合理 / > 2 偏高，文案一律用「偏低／合理／偏高」，不用「買進／賣出」；頁尾註明是估值參考、非投資建議。
 - 關注清單的代號會**併進 `/quotes` 的查詢**（`fetchLivePrices`）——沒有現價就算不出本益比。
 - 手動覆寫的輸入框 `OverrideInput` 必須留在**模組層級**，理由同下方「子元件不可定義在父元件內」的既有教訓。
@@ -201,10 +202,11 @@ App 分四個主要分頁（底部 TabBar）＋一個全螢幕設定頁：
 **Worker API 合約（`finfolio-prices`）**
 - `GET /quotes?codes=...` → `{date, prices, fx, source}`：台股走 TWSE MIS 即時報價，缺的再補 TWSE/TPEx 收盤價；美股先查 Finnhub（需設定 `FINNHUB_KEY`），沒設定或查不到就 fallback 到 Yahoo Finance（不需金鑰）。
 - `GET /stocks` → 台股 + 美股清單。
-- `GET /fundamentals?codes=...` → `{date, items: {代號: {epsAnnual, epsTTM, epsTTMPrev, source}}, missing, partial}`：台股走 FinMind `TaiwanStockFinancialStatements`（免金鑰，給的是**單季** EPS）；美股走 SEC EDGAR `companyconcept`（免金鑰，但 User-Agent 必須是「名稱 + 聯絡 email」格式，否則 403）。
+- `GET /fundamentals?codes=...` → `{date, items: {代號: {epsAnnual, epsQuarters, epsTTM, epsTTMPrev, source}}, missing, partial}`：台股走 FinMind `TaiwanStockFinancialStatements`（免金鑰，給的是**單季** EPS）；美股走 SEC EDGAR `companyconcept`（免金鑰，但 User-Agent 必須是「名稱 + 聯絡 email」格式，否則 403）。
   - 台股與美股共用同一支 `aggregateEps()`：單季 EPS → 年度 EPS（只收湊滿四季的年份）+ TTM（四季首尾須相距約九個月，缺季就回 `null`）。
   - 美股的 10-Q 只涵蓋前三個會計季，第四季只出現在 10-K 的全年數字裡，所以季序列固定缺一季，用「全年 − 已知三季」補回來，TTM 才算得出來。
-  - 財報是季頻資料，逐檔快取一個月。
+  - `epsQuarters` 是最近 12 季的單季 EPS，供前端圖表切「年/季」；再往前的季資料細到看不出趨勢。
+  - 財報是季頻資料，逐檔快取一個月。**回傳欄位改變時兩邊的快取版本都要 bump**（Worker 的 `fund/vN` key 與前端的 `FUND_CACHE_V`），否則使用者要等到下個月才看得到新欄位。
 - 兩個機密設定都是選用：`FINNHUB_KEY`（美股報價）與 `SEC_CONTACT`（美股 EPS 的聯絡信箱；repo 是公開的所以不寫死在程式碼裡，**沒設定就完全不打 SEC**，美股一律回報查無 EPS）。其餘資料源皆為公開、免金鑰。
 - 只傳股票代號，不傳使用者的持倉/金額/身分資訊。
 
@@ -236,7 +238,7 @@ App 分四個主要分頁（底部 TabBar）＋一個全螢幕設定頁：
 - 分類→帳戶記憶的讀寫與失效過濾（`last-account.js`，`last-account.test.js`）——`ffRememberAccount`／`ffLastAccountFor`
 - 股票類別配色（`asset-class-color.js`，`asset-class-color.test.js`）——`ffAssetClassColorMap`／`ffClassShade`／`ffMixHex`／`ffAssetClassPalette`
 - 估值指標（`valuation.js`，`valuation.test.js`）——`ffEpsCagr`／`ffTtmYoy`／`ffPe`／`ffPeg`／`ffPegZone`／`ffValuationRow`／`ffComparePeg`，重點在「算不出來時要回 null」的各種邊界（EPS ≤ 0、起點虧損、成長率 ≤ 0、年數不足）與覆寫優先序
-- Worker 的 `/fundamentals`（`worker/index.test.js`）——季 EPS 聚合、缺季不算 TTM、SEC 缺季補算、大小寫攤回、沒設 `SEC_CONTACT` 時不打 SEC、上游失敗仍回 200
+- Worker 的 `/fundamentals`（`worker/index.test.js`）——季 EPS 聚合、季序列上限 12 季、缺季不算 TTM、SEC 缺季補算、大小寫攤回、沒設 `SEC_CONTACT` 時不打 SEC、上游失敗仍回 200
 - 下拉面板的展開方向與高度（`accounting.jsx`，`accounting.dropdown.test.js`）——`ffDropdownPlacement`；DOM 量測留在 `DropField` 裡，純幾何計算抽出來測
 - 收支統計的分類聚合與期間計算（`dashboard.jsx`，`dashboard.stats.test.js`）——`ffCatTotals`（含「投資損失有被納入支出」與「同名 cat 在收入/支出間不互相污染」兩條回歸防護）、`ffStatsPeriod`（跨年/十年邊界、上一期＝`offset-1`）、`ffGroupColorMap`、`ffCatGroupOf`；`MonthlyStatsSheet` 的 UI 渲染（期間列排版、`pick()` 的 reset 行為、圓餅實際顏色）仍靠手動操作驗證
 - 財務目標的聚合/進度計算（`dashboard.jsx`，`dashboard.goals.test.js`）——`ffIncomeForYear/Month`、`ffMonthlyBalance`/`ffYearlyBalance`、`ffResolvePeriodTarget`、`ffAchievementHistory`、`computeGoalProgress`；這些函式雖然定義在一個沒有任何 `export` 的「legacy 全域腳本」檔案裡，但 `dashboard.jsx` 本身仍是可以被 import 的 ES module（檔案開頭有 `import`），所以照樣可以個別加 `export` 讓測試檔案匯入，不用像 `compute.js` 一樣整個抽成獨立檔案。`dashboard.jsx` 其餘的圖表/UI 渲染邏輯仍未涵蓋，沿用手動操作驗證。

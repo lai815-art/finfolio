@@ -9,6 +9,9 @@ window.navigator && window.navigator.standalone === true);
 // 獨立 App 不畫假狀態列：頂部留白用 index.html fit() 算好的 --ff-main-top
 // （畫布外探針量真實安全區、除以縮放比 k 校正，再收 8px）。
 // 舊寫法 env()−18px 沒做縮放校正、又收太多，右上角眼睛按鈕會頂進系統狀態列被切到。
+// ff_fundamentals 的快取形狀版本。Worker 的 /fundamentals 多回欄位時要 +1，
+// 否則快取是以「月」為單位，使用者要等到下個月才看得到新欄位。
+const FUND_CACHE_V = 2;
 const TOP_INSET = IS_STANDALONE ? 'var(--ff-main-top, 44px)' : '62px';
 const SBAR_H = TOP_INSET;
 const CONTENT_TOP = IS_STANDALONE ? `calc(${TOP_INSET} + 60px)` : '122px';
@@ -752,10 +755,12 @@ function App() {
 
   // 基本面（EPS）供估值分析用。財報是季頻資料，跨月才重抓一次——每次開頁都問一輪
   // 只是白白打上游（FinMind 無金鑰有流量限制），資料一個月內也不會變。
+  // 快取只認目前這個版本：Worker 回傳的欄位變了（例如加上季 EPS）就得整批重抓，
+  // 否則快取是以「月」為單位，使用者要等到下個月才看得到新欄位。
   const [fundamentals, setFundamentals] = useStateApp(() => {
     try {
       const s = JSON.parse(localStorage.getItem('ff_fundamentals') || 'null');
-      if (s && s.items) return s.items;
+      if (s && s.items && s.v === FUND_CACHE_V) return s.items;
     } catch (e) {}
     return {};
   });
@@ -768,10 +773,10 @@ function App() {
     let month = null;
     try {
       const s = JSON.parse(localStorage.getItem('ff_fundamentals') || 'null');
-      if (s) { cached = s.items || {}; month = s.month || null; }
+      if (s && s.v === FUND_CACHE_V) { cached = s.items || {}; month = s.month || null; }
     } catch (e) {}
     const thisMonth = new Date().toISOString().slice(0, 7);
-    // 同月內只補「還沒問過的代號」；跨月或手動刷新才整批重抓。
+    // 同月內只補「還沒問過的代號」；跨月、換快取版本或手動刷新才整批重抓。
     const stale = force || month !== thisMonth;
     const asked = stale ? want : want.filter((c) => cached[c] === undefined);
     if (!asked.length) return { ok: true, updated: 0, missing: 0 };
@@ -785,7 +790,7 @@ function App() {
         // 查無資料的代號存成 null（ETF、債券 ETF 本來就沒有 EPS），下次才不會一直重問。
         const merged = { ...(stale ? {} : cached), ...got };
         missing.forEach((c) => { merged[c] = null; });
-        try { localStorage.setItem('ff_fundamentals', JSON.stringify({ items: merged, month: thisMonth })); } catch (e) {}
+        try { localStorage.setItem('ff_fundamentals', JSON.stringify({ items: merged, month: thisMonth, v: FUND_CACHE_V })); } catch (e) {}
         return merged;
       });
       return { ok: true, updated: Object.keys(got).length, missing: missing.length };

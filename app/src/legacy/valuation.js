@@ -81,6 +81,7 @@ export function ffValuationRow(code, fund, price, override, cagrYears = 3) {
     code,
     price: isNum(price) && price > 0 ? price : null,
     epsAnnual: f.epsAnnual || {},
+    epsQuarters: f.epsQuarters || [], // 圖表切「季」時用；舊快取沒有這個欄位就是空陣列
     epsTTM, pe,
     cagr, yoy, cagrOverridden, yoyOverridden,
     pegCagr, pegYoy,

@@ -109,6 +109,14 @@ describe('ffValuationRow', () => {
     expect(r.hasFundamentals).toBe(true);
   });
 
+  // 圖表的「年/季」切換要靠這個欄位；舊快取沒有它，不能讓畫面爆掉
+  it('帶出季 EPS 序列，沒有時給空陣列', () => {
+    const q = [{ end: '2025-09-30', val: 4 }, { end: '2025-12-31', val: 5 }];
+    expect(ffValuationRow('2330', { ...fund, epsQuarters: q }, 600).epsQuarters).toEqual(q);
+    expect(ffValuationRow('2330', fund, 600).epsQuarters).toEqual([]);
+    expect(ffValuationRow('0050', null, 200).epsQuarters).toEqual([]);
+  });
+
   it('手動覆寫優先於自動值，並標記哪一個被覆寫', () => {
     const r = ffValuationRow('2330', fund, 600, { cagr: 60 });
     expect(r.cagr).toBe(60);

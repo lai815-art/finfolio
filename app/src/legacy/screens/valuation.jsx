@@ -40,27 +40,48 @@ function OverrideInput({ label, auto, value, onCommit }) {
 
 }
 
+// 季底日期 → 圖表下方的短標籤（2025-09-30 → 25Q3）。台股季底就是 3/6/9/12 月底，
+// 美股是會計季底（例如 09-27），用月份分季一樣落在對的那一季。
+const quarterLabel = (end) => end.slice(2, 4) + 'Q' + Math.ceil(Number(end.slice(5, 7)) / 3);
+
 /* ─── 展開的個股明細 ─────────────────────────────────────────────────── */
 function ValuationDetail({ row, onOverride, onRemoveWatch }) {
-  const years = Object.keys(row.epsAnnual).sort();
-  const maxEps = Math.max(...years.map((y) => Math.abs(row.epsAnnual[y])), 0.01);
+  const [unit, setUnit] = useStateVal('year'); // year | quarter
+  const annual = Object.keys(row.epsAnnual).sort().map((y) => ({ key: y, label: y.slice(2), val: row.epsAnnual[y] }));
+  const quarterly = (row.epsQuarters || []).map((q) => ({ key: q.end, label: quarterLabel(q.end), val: q.val }));
+  // 舊快取沒有季資料時不給切，免得切過去是一片空白
+  const hasQuarters = quarterly.length > 0;
+  const bars = unit === 'quarter' && hasQuarters ? quarterly : annual;
+  const maxEps = Math.max(...bars.map((b) => Math.abs(b.val)), 0.01);
+  const unitBtn = (id, lbl) => {
+    const on = (unit === 'quarter' && hasQuarters ? 'quarter' : 'year') === id;
+    return (
+      <button key={id} onClick={() => setUnit(id)}
+        style={{ height: 26, padding: PAD('0 10px'), borderRadius: RS(999),
+          border: '1px solid ' + (on ? 'transparent' : 'rgba(0,0,0,0.14)'),
+          background: on ? TOKENS.ink2 : 'transparent', color: on ? TOKENS.surface : TOKENS.ink2,
+          fontSize: FS(13), cursor: 'pointer' }}>{lbl}</button>);
+
+  };
   return (
     <div style={{ marginTop: SP(10), paddingTop: SP(12), borderTop: '1px solid rgba(0,0,0,0.08)' }}>
-      {years.length > 0 &&
+      {bars.length > 0 &&
       <>
-      <div style={{ fontSize: FS(14), color: TOKENS.ink2 }}>年度每股盈餘</div>
-      <div style={{ marginTop: SP(8), display: 'flex', alignItems: 'flex-end', gap: SP(6), height: 72 }}>
-        {years.map((y) => {
-          const v = row.epsAnnual[y];
-          return (
-            <div key={y} style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: SP(3) }}>
-              <div style={{ fontSize: FS(12), color: TOKENS.ink, fontFamily: TOKENS.fontMono }}>{v.toFixed(1)}</div>
-              <div style={{ width: '100%', height: Math.max(3, Math.abs(v) / maxEps * 40), borderRadius: RS(4),
-                background: v < 0 ? TOKENS.red : TOKENS.ink2, opacity: 0.85 }} />
-              <div style={{ fontSize: FS(12), color: TOKENS.gray4 }}>{y.slice(2)}</div>
-            </div>);
-
-        })}
+      <div style={{ display: 'flex', alignItems: 'center', gap: SP(8) }}>
+        <div style={{ flex: 1, fontSize: FS(14), color: TOKENS.ink2 }}>
+          {unit === 'quarter' && hasQuarters ? '單季每股盈餘' : '年度每股盈餘'}
+        </div>
+        {hasQuarters && <>{unitBtn('year', '年')}{unitBtn('quarter', '季')}</>}
+      </div>
+      <div style={{ marginTop: SP(8), display: 'flex', alignItems: 'flex-end', gap: SP(4), height: 72 }}>
+        {bars.map((b) =>
+        <div key={b.key} style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: SP(3) }}>
+          <div style={{ fontSize: FS(11), color: TOKENS.ink, fontFamily: TOKENS.fontMono, whiteSpace: 'nowrap' }}>{b.val.toFixed(1)}</div>
+          <div style={{ width: '100%', height: Math.max(3, Math.abs(b.val) / maxEps * 40), borderRadius: RS(4),
+            background: b.val < 0 ? TOKENS.red : TOKENS.ink2, opacity: 0.85 }} />
+          <div style={{ fontSize: FS(11), color: TOKENS.gray4, whiteSpace: 'nowrap' }}>{b.label}</div>
+        </div>
+        )}
       </div>
       </>
       }

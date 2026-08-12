@@ -5,7 +5,7 @@
  *     → { date, prices: { "2330": 2400, ... }, fx: { USD: 31.5 }, source }
  *
  *   GET /fundamentals?codes=2330,AAPL
- *     → { date, items: { "2330": { epsAnnual, epsTTM, epsTTMPrev, source } }, missing, partial }
+ *     → { date, items: { "2330": { epsAnnual, epsQuarters, epsTTM, epsTTMPrev, source } }, missing, partial }
  *
  * Privacy: only stock CODES are sent here — never holdings, amounts or identity.
  * Taiwan price: TWSE MIS latest trade/close (server-side, no CORS), with the
@@ -357,7 +357,8 @@ async function getUSList(env, ctx) {
  */
 
 // 財報是季頻資料，快取以「月」為單位；跨月自然重抓一次。
-const FUND_KEY = (code) => new Request(`https://ff-cache.local/fund/v1/${code}/${todayStr().slice(0, 7)}`);
+// 版本號隨回傳形狀變動要 bump：快取是以「月」為單位，不換 key 的話舊形狀會活到下個月。
+const FUND_KEY = (code) => new Request(`https://ff-cache.local/fund/v2/${code}/${todayStr().slice(0, 7)}`);
 const daysBetween = (a, b) => Math.round((Date.parse(b) - Date.parse(a)) / 86400000);
 const round2 = (n) => Math.round(n * 100) / 100;
 
@@ -367,7 +368,10 @@ const round2 = (n) => Math.round(n * 100) / 100;
 // 比照 FINNHUB_KEY 的做法，要開只需 `npx wrangler secret put SEC_CONTACT`。
 const secHeaders = (env) => ({ 'User-Agent': env.SEC_CONTACT });
 
-// 單季 EPS 序列 → { epsAnnual, epsTTM, epsTTMPrev }。台股與美股共用同一套聚合。
+// 前端的每股盈餘圖表可切「年/季」，季圖只畫最近三年，再往前的季資料細到看不出趨勢。
+const EPS_QUARTERS_KEPT = 12;
+
+// 單季 EPS 序列 → { epsAnnual, epsQuarters, epsTTM, epsTTMPrev }。台股與美股共用同一套聚合。
 // 年度只收「湊滿四季」的年份——少一季的和拿去算成長率會憑空多出一個假的衰退年。
 function aggregateEps(quarters) {
   const byEnd = new Map();
@@ -392,7 +396,11 @@ function aggregateEps(quarters) {
     return round2(seg.reduce((a, q) => a + q.val, 0));
   };
 
-  return { epsAnnual, epsTTM: ttmAt(0), epsTTMPrev: ttmAt(4) };
+  return {
+    epsAnnual,
+    epsQuarters: sorted.slice(-EPS_QUARTERS_KEPT).map((q) => ({ end: q.end, val: round2(q.val) })),
+    epsTTM: ttmAt(0), epsTTMPrev: ttmAt(4),
+  };
 }
 
 // 台股單季 EPS：FinMind 的 TaiwanStockFinancialStatements（type=EPS）給的是「單季」值，

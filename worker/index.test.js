@@ -178,6 +178,29 @@ describe('finfolio-prices worker', () => {
     expect(body.items['1111'].epsTTMPrev).toBe(10); // 再往前四季
     expect(body.items['1111'].source).toBe('finmind');
     expect(body.partial).toBe(false);
+    // 季序列給前端的「年/季」切換用，依季底日期由舊到新
+    expect(body.items['1111'].epsQuarters).toEqual([
+      { end: '2024-03-31', val: 1 }, { end: '2024-06-30', val: 2 },
+      { end: '2024-09-30', val: 3 }, { end: '2024-12-31', val: 4 },
+      { end: '2025-03-31', val: 2 }, { end: '2025-06-30', val: 3 },
+      { end: '2025-09-30', val: 4 }, { end: '2025-12-31', val: 5 },
+    ]);
+  });
+
+  it('/fundamentals caps the quarterly series at the most recent 12 quarters', async () => {
+    const rows = [];
+    for (let y = 2020; y <= 2025; y++) {
+      ['03-31', '06-30', '09-30', '12-31'].forEach((md, i) => rows.push([`${y}-${md}`, i + 1]));
+    }
+    vi.stubGlobal('fetch', vi.fn(async (url) =>
+      String(url).includes('finmindtrade.com') ? finmindEps(rows) : new Response('', { status: 404 })));
+
+    const res = await worker.fetch(new Request('https://worker.example/fundamentals?codes=1115'), env, ctx);
+    const body = await res.json();
+
+    expect(body.items['1115'].epsQuarters).toHaveLength(12);
+    expect(body.items['1115'].epsQuarters[0].end).toBe('2023-03-31'); // 只留最近三年
+    expect(Object.keys(body.items['1115'].epsAnnual)).toHaveLength(6); // 年度不受影響
   });
 
   // 年度只收湊滿四季的年份：三季的和拿去算成長率會憑空多出一個假的衰退年。
