@@ -64,8 +64,8 @@ App 分四個主要分頁（底部 TabBar）＋一個全螢幕設定頁：
 25. As a 使用者, I want to 看到該持倉完整的買賣歷史（FIFO 先進先出配對成本）, so that 我能理解均價是怎麼算出來的
 26. As a 使用者, I want to 點頂端市值圓餅圖看「投資組合明細」——全部券商加總的持倉分布, so that 我能看整體資產配置
 27. As a 使用者, I want to 切到「投資收益」分頁看各年度的股息/債息/操作損益長條圖, so that 我能評估投資的長期報酬
-28. As a 使用者, I want to 進「估值分析」頁看每檔持股的本益比與本益成長比（PEG）, so that 我能判斷目前價格相對於獲利成長是偏貴還是偏便宜
-29. As a 使用者, I want to 把還沒買的標的加進關注清單，跟持股放在同一張表比 PEG, so that 我能在加碼前先比較過所有候選標的
+28. As a 使用者, I want to 進「追蹤」頁看每檔持股的本益比與本益成長比（PEG）, so that 我能判斷目前價格相對於獲利成長是偏貴還是偏便宜
+29. As a 使用者, I want to 把還沒買的標的加進追蹤清單，跟持股列在同一張表比 PEG, so that 我能在加碼前先比較過所有候選標的
 30. As a 使用者, I want to 手動覆寫某檔的成長率, so that 我能用自己的預估值取代財報回推的歷史成長率
 
 **設定**
@@ -116,8 +116,8 @@ App 分四個主要分頁（底部 TabBar）＋一個全螢幕設定頁：
 | `ff_lock_pin` / `ff_lock_salt` / `ff_lock_bio` / `ff_lock_cred` | App 鎖 PIN（雜湊存放，不存明碼）與生物辨識憑證 |
 | `ff_auto_snapshot` / `ff_last_auto_backup` | 未加密的本機自動快照 |
 | `ff_savings_goals` | 財務目標陣列，每筆依 `type` 有不同欄位（見下方「財務目標」章節）；舊版單一目標 `ff_savings_goal` 讀取時自動遷移進來 |
-| `ff_watchlist` | 估值分析的關注清單 `[{code, name}]`（未持有但想追蹤的標的） |
-| `ff_valuation_override` | 估值分析手動覆寫的成長率 `{代號: {cagr, yoy}}` |
+| `ff_watchlist` | 追蹤頁的自選清單 `[{code, name}]`（未持有但想追蹤的標的） |
+| `ff_valuation_override` | 追蹤頁手動覆寫的成長率 `{代號: {cagr, yoy, fwd}}` |
 | `ff_fundamentals` | Worker `/fundamentals` 回來的 EPS 快取 `{items, month, v}`，跨月或 `v` 不符才重抓 |
 | `ff_schema_version` | schema migration 版本號（目前 `SCHEMA_VERSION=5`） |
 
@@ -180,8 +180,13 @@ App 分四個主要分頁（底部 TabBar）＋一個全螢幕設定頁：
 - **`GoalEditForm`/`GoalTypePicker` 必須是模組層級元件，不能定義在 `NetWorthSheet` 內部**（已修正過一次真實的手機 bug）：一開始把這兩個表單用 `const GoalEditForm = () => {...}` 寫在 `NetWorthSheet` 函式裡面，結果每次父層 render（打一個字、`setDraftField` 觸發一次 state 更新）都會產生新的函式參考，React 判定成不同元件整個卸載重掛，手機上打第一個字鍵盤就收起來、完全無法輸入。修法是把這兩個元件搬到模組層級、draft 狀態透過 props（`draft`/`setDraftField`）傳入，而不是靠 closure 捕捉一堆 `draftXxx` state。之後在這類 bottom sheet 裡新增子表單元件都要留意這點。
 - 週期性目標的「固定金額／%成長」「以月／以季／以年」切換鈕比照 `segBtn`（見上面的圖表圖例章節與頁籤切換）視覺——白底+陰影＝選中、透明+淡字＝未選，跟 App 其他分段選擇器一致，不要另外做純黑底的樣式。
 
-**估值分析與 PEG**（`valuation.js` + `screens/valuation.jsx`）
+**追蹤（PEG 估值）**（`valuation.js` + `screens/valuation.jsx`）
 - 入口在投資頁市值卡下方，開的是全螢幕 overlay（`window.ValuationSheet`），不是新分頁——底部五個主分頁維持不變。
+- **持股與自選標的合成同一張清單**，不分頁籤：同一檔兩邊都有時以持股那筆為準（它才帶現價與市值）。
+  只有「純自選」的標的列上會有垃圾桶可刪；持股是交易紀錄推出來的，這裡刪不掉也不該刪。
+- 加入追蹤走頁首的放大鏡按鈕（按了才展開搜尋列並自動聚焦），不常駐佔一張卡的高度。
+- 每股盈餘的年/季切換沿用收支統計月/年切換的視覺（`dashboard.jsx` 的 `unitBtn`）：淺灰底容器、
+  選中的按鈕白底加陰影。全 App 的單位切換器維持同一種長相。
 - **PEG = 本益比 ÷ EPS 成長率(%)**。並列三個成長率，各自看不同的東西：
   - **預估成長率** = 分析師共識的下年度 EPS 成長（Yahoo `earningsTrend`），唯一真正前瞻的一個
   - 歷史成長率 = 近 3 年「年度 EPS」的年化成長率（CAGR）

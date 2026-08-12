@@ -1,4 +1,4 @@
-// 估值分析 / 本益成長比（PEG）：持股與關注標的放在同一張表比較
+// 追蹤 / 本益成長比（PEG）：持股與自選標的合成同一張清單比較
 import { mergeHoldingsByCode } from '../compute.js';
 import { ffValuationRow, ffComparePeg, ffUpside } from '../valuation.js';
 
@@ -7,8 +7,10 @@ const { useState: useStateVal, useEffect: useEffectVal } = React;
 const fmtVal = (n, d) => n == null ? '—' : n.toFixed(d);
 const fmtPct = (n) => n == null ? '—' : (n >= 0 ? '+' : '') + n.toFixed(1) + '%';
 const fmtNum = (n) => n == null ? '—' : Math.round(n).toLocaleString();
-// 模組層級取一次：ValuationDetail 是模組層級元件，不能靠父層把 icon 傳進來
+// 模組層級取一次：ValuationDetail / ValuationRow 是模組層級元件，不能靠父層把 icon 傳進來
 const ChevronRightVal = (props) => React.createElement(window.Icons.ChevronRight, props);
+const TrashVal = (props) => React.createElement(window.Icons.Trash, props);
+const SearchVal = (props) => React.createElement(window.Icons.Search, props);
 
 // PEG 分區只是估值參考，不是買賣訊號——文案一律用「偏低／合理／偏高」，不用「買進／賣出」。
 const ZONE_LABEL = { low: '偏低', fair: '合理', high: '偏高' };
@@ -50,7 +52,7 @@ function OverrideInput({ label, auto, value, onCommit }) {
 const quarterLabel = (end) => end.slice(2, 4) + 'Q' + Math.ceil(Number(end.slice(5, 7)) / 3);
 
 /* ─── 展開的個股明細 ─────────────────────────────────────────────────── */
-function ValuationDetail({ row, onOverride, onRemoveWatch, onOpenEstimates }) {
+function ValuationDetail({ row, onOverride, onOpenEstimates }) {
   const [unit, setUnit] = useStateVal('year'); // year | quarter
   const annual = Object.keys(row.epsAnnual).sort().map((y) => ({ key: y, label: y.slice(2), val: row.epsAnnual[y] }));
   const quarterly = (row.epsQuarters || []).map((q) => ({ key: q.end, label: quarterLabel(q.end), val: q.val }));
@@ -58,14 +60,17 @@ function ValuationDetail({ row, onOverride, onRemoveWatch, onOpenEstimates }) {
   const hasQuarters = quarterly.length > 0;
   const bars = unit === 'quarter' && hasQuarters ? quarterly : annual;
   const maxEps = Math.max(...bars.map((b) => Math.abs(b.val)), 0.01);
+  // 年/季切換沿用收支統計的月/年切換視覺（dashboard.jsx 的 unitBtn）：
+  // 淺灰底容器、選中的按鈕白底加陰影。全 App 的單位切換器維持同一種長相。
   const unitBtn = (id, lbl) => {
     const on = (unit === 'quarter' && hasQuarters ? 'quarter' : 'year') === id;
     return (
       <button key={id} onClick={() => setUnit(id)}
-        style={{ height: 26, padding: PAD('0 10px'), borderRadius: RS(999),
-          border: '1px solid ' + (on ? 'transparent' : 'rgba(0,0,0,0.14)'),
-          background: on ? TOKENS.ink2 : 'transparent', color: on ? TOKENS.surface : TOKENS.ink2,
-          fontSize: FS(13), cursor: 'pointer' }}>{lbl}</button>);
+        style={{ width: 34, height: 30, borderRadius: RS(10), border: 'none',
+          background: on ? TOKENS.surface : 'transparent',
+          boxShadow: on ? SH('0 1px 4px rgba(0,0,0,0.14)') : 'none',
+          color: on ? TOKENS.ink : 'rgba(44,44,50,0.6)',
+          fontSize: FS(14), fontWeight: on ? 700 : 500, cursor: 'pointer' }}>{lbl}</button>);
 
   };
   return (
@@ -76,7 +81,11 @@ function ValuationDetail({ row, onOverride, onRemoveWatch, onOpenEstimates }) {
         <div style={{ flex: 1, fontSize: FS(14), color: TOKENS.ink2 }}>
           {unit === 'quarter' && hasQuarters ? '單季每股盈餘' : '年度每股盈餘'}
         </div>
-        {hasQuarters && <>{unitBtn('year', '年')}{unitBtn('quarter', '季')}</>}
+        {hasQuarters &&
+        <div style={{ display: 'flex', gap: SP(2), padding: SP(3), borderRadius: RS(13), background: 'rgba(0,0,0,0.06)' }}>
+          {unitBtn('year', '年')}{unitBtn('quarter', '季')}
+        </div>
+        }
       </div>
       <div style={{ marginTop: SP(8), display: 'flex', alignItems: 'flex-end', gap: SP(4), height: 72 }}>
         {bars.map((b) =>
@@ -136,15 +145,6 @@ function ValuationDetail({ row, onOverride, onRemoveWatch, onOpenEstimates }) {
       <div style={{ marginTop: SP(6), fontSize: FS(13), color: TOKENS.gray4, lineHeight: 1.5 }}>
         留空 = 用財報與法人預估自動算。填入自己的預估值可覆寫。
       </div>
-
-      {onRemoveWatch &&
-      <button onClick={() => onRemoveWatch(row.code)}
-        style={{ marginTop: SP(12), height: 38, width: '100%', borderRadius: RS(12),
-          border: '1px solid rgba(0,0,0,0.12)', background: 'transparent',
-          color: TOKENS.red, fontSize: FS(15), cursor: 'pointer' }}>
-        從關注清單移除
-      </button>
-      }
     </div>);
 
 }
@@ -335,6 +335,16 @@ function ValuationRow({ row, expanded, onToggle, onOverride, onRemoveWatch, onOp
           </div>
           }
         </div>
+        {onRemoveWatch &&
+        // 只有「純追蹤」的標的能刪；持股是交易紀錄推出來的，這裡刪不掉也不該刪。
+        // stopPropagation：這顆按鈕在可點的整列裡面，不擋住就會順便把列展開／收合。
+        <button onClick={(e) => {e.stopPropagation();onRemoveWatch(row.code);}} title="從追蹤移除"
+          style={{ width: 34, height: 34, flexShrink: 0, borderRadius: RS(10),
+            background: 'transparent', border: 'none', color: TOKENS.gray4, cursor: 'pointer',
+            display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+          <TrashVal size={17} />
+        </button>
+        }
       </div>
 
       {row.hasFundamentals &&
@@ -354,26 +364,25 @@ function ValuationRow({ row, expanded, onToggle, onOverride, onRemoveWatch, onOp
 
       {expanded &&
       <div onClick={(e) => e.stopPropagation()}>
-        <ValuationDetail row={row} onOverride={onOverride} onRemoveWatch={onRemoveWatch}
-          onOpenEstimates={onOpenEstimates} />
+        <ValuationDetail row={row} onOverride={onOverride} onOpenEstimates={onOpenEstimates} />
       </div>
       }
     </div>);
 
 }
 
-/* ─── 新增關注標的 ───────────────────────────────────────────────────── */
+/* ─── 搜尋並加入追蹤 ─────────────────────────────────────────────────── */
 function AddWatchRow({ universe, onAdd }) {
   const [q, setQ] = useStateVal('');
-  const { Plus } = window.Icons;
   const key = q.trim().toLowerCase();
   const matches = key ? universe.filter((u) =>
   u.code.toLowerCase().startsWith(key) || u.name.includes(q.trim())).slice(0, 6) : [];
   return (
     <div style={cardStyleVal}>
       <div style={{ display: 'flex', alignItems: 'center', gap: SP(8) }}>
-        <Plus size={18} style={{ color: TOKENS.ink2, flexShrink: 0 }} />
-        <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="輸入代號或名稱加入關注"
+        <SearchVal size={18} style={{ color: TOKENS.ink2, flexShrink: 0 }} />
+        {/* autoFocus：這張卡是按放大鏡才展開的，展開了還要再點一次輸入框很囉唆 */}
+        <input value={q} onChange={(e) => setQ(e.target.value)} autoFocus placeholder="輸入代號或名稱加入追蹤"
           style={{ flex: 1, height: 38, border: 'none', background: 'transparent', outline: 'none',
             fontSize: FS(16), color: TOKENS.ink }} />
       </div>
@@ -396,8 +405,8 @@ function AddWatchRow({ universe, onAdd }) {
 /* ─── Main sheet ─────────────────────────────────────────────────────── */
 function ValuationSheet({ open, onClose, computedHoldings = [], fundamentals = {}, livePrices = {},
   watchlist = [], setWatchlist, valuationOverride = {}, setValuationOverride, onFetchFundamentals, onFetchEstimates }) {
-  const { ChevronRight, RefreshCw } = window.Icons;
-  const [tab, setTab] = useStateVal('holdings'); // holdings | watch
+  const { ChevronRight, RefreshCw, Search } = window.Icons;
+  const [searchOpen, setSearchOpen] = useStateVal(false);
   const [sort, setSort] = useStateVal('peg'); // peg | code
   const [expanded, setExpanded] = useStateVal(null);
   const [refreshing, setRefreshing] = useStateVal(false);
@@ -421,8 +430,15 @@ function ValuationSheet({ open, onClose, computedHoldings = [], fundamentals = {
   // 持股（跨券商合併——估值看的是公司，不是分別放在哪家券商的部位）
   const held = mergeHoldingsByCode(computedHoldings.flatMap((g) => g.items || [])).filter((it) => it.code);
 
+  // 持股與自選合成一張追蹤清單。同一檔兩邊都有時以持股那筆為準（它才帶現價與市值），
+  // 並記 watchOnly：只有純自選的標的能從清單刪除，持股是交易紀錄推出來的，刪不掉也不該刪。
+  const heldCodes = new Set(held.map((h) => h.code));
+  const tracked = [
+    ...held.map((h) => ({ ...h, watchOnly: false })),
+    ...watchlist.filter((w) => w && w.code && !heldCodes.has(w.code)).map((w) => ({ ...w, watchOnly: true }))];
+
   // 開頁時補抓還沒有的基本面。財報是季頻資料，fetchFundamentals 內部只會問沒問過的代號。
-  const codesKey = [...held.map((h) => h.code), ...watchlist.map((w) => w.code)].join(',');
+  const codesKey = tracked.map((t) => t.code).join(',');
   useEffectVal(() => {
     if (!open || !onFetchFundamentals || !codesKey) return;
     onFetchFundamentals(codesKey.split(','));
@@ -439,12 +455,11 @@ function ValuationSheet({ open, onClose, computedHoldings = [], fundamentals = {
     // 查過但沒有（ETF/債券，存成 null）與「還沒查過」要分開講，否則報價服務掛掉時
     // 整頁都會顯示「無 EPS 資料」，看起來像每一檔都沒有財報。
     const fetched = Object.prototype.hasOwnProperty.call(fundamentals, s.code);
-    return { ...r, name: s.name, mvT: s.mvTWD != null ? s.mvTWD : 0,
+    return { ...r, name: s.name, mvT: s.mvTWD != null ? s.mvTWD : 0, watchOnly: !!s.watchOnly,
       autoCagr: auto.cagr, autoYoy: auto.yoy, autoFwd: auto.fwdGrowth, fetched };
   });
 
-  const rows = rowsOf(tab === 'holdings' ? held : watchlist);
-  const sorted = rows.slice().sort(sort === 'peg' ? ffComparePeg :
+  const sorted = rowsOf(tracked).sort(sort === 'peg' ? ffComparePeg :
   (a, b) => a.code < b.code ? -1 : a.code > b.code ? 1 : 0);
 
   const doRefresh = async () => {
@@ -476,21 +491,11 @@ function ValuationSheet({ open, onClose, computedHoldings = [], fundamentals = {
   };
   const removeWatch = (code) => {
     setWatchlist((prev) => prev.filter((w) => w.code !== code));
-    setExpanded(null);
+    // 只在刪掉的正好是展開中的那一列時才收合。垃圾桶現在在收合列上，
+    // 一律清掉的話，刪 A 會順手把正在看的 B 收起來。
+    setExpanded((cur) => cur === code ? null : cur);
   };
 
-  // 分段控制器沿用看板統計頁的視覺：容器淺灰底，選中的按鈕白底加陰影
-  const segBtn = (id, lbl) => {
-    const on = tab === id;
-    return (
-      <button key={id} onClick={() => {setTab(id);setExpanded(null);}}
-        style={{ flex: 1, height: 44, borderRadius: RS(14), border: 'none',
-          background: on ? TOKENS.surface : 'transparent',
-          boxShadow: on ? SH('0 2px 8px rgba(0,0,0,0.12)') : 'none',
-          color: on ? TOKENS.ink : 'rgba(44,44,50,0.65)',
-          fontSize: FS(16), fontWeight: on ? 700 : 500, cursor: 'pointer' }}>{lbl}</button>);
-
-  };
   const sortBtn = (id, lbl) => {
     const on = sort === id;
     return (
@@ -513,7 +518,14 @@ function ValuationSheet({ open, onClose, computedHoldings = [], fundamentals = {
           <ChevronRight size={20} style={{ transform: 'rotate(180deg)' }} />
         </button>
         <div style={{ flex: 1, fontSize: FS(28), fontWeight: 700, color: TOKENS.ink,
-          letterSpacing: -0.5, lineHeight: 1.3 }}>估值分析</div>
+          letterSpacing: -0.5, lineHeight: 1.3 }}>追蹤</div>
+        <button onClick={() => setSearchOpen((v) => !v)} title="加入追蹤"
+          style={{ width: 40, height: 40, borderRadius: RS(20), flexShrink: 0,
+            background: searchOpen ? TOKENS.ink2 : 'rgba(0,0,0,0.09)',
+            border: '1px solid rgba(0,0,0,0.12)', color: searchOpen ? TOKENS.surface : 'rgba(60,60,67,0.88)',
+            display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer' }}>
+          <Search size={18} />
+        </button>
         <button onClick={doRefresh} disabled={refreshing} title="更新財報資料"
           style={{ width: 40, height: 40, borderRadius: RS(20), flexShrink: 0,
             background: 'rgba(0,0,0,0.09)', border: '1px solid rgba(0,0,0,0.12)', color: 'rgba(60,60,67,0.88)',
@@ -524,11 +536,7 @@ function ValuationSheet({ open, onClose, computedHoldings = [], fundamentals = {
       </div>
 
       <div style={{ flex: 1, overflowY: 'auto', overflowX: 'hidden', padding: PAD('0 12px 32px') }}>
-        <div style={{ display: 'flex', gap: SP(4), padding: SP(4), borderRadius: RS(18), background: 'rgba(0,0,0,0.06)' }}>
-          {segBtn('holdings', '持股')}{segBtn('watch', '關注')}
-        </div>
-
-        <div style={{ marginTop: SP(12), display: 'flex', alignItems: 'center', gap: SP(8) }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: SP(8) }}>
           <div style={{ flex: 1, fontSize: FS(14), color: TOKENS.gray4 }}>排序</div>
           {sortBtn('peg', 'PEG 由低到高')}{sortBtn('code', '代號')}
         </div>
@@ -538,11 +546,11 @@ function ValuationSheet({ open, onClose, computedHoldings = [], fundamentals = {
         }
 
         <div style={{ marginTop: SP(12), display: 'flex', flexDirection: 'column', gap: SP(8) }}>
-          {tab === 'watch' && <AddWatchRow universe={universe} onAdd={addWatch} />}
+          {searchOpen && <AddWatchRow universe={universe} onAdd={addWatch} />}
 
           {sorted.length === 0 ?
           <div style={{ ...cardStyleVal, textAlign: 'center', color: TOKENS.gray4, fontSize: FS(15), padding: PAD('24px 14px') }}>
-            {tab === 'holdings' ? '尚無持倉' : '尚未加入關注標的'}
+            尚無追蹤標的，用右上角的放大鏡加入
           </div> :
 
           sorted.map((r) =>
@@ -550,7 +558,7 @@ function ValuationSheet({ open, onClose, computedHoldings = [], fundamentals = {
             expanded={expanded === r.code}
             onToggle={() => setExpanded(expanded === r.code ? null : r.code)}
             onOverride={setOverride}
-            onRemoveWatch={tab === 'watch' ? removeWatch : null}
+            onRemoveWatch={r.watchOnly ? removeWatch : null}
             onOpenEstimates={setEstimatesFor} />
           )
           }

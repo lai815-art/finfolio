@@ -485,14 +485,14 @@ function InvestScreen({ hideAmounts, onOpenDetail, savedTrades = [], computedHol
         </div>
       </div>
 
-      {/* ── 估值分析入口（PEG）── */}
+      {/* ── 追蹤入口（PEG 估值）── */}
       <div onClick={onOpenValuation} style={{ marginTop: SP(10), padding: PAD('13px 15px'),
         borderRadius: RS(14), background: TOKENS.surface, border: '1px solid rgba(0,0,0,0.07)',
         boxShadow: SH('0 2px 8px rgba(0,0,0,0.06)'), cursor: 'pointer',
         display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: SP(10) }}>
         <div>
-          <div style={{ fontSize: FS(17), fontWeight: 600, color: TOKENS.ink }}>估值分析</div>
-          <div style={{ marginTop: SP(2), fontSize: FS(14), color: TOKENS.ink2 }}>本益成長比（PEG）·持股與關注標的</div>
+          <div style={{ fontSize: FS(17), fontWeight: 600, color: TOKENS.ink }}>追蹤</div>
+          <div style={{ marginTop: SP(2), fontSize: FS(14), color: TOKENS.ink2 }}>本益成長比（PEG）·持股與自選標的</div>
         </div>
         <ChevronRight size={20} style={{ color: TOKENS.ink2, flexShrink: 0 }} />
       </div>
