@@ -4,11 +4,16 @@
  *   GET /quotes?codes=2330,0050,00679B
  *     → { date, prices: { "2330": 2400, ... }, fx: { USD: 31.5 }, source }
  *
+ *   GET /fundamentals?codes=2330,AAPL
+ *     → { date, items: { "2330": { epsAnnual, epsTTM, epsTTMPrev, source } }, missing, partial }
+ *
  * Privacy: only stock CODES are sent here — never holdings, amounts or identity.
  * Taiwan price: TWSE MIS latest trade/close (server-side, no CORS), with the
  *   TWSE/TPEX daily-close open data as a fallback.
  * US stocks require a Finnhub key (env.FINNHUB_KEY); without it, US codes are
  *   omitted and the app falls back to the user's transaction price.
+ * EPS: Taiwan via FinMind (keyless); US via SEC EDGAR, which needs a contact
+ *   e-mail in env.SEC_CONTACT — without it US codes report no EPS.
  */
 
 const CORS = {
@@ -26,6 +31,18 @@ const todayStr = () => {
 };
 
 const isTW = (code) => /^\d/.test(String(code || ''));
+// 查詢用大寫、去重；回應時再照「前端問的那個寫法」把值放回去。
+// 前端是用 livePrices[trade.code] 直接取值的，只回大寫 key 的話，資料裡存成小寫的
+// 代號一樣拿不到值（而且是靜默的：UI 只會顯示不到收盤價，不會報錯）。
+function parseCodes(url) {
+  const askedBy = new Map(); // 大寫代號 → 前端原本的寫法（可能有多種）
+  (url.searchParams.get('codes') || '').split(',').map((s) => s.trim()).filter(Boolean).forEach((c) => {
+    const n = norm(c);
+    if (!askedBy.has(n)) askedBy.set(n, []);
+    askedBy.get(n).push(c);
+  });
+  return { askedBy, codes: [...askedBy.keys()] };
+}
 // 查上游一律用大寫代號。MIS 的 ex_ch 區分大小寫：tse_00720b.tw 回空值，tse_00720B.tw 才有價，
 // 所以帶字母尾碼的代號（債券 ETF 00720B/00751B/00795B…）只要大小寫不合就整檔查不到。
 const norm = (code) => String(code || '').trim().toUpperCase();
@@ -333,6 +350,171 @@ async function getUSList(env, ctx) {
   return list;
 }
 
+/* ─── Fundamentals（EPS）────────────────────────────────────────────────
+ * 只回「單季 EPS 聚合出來的年度 EPS 與 TTM」，本益比與 PEG 一律交給前端算：
+ * 現價本來就在前端手上，而且使用者要能手動覆寫成長率，指標留在前端才有單一計算點。
+ * 這也讓這裡不必再多抓 TWSE BWIBBU_ALL / TPEx 本益比兩份全市場總表。
+ */
+
+// 財報是季頻資料，快取以「月」為單位；跨月自然重抓一次。
+const FUND_KEY = (code) => new Request(`https://ff-cache.local/fund/v1/${code}/${todayStr().slice(0, 7)}`);
+const daysBetween = (a, b) => Math.round((Date.parse(b) - Date.parse(a)) / 86400000);
+const round2 = (n) => Math.round(n * 100) / 100;
+
+// SEC 要求每個請求都帶「名稱 + 聯絡 email」形式的 User-Agent，格式不合就直接 403
+// （實測 'FinFolio/1.0 (…github.com/…)' 這種帶括號的寫法會被擋）。這個 repo 是公開的，
+// 信箱不寫死在程式碼裡：沒設定 env.SEC_CONTACT 就整個不打 SEC，美股當作查無 EPS——
+// 比照 FINNHUB_KEY 的做法，要開只需 `npx wrangler secret put SEC_CONTACT`。
+const secHeaders = (env) => ({ 'User-Agent': env.SEC_CONTACT });
+
+// 單季 EPS 序列 → { epsAnnual, epsTTM, epsTTMPrev }。台股與美股共用同一套聚合。
+// 年度只收「湊滿四季」的年份——少一季的和拿去算成長率會憑空多出一個假的衰退年。
+function aggregateEps(quarters) {
+  const byEnd = new Map();
+  quarters.forEach((q) => { if (q && q.end && q.val != null) byEnd.set(q.end, q.val); });
+  const sorted = [...byEnd.entries()].map(([end, val]) => ({ end, val })).sort((a, b) => (a.end < b.end ? -1 : 1));
+
+  const years = {};
+  sorted.forEach((q) => { const y = q.end.slice(0, 4); (years[y] = years[y] || []).push(q.val); });
+  const epsAnnual = {};
+  Object.keys(years).forEach((y) => {
+    if (years[y].length === 4) epsAnnual[y] = round2(years[y].reduce((a, b) => a + b, 0));
+  });
+
+  // 往回數第 back 組的四季加總。四季的頭尾必須相距約九個月（Q1 季底→Q4 季底），
+  // 中間缺一季就回 null：寧可沒有 TTM，也不要拿三季的和當成一年在算本益比。
+  const ttmAt = (back) => {
+    const end = sorted.length - back;
+    if (end < 4) return null;
+    const seg = sorted.slice(end - 4, end);
+    const span = daysBetween(seg[0].end, seg[3].end);
+    if (span < 240 || span > 310) return null;
+    return round2(seg.reduce((a, q) => a + q.val, 0));
+  };
+
+  return { epsAnnual, epsTTM: ttmAt(0), epsTTMPrev: ttmAt(4) };
+}
+
+// 台股單季 EPS：FinMind 的 TaiwanStockFinancialStatements（type=EPS）給的是「單季」值，
+// 不是累計數（實測 2330 2020 四季相加 19.97，與公告全年 EPS 相符），可以直接餵給 aggregateEps。
+async function getTWEps(code) {
+  const from = `${Number(todayStr().slice(0, 4)) - 6}-01-01`;
+  const url = 'https://api.finmindtrade.com/api/v4/data?dataset=TaiwanStockFinancialStatements' +
+    `&data_id=${encodeURIComponent(code)}&start_date=${from}`;
+  const r = await fetch(url, { cf: { cacheTtl: 86400 } });
+  if (!r.ok) return null;
+  const d = await r.json();
+  const rows = (d && Array.isArray(d.data) ? d.data : []).filter((x) => x && x.type === 'EPS');
+  if (!rows.length) return null;
+  return rows.map((x) => ({ end: String(x.date), val: num(x.value) }));
+}
+
+// ticker → CIK 對照（約 1MB，全市場一份），快取一天。SEC 的 companyconcept 只吃 CIK。
+async function getCikMap(env, ctx) {
+  const cache = caches.default;
+  const key = new Request(`https://ff-cache.local/sec-cik/v1/${todayStr()}`);
+  try {
+    const hit = await cache.match(key);
+    if (hit) return hit.json();
+  } catch (e) { /* 讀不到就重建 */ }
+  const map = {};
+  try {
+    const r = await fetch('https://www.sec.gov/files/company_tickers.json', { headers: secHeaders(env), cf: { cacheTtl: 86400 } });
+    if (r.ok) {
+      const d = await r.json();
+      Object.keys(d || {}).forEach((k) => {
+        const row = d[k];
+        if (row && row.ticker && row.cik_str) map[String(row.ticker).toUpperCase()] = String(row.cik_str).padStart(10, '0');
+      });
+    }
+  } catch (e) { /* ignore — 這次就當查無資料 */ }
+  if (Object.keys(map).length > 100) {
+    ctx.waitUntil(cache.put(key, new Response(JSON.stringify(map), {
+      headers: { 'Content-Type': 'application/json', 'Cache-Control': 'public, max-age=86400' },
+    })));
+  }
+  return map;
+}
+
+// SEC XBRL 的單筆事實只有 start/end，沒有「這是第幾季」；用區間長度分辨年報與季報。
+const isAnnualFact = (f) => { const d = daysBetween(f.start, f.end); return d >= 340 && d <= 400; };
+const isQuarterFact = (f) => { const d = daysBetween(f.start, f.end); return d >= 80 && d <= 100; };
+
+// 10-Q 只涵蓋前三個會計季，第四季只出現在 10-K 的全年數字裡，所以季序列固定會缺 Q4。
+// 用「全年 − 該年已知的三季」把缺的那一季補回來，TTM 才算得出來。
+function fillMissingQuarter(annuals, quarters) {
+  const out = quarters.slice();
+  annuals.forEach((a) => {
+    const inside = out.filter((q) => q.end > a.start && q.end <= a.end);
+    if (inside.length !== 3) return;
+    // 三季都落在年度結束前兩個月以上 → 缺的必定是最後一季，季底就是年度結束日。
+    if (inside.some((q) => daysBetween(q.end, a.end) < 60)) return;
+    if (out.some((q) => q.end === a.end)) return;
+    out.push({ end: a.end, val: round2(a.val - inside.reduce((s, q) => s + q.val, 0)) });
+  });
+  return out;
+}
+
+// 美股單季 EPS：SEC EDGAR companyconcept（免金鑰、官方、含歷史）。
+// 稀釋 EPS 為主，公司沒報就退回基本 EPS。
+async function getUSEps(code, env, ctx) {
+  if (!env || !env.SEC_CONTACT) return null; // 沒設聯絡信箱就不打 SEC
+  const cikMap = await getCikMap(env, ctx);
+  const cik = cikMap[norm(code)];
+  if (!cik) return null;
+  for (const tag of ['EarningsPerShareDiluted', 'EarningsPerShareBasic']) {
+    try {
+      const r = await fetch(`https://data.sec.gov/api/xbrl/companyconcept/CIK${cik}/us-gaap/${tag}.json`, {
+        headers: secHeaders(env), cf: { cacheTtl: 86400 },
+      });
+      if (!r.ok) continue;
+      const d = await r.json();
+      const facts = (d && d.units && d.units['USD/shares']) || [];
+      if (!facts.length) continue;
+      // 同一期間會被多份報告重覆申報（後期報告含重編值）；以最後申報的為準。
+      const pick = (list) => {
+        const by = new Map();
+        list.forEach((f) => {
+          const prev = by.get(f.end);
+          if (!prev || String(f.filed) > String(prev.filed)) by.set(f.end, f);
+        });
+        return [...by.values()];
+      };
+      const annuals = pick(facts.filter(isAnnualFact)).map((f) => ({ start: f.start, end: f.end, val: f.val }));
+      const quarters = pick(facts.filter(isQuarterFact)).map((f) => ({ end: f.end, val: f.val }));
+      if (!annuals.length && !quarters.length) continue;
+      return fillMissingQuarter(annuals, quarters);
+    } catch (e) { /* 換下一個 tag */ }
+  }
+  return null;
+}
+
+// 單一代號的基本面（帶月快取）。查不到就回 null，交給呼叫端記進 missing。
+async function getFundamental(code, env, ctx) {
+  const cache = caches.default;
+  const key = FUND_KEY(code);
+  try {
+    const hit = await cache.match(key);
+    if (hit) return hit.json();
+  } catch (e) { /* 讀不到就重查 */ }
+
+  let quarters = null;
+  const source = isTW(code) ? 'finmind' : 'sec-edgar';
+  try {
+    quarters = isTW(code) ? await getTWEps(code) : await getUSEps(code, env, ctx);
+  } catch (e) { return null; }
+  if (!quarters || !quarters.length) return null;
+
+  const agg = aggregateEps(quarters);
+  // 年度與 TTM 全空表示這檔沒有 EPS 可談（ETF、債券 ETF、剛上市），當作查無資料。
+  if (!Object.keys(agg.epsAnnual).length && agg.epsTTM == null) return null;
+  const item = { ...agg, source };
+  ctx.waitUntil(cache.put(key, new Response(JSON.stringify(item), {
+    headers: { 'Content-Type': 'application/json', 'Cache-Control': 'public, max-age=2592000' },
+  })).catch(() => {}));
+  return item;
+}
+
 export default {
   async fetch(request, env, ctx) {
     if (request.method === 'OPTIONS') return new Response(null, { status: 204, headers: CORS });
@@ -341,20 +523,25 @@ export default {
       const [list, us] = await Promise.all([getTWList(ctx), getUSList(env, ctx)]);
       return json({ stocks: list, us });
     }
-    if (url.pathname !== '/quotes') {
-      return new Response('FinFolio price service · /quotes?codes=2330,0050 · /stocks', { status: url.pathname === '/' ? 200 : 404, headers: CORS });
+    if (url.pathname === '/fundamentals') {
+      const { askedBy, codes } = parseCodes(url);
+      const items = {};
+      const missing = [];
+      const results = await Promise.all(codes.slice(0, 60).map(async (c) => {
+        try { return [c, await getFundamental(c, env, ctx)]; } catch (e) { return [c, null]; }
+      }));
+      results.forEach(([n, item]) => {
+        const originals = askedBy.get(n) || [n];
+        if (item) originals.forEach((c) => { items[c] = item; });
+        else originals.forEach((c) => missing.push(c));
+      });
+      // 比照 /quotes：缺資料只標 partial，永遠回 200，不讓前端整批丟棄查得到的部分。
+      return json({ date: todayStr(), items, missing, partial: missing.length > 0 });
     }
-    // 查詢用大寫、去重；回應時再照「前端問的那個寫法」把價格放回去。
-    // 前端是用 livePrices[trade.code] 直接取值的，只回大寫 key 的話，資料裡存成小寫的
-    // 代號一樣拿不到價（而且是靜默的：UI 只會顯示不到收盤價，不會報錯）。
-    const asked = (url.searchParams.get('codes') || '').split(',').map((s) => s.trim()).filter(Boolean);
-    const askedBy = new Map(); // 大寫代號 → 前端原本的寫法（可能有多種）
-    asked.forEach((c) => {
-      const n = norm(c);
-      if (!askedBy.has(n)) askedBy.set(n, []);
-      askedBy.get(n).push(c);
-    });
-    const codes = [...askedBy.keys()];
+    if (url.pathname !== '/quotes') {
+      return new Response('FinFolio price service · /quotes?codes=2330,0050 · /stocks · /fundamentals?codes=2330,AAPL', { status: url.pathname === '/' ? 200 : 404, headers: CORS });
+    }
+    const { askedBy, codes } = parseCodes(url);
     const twCodes = codes.filter(isTW);
     const usCodes = codes.filter((c) => !isTW(c));
 

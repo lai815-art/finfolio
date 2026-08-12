@@ -150,6 +150,135 @@ describe('finfolio-prices worker', () => {
     expect(body.source).toContain('yahoo');
   });
 
+  // ── /fundamentals ────────────────────────────────────────────────────────
+  // 快取的 key 帶代號，測試之間互不干擾——但同一支測試不要重覆用同一個代號。
+  const finmindEps = (rows) =>
+    new Response(JSON.stringify({ msg: 'success', data: rows.map(([date, value]) => ({ date, stock_id: 'x', type: 'EPS', value })) }), { status: 200 });
+
+  it('/fundamentals aggregates FinMind quarterly EPS into annual totals and TTM', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (url) => {
+        if (String(url).includes('finmindtrade.com')) {
+          return finmindEps([
+            ['2024-03-31', 1], ['2024-06-30', 2], ['2024-09-30', 3], ['2024-12-31', 4],
+            ['2025-03-31', 2], ['2025-06-30', 3], ['2025-09-30', 4], ['2025-12-31', 5],
+          ]);
+        }
+        return new Response('', { status: 404 });
+      })
+    );
+
+    const res = await worker.fetch(new Request('https://worker.example/fundamentals?codes=1111'), env, ctx);
+    const body = await res.json();
+
+    expect(res.status).toBe(200);
+    expect(body.items['1111'].epsAnnual).toEqual({ 2024: 10, 2025: 14 });
+    expect(body.items['1111'].epsTTM).toBe(14); // 最近四季
+    expect(body.items['1111'].epsTTMPrev).toBe(10); // 再往前四季
+    expect(body.items['1111'].source).toBe('finmind');
+    expect(body.partial).toBe(false);
+  });
+
+  // 年度只收湊滿四季的年份：三季的和拿去算成長率會憑空多出一個假的衰退年。
+  it('/fundamentals skips years without four quarters, and reports no TTM when a quarter is missing', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (url) => {
+        if (String(url).includes('finmindtrade.com')) {
+          return finmindEps([
+            ['2024-03-31', 1], ['2024-06-30', 2], ['2024-09-30', 3], ['2024-12-31', 4],
+            ['2025-03-31', 2], ['2025-06-30', 3], /* Q3 缺 */ ['2025-12-31', 5],
+          ]);
+        }
+        return new Response('', { status: 404 });
+      })
+    );
+
+    const res = await worker.fetch(new Request('https://worker.example/fundamentals?codes=1112'), env, ctx);
+    const body = await res.json();
+
+    expect(body.items['1112'].epsAnnual).toEqual({ 2024: 10 }); // 2025 只有三季 → 不收
+    expect(body.items['1112'].epsTTM).toBeNull(); // 最近四季跨了 15 個月，不是一年
+  });
+
+  // 10-Q 只涵蓋前三個會計季，第四季只出現在 10-K 的全年數字裡。
+  // 缺的那一季要用「全年 − 已知三季」補回來，否則 TTM 永遠算不出來。
+  it('/fundamentals derives the missing fourth quarter from the SEC annual figure', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (url) => {
+        const u = String(url);
+        if (u.includes('company_tickers.json')) {
+          const rows = { 0: { cik_str: 320193, ticker: 'TSTA', title: 'Test A' } };
+          for (let i = 1; i < 150; i++) rows[i] = { cik_str: i, ticker: `Z${i}`, title: 'filler' };
+          return new Response(JSON.stringify(rows), { status: 200 });
+        }
+        if (u.includes('EarningsPerShareDiluted')) {
+          return new Response(JSON.stringify({ units: { 'USD/shares': [
+            { start: '2025-01-01', end: '2025-12-31', val: 10, filed: '2026-02-01' },
+            { start: '2025-01-01', end: '2025-03-31', val: 2, filed: '2025-05-01' },
+            { start: '2025-04-01', end: '2025-06-30', val: 3, filed: '2025-08-01' },
+            { start: '2025-07-01', end: '2025-09-30', val: 3, filed: '2025-11-01' },
+          ] } }), { status: 200 });
+        }
+        return new Response('', { status: 404 });
+      })
+    );
+
+    const res = await worker.fetch(new Request('https://worker.example/fundamentals?codes=TSTA'),
+      { SEC_CONTACT: 'FinFolio Test test@example.com' }, ctx);
+    const body = await res.json();
+
+    expect(body.items.TSTA.epsAnnual).toEqual({ 2025: 10 }); // 補完 Q4=2 才湊滿四季
+    expect(body.items.TSTA.epsTTM).toBe(10);
+    expect(body.items.TSTA.source).toBe('sec-edgar');
+  });
+
+  // SEC 要求 User-Agent 帶聯絡信箱，信箱不寫死在公開 repo 裡；沒設定就整個不打 SEC。
+  it('/fundamentals skips SEC entirely when no SEC_CONTACT is configured', async () => {
+    const hits = [];
+    vi.stubGlobal('fetch', vi.fn(async (url) => { hits.push(String(url)); return new Response('', { status: 404 }); }));
+
+    const res = await worker.fetch(new Request('https://worker.example/fundamentals?codes=TSTB'), env, ctx);
+    const body = await res.json();
+
+    expect(hits.some((u) => u.includes('sec.gov'))).toBe(false);
+    expect(body.missing).toEqual(['TSTB']);
+  });
+
+  it('/fundamentals keys results back by the requested spelling and lists unknown codes as missing', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (url) => {
+        if (String(url).includes('finmindtrade.com') && String(url).includes('data_id=1113')) {
+          return finmindEps([['2025-03-31', 1], ['2025-06-30', 1], ['2025-09-30', 1], ['2025-12-31', 1]]);
+        }
+        return new Response('', { status: 404 }); // 00713b 與 CIK 對照表都查不到
+      })
+    );
+
+    const res = await worker.fetch(new Request('https://worker.example/fundamentals?codes=1113,00713b,NOPE'), env, ctx);
+    const body = await res.json();
+
+    expect(res.status).toBe(200); // 缺資料仍回 200
+    expect(body.items['1113'].epsTTM).toBe(4);
+    expect(body.missing).toContain('00713b'); // ETF 沒有 EPS，照前端問的寫法回報
+    expect(body.missing).toContain('NOPE');
+    expect(body.partial).toBe(true);
+  });
+
+  it('/fundamentals survives an upstream failure without failing the whole request', async () => {
+    vi.stubGlobal('fetch', vi.fn(async () => { throw new Error('network down'); }));
+
+    const res = await worker.fetch(new Request('https://worker.example/fundamentals?codes=1114'), env, ctx);
+    const body = await res.json();
+
+    expect(res.status).toBe(200);
+    expect(body.missing).toEqual(['1114']);
+    expect(body.partial).toBe(true);
+  });
+
   it('GET /stocks returns the {stocks, us} shape, with us empty when no FINNHUB_KEY is set', async () => {
     vi.stubGlobal(
       'fetch',
