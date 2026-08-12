@@ -49,6 +49,12 @@ export function ffPe(price, epsTTM) {
   return price / epsTTM;
 }
 
+// 目標價相對現價的上漲空間(%)。負值代表目標價低於現價，照實回傳。
+export function ffUpside(price, target) {
+  if (!isNum(price) || price <= 0 || !isNum(target) || target <= 0) return null;
+  return (target - price) / price * 100;
+}
+
 // PEG = 本益比 ÷ 成長率(%)。成長率 <= 0 時 PEG 會變負數或無限大，一律回 null。
 export function ffPeg(pe, growthPct) {
   if (!isNum(pe) || !isNum(growthPct) || growthPct <= 0) return null;

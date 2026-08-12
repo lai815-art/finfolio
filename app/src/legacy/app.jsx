@@ -799,6 +799,25 @@ function App() {
     }
   }, []);
 
+  // 分析師預估明細：點進去才看的詳情，很少重複開，Worker 那邊已經有日快取，
+  // 所以只做記憶體 memo、不進 localStorage——多一個 ff_ key 就多一份快取版本要維護。
+  const estimatesRef = React.useRef({});
+  const fetchEstimates = React.useCallback(async (code) => {
+    if (!code) return { ok: false, reason: '缺代號' };
+    if (estimatesRef.current[code]) return { ok: true, data: estimatesRef.current[code] };
+    const base = window.FF_PRICE_API;
+    if (!base) return { ok: false, reason: '未設定報價服務' };
+    try {
+      const res = await fetch(base + '/estimates?code=' + encodeURIComponent(code));
+      if (!res.ok) return { ok: false, reason: '預估服務錯誤 ' + res.status };
+      const data = await res.json();
+      estimatesRef.current[code] = data;
+      return { ok: true, data };
+    } catch (e) {
+      return { ok: false, reason: '連線失敗' };
+    }
+  }, []);
+
   const [recordOpen, setRecordOpen] = useStateApp(false);
   const [recordDraft, setRecordDraft] = useStateApp(null);
   const dashDateRef = React.useRef(null); // 看板目前檢視的日期，供「+記一筆」預設帶入
@@ -1377,7 +1396,7 @@ function App() {
           computedHoldings={computedHoldings} fundamentals={fundamentals} livePrices={livePrices}
           watchlist={watchlist} setWatchlist={setWatchlist}
           valuationOverride={valuationOverride} setValuationOverride={setValuationOverride}
-          onFetchFundamentals={fetchFundamentals} /> : null;
+          onFetchFundamentals={fetchFundamentals} onFetchEstimates={fetchEstimates} /> : null;
       })()}
 
       {/* ── Detail sheets at phone-frame root (避免被 overflow 容器截切) ── */}

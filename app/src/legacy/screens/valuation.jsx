@@ -1,11 +1,14 @@
 // 估值分析 / 本益成長比（PEG）：持股與關注標的放在同一張表比較
 import { mergeHoldingsByCode } from '../compute.js';
-import { ffValuationRow, ffComparePeg } from '../valuation.js';
+import { ffValuationRow, ffComparePeg, ffUpside } from '../valuation.js';
 
 const { useState: useStateVal, useEffect: useEffectVal } = React;
 
 const fmtVal = (n, d) => n == null ? '—' : n.toFixed(d);
 const fmtPct = (n) => n == null ? '—' : (n >= 0 ? '+' : '') + n.toFixed(1) + '%';
+const fmtNum = (n) => n == null ? '—' : Math.round(n).toLocaleString();
+// 模組層級取一次：ValuationDetail 是模組層級元件，不能靠父層把 icon 傳進來
+const ChevronRightVal = (props) => React.createElement(window.Icons.ChevronRight, props);
 
 // PEG 分區只是估值參考，不是買賣訊號——文案一律用「偏低／合理／偏高」，不用「買進／賣出」。
 const ZONE_LABEL = { low: '偏低', fair: '合理', high: '偏高' };
@@ -47,7 +50,7 @@ function OverrideInput({ label, auto, value, onCommit }) {
 const quarterLabel = (end) => end.slice(2, 4) + 'Q' + Math.ceil(Number(end.slice(5, 7)) / 3);
 
 /* ─── 展開的個股明細 ─────────────────────────────────────────────────── */
-function ValuationDetail({ row, onOverride, onRemoveWatch }) {
+function ValuationDetail({ row, onOverride, onRemoveWatch, onOpenEstimates }) {
   const [unit, setUnit] = useStateVal('year'); // year | quarter
   const annual = Object.keys(row.epsAnnual).sort().map((y) => ({ key: y, label: y.slice(2), val: row.epsAnnual[y] }));
   const quarterly = (row.epsQuarters || []).map((q) => ({ key: q.end, label: quarterLabel(q.end), val: q.val }));
@@ -102,10 +105,20 @@ function ValuationDetail({ row, onOverride, onRemoveWatch }) {
         <div>預估本益比 <span style={{ color: TOKENS.ink, fontFamily: TOKENS.fontMono }}>{fmtVal(row.fwdPe, 1)}</span></div>
       </div>
       }
-      {row.hasForward && row.analysts != null &&
-      // 家數少的共識就是一兩個人的看法，跟三十幾位分析師的共識不是同一回事
-      <div style={{ marginTop: SP(4), fontSize: FS(13), color: TOKENS.gray4 }}>
-        法人預估來自 {row.analysts} 位分析師{row.analysts < 3 ? '（家數少，參考性有限）' : ''}
+      {row.hasForward &&
+      // 點進去看共識的細節（區間、家數、最近被調升還是調降）。條件只看 hasForward，
+      // 不看 analysts——家數偶爾會缺，缺了不該連入口都沒有。
+      <div onClick={() => onOpenEstimates(row)}
+        style={{ marginTop: SP(6), padding: PAD('8px 10px'), borderRadius: RS(12),
+          background: 'rgba(0,0,0,0.04)', cursor: 'pointer',
+          display: 'flex', alignItems: 'center', gap: SP(8) }}>
+        <div style={{ flex: 1, fontSize: FS(13), color: TOKENS.ink2 }}>
+          {/* 家數少的共識就是一兩個人的看法，跟三十幾位分析師的共識不是同一回事 */}
+          {row.analysts != null ?
+          `法人預估來自 ${row.analysts} 位分析師${row.analysts < 3 ? '（家數少，參考性有限）' : ''}` :
+          '法人預估明細'}
+        </div>
+        <ChevronRightVal size={16} style={{ color: TOKENS.gray4, flexShrink: 0 }} />
       </div>
       }
 
@@ -136,8 +149,165 @@ function ValuationDetail({ row, onOverride, onRemoveWatch }) {
 
 }
 
+/* ─── 分析師預估明細頁 ───────────────────────────────────────────────
+   列表上只看得到一個平均值，但共識的品質比平均值更值得看：實測 2330 明年預估平均
+   138.43、區間卻是 93.3～159.67，同一個 PEG 0.78 照最低估值算會變成 1.2。
+   這頁把區間、家數、以及預估最近被調升還是調降攤開。 */
+const PERIOD_LABEL = { '0q': '本季', '+1q': '下季', '0y': '今年', '+1y': '明年' };
+const REC_LABEL = { strong_buy: '強力買進', buy: '買進', hold: '持有', sell: '賣出', strong_sell: '強力賣出' };
+const RATING_ROWS = [
+  { key: 'strongBuy', label: '強力買進', color: TOKENS.green },
+  { key: 'buy', label: '買進', color: TOKENS.green2 },
+  { key: 'hold', label: '持有', color: TOKENS.gold2 },
+  { key: 'sell', label: '賣出', color: TOKENS.red2 },
+  { key: 'strongSell', label: '強力賣出', color: TOKENS.red }];
+
+
+function EstimatesSheet({ row, onClose, onFetchEstimates }) {
+  const { ChevronRight } = window.Icons;
+  const [state, setState] = useStateVal({ loading: true, data: null, error: '' });
+
+  useEffectVal(() => {
+    let alive = true;
+    setState({ loading: true, data: null, error: '' });
+    Promise.resolve(onFetchEstimates ? onFetchEstimates(row.code) : { ok: false, reason: '未接上服務' })
+      .then((r) => { if (alive) setState({ loading: false, data: r && r.ok ? r.data : null, error: r && r.ok ? '' : (r && r.reason) || '取得失敗' }); })
+      .catch(() => { if (alive) setState({ loading: false, data: null, error: '取得失敗' }); });
+    return () => { alive = false; };
+  }, [row.code]);
+
+  const d = state.data;
+  const periods = d && d.periods || [];
+  const target = d && d.target;
+  const ratings = d && d.ratings;
+  const upside = target ? ffUpside(row.price, target.mean) : null;
+  const ratingTotal = ratings ? RATING_ROWS.reduce((a, r) => a + (ratings[r.key] || 0), 0) : 0;
+
+  return (
+    <div style={{ position: 'absolute', inset: 0, zIndex: 90, background: TOKENS.bg,
+      display: 'flex', flexDirection: 'column' }}>
+      <div style={{ height: 'var(--ff-detail-top, 62px)', flexShrink: 0 }} />
+      <div style={{ display: 'flex', alignItems: 'center', gap: SP(12), padding: PAD('3px 10px 8px') }}>
+        <button onClick={onClose} style={{ width: 40, height: 40, borderRadius: RS(20), flexShrink: 0,
+          background: 'rgba(0,0,0,0.09)', border: '1px solid rgba(0,0,0,0.12)', color: 'rgba(60,60,67,0.88)',
+          display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+          <ChevronRight size={20} style={{ transform: 'rotate(180deg)' }} />
+        </button>
+        <div style={{ minWidth: 0 }}>
+          <div style={{ fontSize: FS(24), fontWeight: 700, color: TOKENS.ink, letterSpacing: -0.5, lineHeight: 1.25,
+            whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{row.name || row.code}</div>
+          <div style={{ fontSize: FS(13), color: TOKENS.gray4 }}>
+            法人預估{d && d.symbol ? ' · ' + d.symbol : ''}
+          </div>
+        </div>
+      </div>
+
+      <div style={{ flex: 1, overflowY: 'auto', overflowX: 'hidden', padding: PAD('0 12px 32px') }}>
+        {state.loading &&
+        <div style={{ ...cardStyleVal, textAlign: 'center', color: TOKENS.gray4, fontSize: FS(15), padding: PAD('28px 14px') }}>
+          載入中…
+        </div>
+        }
+        {!state.loading && state.error &&
+        <div style={{ ...cardStyleVal, textAlign: 'center', color: TOKENS.red, fontSize: FS(15), padding: PAD('28px 14px') }}>
+          {state.error}
+        </div>
+        }
+        {!state.loading && !state.error && periods.length === 0 &&
+        <div style={{ ...cardStyleVal, textAlign: 'center', color: TOKENS.gray4, fontSize: FS(15), padding: PAD('28px 14px') }}>
+          這檔沒有分析師預估資料
+        </div>
+        }
+
+        {target &&
+        <div style={{ ...cardStyleVal, marginBottom: SP(8) }}>
+          <div style={{ fontSize: FS(14), color: TOKENS.ink2 }}>目標價</div>
+          <div style={{ marginTop: SP(6), display: 'flex', alignItems: 'baseline', gap: SP(8) }}>
+            <div style={{ fontSize: FS(26), fontWeight: 700, fontFamily: TOKENS.fontMono, color: TOKENS.ink }}>
+              {fmtNum(target.mean)}
+            </div>
+            {upside != null &&
+            <div style={{ fontSize: FS(16), fontWeight: 600, color: upside < 0 ? TOKENS.red : TOKENS.incBlue }}>
+              {fmtPct(upside)}
+            </div>
+            }
+          </div>
+          <div style={{ marginTop: SP(4), fontSize: FS(13), color: TOKENS.gray4 }}>
+            區間 {fmtNum(target.low)} ~ {fmtNum(target.high)}
+            {row.price != null ? ` · 現價 ${fmtNum(row.price)}` : ''}
+            {target.analysts ? ` · ${target.analysts} 位` : ''}
+            {target.key && REC_LABEL[target.key] ? ` · ${REC_LABEL[target.key]}` : ''}
+          </div>
+        </div>
+        }
+
+        {ratings && ratingTotal > 0 &&
+        <div style={{ ...cardStyleVal, marginBottom: SP(8) }}>
+          <div style={{ fontSize: FS(14), color: TOKENS.ink2 }}>評等分布</div>
+          <div style={{ marginTop: SP(8), display: 'flex', flexDirection: 'column', gap: SP(6) }}>
+            {RATING_ROWS.map((r) => {
+              const n = ratings[r.key] || 0;
+              return (
+                <div key={r.key} style={{ display: 'flex', alignItems: 'center', gap: SP(8) }}>
+                  <div style={{ width: 62, fontSize: FS(13), color: TOKENS.ink2, flexShrink: 0 }}>{r.label}</div>
+                  <div style={{ flex: 1, height: 8, borderRadius: RS(4), background: 'rgba(0,0,0,0.06)', overflow: 'hidden' }}>
+                    <div style={{ width: n / ratingTotal * 100 + '%', height: '100%', background: r.color, borderRadius: RS(4) }} />
+                  </div>
+                  <div style={{ width: 22, textAlign: 'right', fontSize: FS(13), fontFamily: TOKENS.fontMono,
+                    color: n ? TOKENS.ink : TOKENS.gray4 }}>{n}</div>
+                </div>);
+
+            })}
+          </div>
+        </div>
+        }
+
+        {periods.map((p) => {
+          const spread = p.low != null && p.high != null;
+          const revUp = p.revisions && p.revisions.up30;
+          const revDown = p.revisions && p.revisions.down30;
+          const d30 = p.trend && p.trend.d30;
+          const d90 = p.trend && p.trend.d90;
+          return (
+            <div key={p.key} style={{ ...cardStyleVal, marginBottom: SP(8) }}>
+              <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', gap: SP(8) }}>
+                <div style={{ fontSize: FS(16), fontWeight: 600, color: TOKENS.ink }}>
+                  {PERIOD_LABEL[p.key] || p.key}
+                  {p.endDate ? <span style={{ fontSize: FS(13), fontWeight: 400, color: TOKENS.gray4 }}> {String(p.endDate).slice(0, 7)}</span> : null}
+                </div>
+                <div style={{ fontSize: FS(20), fontWeight: 700, fontFamily: TOKENS.fontMono, color: TOKENS.ink }}>
+                  {fmtVal(p.avg, 2)}
+                </div>
+              </div>
+              <div style={{ marginTop: SP(4), fontSize: FS(13), color: TOKENS.ink2 }}>
+                {spread ? `區間 ${fmtVal(p.low, 2)} ~ ${fmtVal(p.high, 2)}` : ''}
+                {p.analysts ? ` · ${p.analysts} 位` : ''}
+                {p.growth != null ? ` · 年增 ${fmtPct(p.growth * 100)}` : ''}
+              </div>
+              {(d30 != null || d90 != null) &&
+              // 預估被調升還是調降，比預估值本身更接近「最近發生了什麼」
+              <div style={{ marginTop: SP(4), fontSize: FS(13), color: TOKENS.gray4 }}>
+                30 天前 {fmtVal(d30, 2)} · 90 天前 {fmtVal(d90, 2)}
+                {revUp || revDown ? ` · 近 30 天 ${revUp || 0} 升 ${revDown || 0} 降` : ''}
+              </div>
+              }
+            </div>);
+
+        })}
+
+        {periods.length > 0 &&
+        <div style={{ marginTop: SP(8), fontSize: FS(13), color: TOKENS.gray4, lineHeight: 1.6 }}>
+          資料為賣方分析師的共識預估（來源 Yahoo），會錯、也普遍偏樂觀，賣出評等本來就極少見。
+          區間越寬代表分歧越大，平均值的參考性越低。此頁為資訊呈現，非投資建議。
+        </div>
+        }
+      </div>
+    </div>);
+
+}
+
 /* ─── 單一標的列 ─────────────────────────────────────────────────────── */
-function ValuationRow({ row, expanded, onToggle, onOverride, onRemoveWatch }) {
+function ValuationRow({ row, expanded, onToggle, onOverride, onRemoveWatch, onOpenEstimates }) {
   return (
     <div onClick={onToggle} style={{ ...cardStyleVal, cursor: 'pointer' }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: SP(10) }}>
@@ -184,7 +354,8 @@ function ValuationRow({ row, expanded, onToggle, onOverride, onRemoveWatch }) {
 
       {expanded &&
       <div onClick={(e) => e.stopPropagation()}>
-        <ValuationDetail row={row} onOverride={onOverride} onRemoveWatch={onRemoveWatch} />
+        <ValuationDetail row={row} onOverride={onOverride} onRemoveWatch={onRemoveWatch}
+          onOpenEstimates={onOpenEstimates} />
       </div>
       }
     </div>);
@@ -224,13 +395,14 @@ function AddWatchRow({ universe, onAdd }) {
 
 /* ─── Main sheet ─────────────────────────────────────────────────────── */
 function ValuationSheet({ open, onClose, computedHoldings = [], fundamentals = {}, livePrices = {},
-  watchlist = [], setWatchlist, valuationOverride = {}, setValuationOverride, onFetchFundamentals }) {
+  watchlist = [], setWatchlist, valuationOverride = {}, setValuationOverride, onFetchFundamentals, onFetchEstimates }) {
   const { ChevronRight, RefreshCw } = window.Icons;
   const [tab, setTab] = useStateVal('holdings'); // holdings | watch
   const [sort, setSort] = useStateVal('peg'); // peg | code
   const [expanded, setExpanded] = useStateVal(null);
   const [refreshing, setRefreshing] = useStateVal(false);
   const [note, setNote] = useStateVal('');
+  const [estimatesFor, setEstimatesFor] = useStateVal(null); // 疊在這頁上的法人預估明細
 
   // 股票搜尋資料庫：台股即時清單 + 美股清單（與記一筆的股票代號欄同一份來源）
   const [universe, setUniverse] = useStateVal(() => window.US_STOCK_LIST || []);
@@ -378,7 +550,8 @@ function ValuationSheet({ open, onClose, computedHoldings = [], fundamentals = {
             expanded={expanded === r.code}
             onToggle={() => setExpanded(expanded === r.code ? null : r.code)}
             onOverride={setOverride}
-            onRemoveWatch={tab === 'watch' ? removeWatch : null} />
+            onRemoveWatch={tab === 'watch' ? removeWatch : null}
+            onOpenEstimates={setEstimatesFor} />
           )
           }
         </div>
@@ -392,6 +565,11 @@ function ValuationSheet({ open, onClose, computedHoldings = [], fundamentals = {
           此頁為估值參考，非投資建議。
         </div>
       </div>
+
+      {estimatesFor &&
+      <EstimatesSheet row={estimatesFor} onClose={() => setEstimatesFor(null)}
+        onFetchEstimates={onFetchEstimates} />
+      }
     </div>);
 
 }

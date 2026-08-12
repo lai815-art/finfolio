@@ -194,7 +194,14 @@ App 分四個主要分頁（底部 TabBar）＋一個全螢幕設定頁：
 - **預估本益比用「本年度預估 EPS」、成長率用「下年度相對本年度」**，分子的基準年與分母的
   成長區間才對得上。拿 trailing EPS 配預估成長率會系統性高估便宜程度。
 - 分析師家數會顯示出來，少於 3 位時額外標「家數少，參考性有限」——一兩個人的看法跟
-  三十幾位的共識不是同一回事。
+  三十幾位的共識不是同一回事。點這一行進**法人預估明細頁**（`EstimatesSheet`，疊在估值頁上的
+  `zIndex:90` overlay）。
+- **明細頁做在 App 內而不是外連 Yahoo**，理由有三：台灣版 Yahoo 根本沒有分析師預估頁（只有
+  「估價」，且是 VIP 付費、內容也不是分析師預估）；國際版只有英文；而且 `settings.jsx:2266`
+  記錄過 standalone 模式把控制權交給 Safari 會讓 App 視窗被永久降級成瀏覽器分頁。
+- 明細頁的重點是**區間而不是平均值**：實測 2330 明年預估平均 138.43、區間卻是 93.3～159.67，
+  同一個「預估 PEG 0.78」照最低估值算會變成 1.2。只給平均值等於把不確定性藏起來，所以
+  低～高區間、分析師家數、以及「30／90 天前的預估值與近 30 天調升／調降家數」都要攤開。
 - **Worker 只回原始 EPS，本益比與 PEG 都在前端算**：現價本來就在前端手上（`livePrices`），而且覆寫要有單一計算點。這也讓 Worker 不必再多抓 TWSE `BWIBBU_ALL` / TPEx 本益比兩份全市場總表。
 - 起點 EPS ≤ 0（由虧轉盈）算不出有意義的 CAGR、EPS ≤ 0 沒有本益比、成長率 ≤ 0 沒有 PEG——這些一律回 `null` 顯示「—」，不硬算出天文數字。ETF 與債券 ETF 本來就沒有 EPS，顯示「無 EPS 資料」。
 - 展開的個股明細可切「年/季」看每股盈餘：年度圖看長期趨勢，單季圖看轉折。舊快取沒有 `epsQuarters` 時不顯示切換鈕，免得切過去是一片空白。
@@ -227,6 +234,13 @@ App 分四個主要分頁（底部 TabBar）＋一個全螢幕設定頁：
     Yahoo 偶爾抽風；綁在同一份月快取裡的話，一次暫時性失敗會讓這檔整整一個月都沒有預估，
     而且使用者從前端按刷新也救不回來（那只清得掉前端快取）。
   - 財報是季頻資料，逐檔快取一個月。**回傳欄位改變時兩邊的快取版本都要 bump**（Worker 的 `fund/vN` key 與前端的 `FUND_CACHE_V`），否則使用者要等到下個月才看得到新欄位。
+- `GET /estimates?code=2330` → `{date, code, symbol, currency, periods, target, ratings, source}`：分析師預估明細，
+  同樣走 Yahoo `quoteSummary`（modules 加上 `financialData` 與 `recommendationTrend`）。
+  - `periods` 是 `0q`／`+1q`／`0y`／`+1y` 四期的 `{avg, low, high, analysts, yearAgo, growth, trend:{current,d30,d90}, revisions:{up30,down30}}`
+  - `target` 是目標價（均值／高／低／家數／評等），`ratings` 是評等分布，兩者拿不到就是 `null`，不影響 `periods`
+  - 單一代號用 `?code=`（詳情用途），與 `/quotes`、`/fundamentals` 的 `?codes=` 批次語意刻意不同
+  - 快取一天；Yahoo 不可用時不寫快取，避免把「暫時拿不到」記成「今天沒有」
+  - 後綴 fallback 與 `/fundamentals` 的預估共用 `yahooQuoteSummary()`，`.TW` → `.TWO` 的邏輯只留一份
 - 兩個機密設定都是選用：`FINNHUB_KEY`（美股報價）與 `SEC_CONTACT`（美股 EPS 的聯絡信箱；repo 是公開的所以不寫死在程式碼裡，**沒設定就完全不打 SEC**，美股一律回報查無 EPS）。其餘資料源皆為公開、免金鑰。
 - 只傳股票代號，不傳使用者的持倉/金額/身分資訊。
 
@@ -257,8 +271,9 @@ App 分四個主要分頁（底部 TabBar）＋一個全螢幕設定頁：
 - `parseUtterance()`（voice-parse.js 的語音解析）——規則多、邊界案例多，已有單元測試
 - 分類→帳戶記憶的讀寫與失效過濾（`last-account.js`，`last-account.test.js`）——`ffRememberAccount`／`ffLastAccountFor`
 - 股票類別配色（`asset-class-color.js`，`asset-class-color.test.js`）——`ffAssetClassColorMap`／`ffClassShade`／`ffMixHex`／`ffAssetClassPalette`
-- 估值指標（`valuation.js`，`valuation.test.js`）——`ffEpsCagr`／`ffTtmYoy`／`ffForwardGrowth`／`ffPe`／`ffPeg`／`ffPegZone`／`ffValuationRow`／`ffComparePeg`，重點在「算不出來時要回 null」的各種邊界（EPS ≤ 0、起點虧損、成長率 ≤ 0、年數不足）、主數字的優先序（預估 > 歷史 > 近期）與覆寫優先序
+- 估值指標（`valuation.js`，`valuation.test.js`）——`ffEpsCagr`／`ffTtmYoy`／`ffForwardGrowth`／`ffUpside`／`ffPe`／`ffPeg`／`ffPegZone`／`ffValuationRow`／`ffComparePeg`，重點在「算不出來時要回 null」的各種邊界（EPS ≤ 0、起點虧損、成長率 ≤ 0、年數不足）、主數字的優先序（預估 > 歷史 > 近期）與覆寫優先序
 - Worker 的 `/fundamentals`（`worker/index.test.js`）——季 EPS 聚合、季序列上限 12 季、缺季不算 TTM、SEC 缺季補算、大小寫攤回、沒設 `SEC_CONTACT` 時不打 SEC、上游失敗仍回 200
+- Worker 的 `/estimates`（`worker/index.test.js`）——四期欄位對應（重點驗低～高區間有帶出來）、`.TW` → `.TWO` fallback、缺 `financialData`／`recommendationTrend` 時 `periods` 仍完整、無覆蓋時回 200 空殼、Yahoo 被限流時不寫快取
 - Worker 的法人預估路徑——`.TW` → `.TWO` 後綴 fallback、整批只取一次 crumb、缺 `+1y` 不算預估、Yahoo 掛掉不影響 EPS 主資料、**暫時性失敗不會被寫進快取**（測試會連跑「Yahoo 掛掉」與「Yahoo 恢復」兩次）
 - 註：Worker 測試的 `ctx.waitUntil` 必須收下 promise 並在 `afterEach` 等它落地，且要清掉 Yahoo 的 cookie/crumb 快取；不做的話背景寫快取會在下一個測試進行中才完成，變成「單獨跑會過、整批跑會紅」的偶發污染
 - 下拉面板的展開方向與高度（`accounting.jsx`，`accounting.dropdown.test.js`）——`ffDropdownPlacement`；DOM 量測留在 `DropField` 裡，純幾何計算抽出來測

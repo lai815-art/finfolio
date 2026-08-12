@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { ffEpsCagr, ffTtmYoy, ffForwardGrowth, ffPe, ffPeg, ffPegZone, ffValuationRow, ffComparePeg } from './valuation.js';
+import { ffEpsCagr, ffTtmYoy, ffForwardGrowth, ffUpside, ffPe, ffPeg, ffPegZone, ffValuationRow, ffComparePeg } from './valuation.js';
 
 // 三年剛好翻倍 → 年化約 26%
 const GROWING = { 2022: 10, 2023: 12, 2024: 16, 2025: 20 };
@@ -57,6 +57,23 @@ describe('ffForwardGrowth', () => {
     expect(ffForwardGrowth(-5, 130)).toBeNull();
     expect(ffForwardGrowth(undefined, 130)).toBeNull();
     expect(ffForwardGrowth(100, undefined)).toBeNull();
+  });
+});
+
+describe('ffUpside', () => {
+  it('算目標價相對現價的上漲空間', () => {
+    expect(ffUpside(2415, 3141.6)).toBeCloseTo(30.1, 1);
+  });
+
+  it('目標價低於現價時回負值，照實呈現', () => {
+    expect(ffUpside(100, 80)).toBeCloseTo(-20.0, 5);
+  });
+
+  it('現價或目標價無效時回 null', () => {
+    expect(ffUpside(0, 100)).toBeNull();
+    expect(ffUpside(100, 0)).toBeNull();
+    expect(ffUpside(null, 100)).toBeNull();
+    expect(ffUpside(100, undefined)).toBeNull();
   });
 });
 
