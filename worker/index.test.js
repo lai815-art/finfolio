@@ -2,11 +2,27 @@ import { describe, it, expect, vi, afterEach } from 'vitest';
 import worker from './index.js';
 
 const env = {};
-const ctx = { waitUntil: () => {} };
+// 收下背景工作並在每個測試結束時等它落地。丟掉不管的話，寫快取會在下一個測試進行中
+// 才完成，變成偶發的跨測試污染（症狀是單獨跑會過、整批跑會紅）。
+const pending = [];
+const ctx = { waitUntil: (p) => pending.push(p) };
 
 describe('finfolio-prices worker', () => {
-  afterEach(() => {
+  // Yahoo 的 cookie + crumb 快取 key 只帶日期、不帶代號，所以會跨測試殘留：
+  // 不清掉的話，測「crumb 只取一次」與「crumb 被拒」時都會直接命中前一個測試留下的憑證。
+  const clearYahooAuth = async () => {
+    const d = new Date(Date.now() + 8 * 3600 * 1000).toISOString().slice(0, 10);
+    try { await caches.default.delete(new Request(`https://ff-cache.local/yh-auth/v1/${d}`)); } catch (e) {}
+  };
+  const clearForward = async (code) => {
+    const d = new Date(Date.now() + 8 * 3600 * 1000).toISOString().slice(0, 10);
+    try { await caches.default.delete(new Request(`https://ff-cache.local/fwd/v1/${code}/${d}`)); } catch (e) {}
+  };
+
+  afterEach(async () => {
+    await Promise.allSettled(pending.splice(0)); // 先等背景寫完，再拆 stub、清快取
     vi.unstubAllGlobals();
+    await clearYahooAuth();
   });
 
   it('responds to CORS preflight', async () => {
@@ -289,6 +305,116 @@ describe('finfolio-prices worker', () => {
     expect(body.missing).toContain('00713b'); // ETF 沒有 EPS，照前端問的寫法回報
     expect(body.missing).toContain('NOPE');
     expect(body.partial).toBe(true);
+  });
+
+  // ── 分析師預估（Yahoo）─────────────────────────────────────────────────
+  // quoteSummary 需要 cookie + crumb，整條路徑是 best-effort：拿不到只是少一個欄位。
+  const yahooStub = (trendBySymbol, opts = {}) => {
+    const seen = { crumb: 0, symbols: [] };
+    vi.stubGlobal('fetch', vi.fn(async (url) => {
+      const u = String(url);
+      if (u.includes('finmindtrade.com')) {
+        return finmindEps([['2025-03-31', 1], ['2025-06-30', 1], ['2025-09-30', 1], ['2025-12-31', 1]]);
+      }
+      if (u.includes('fc.yahoo.com')) {
+        return new Response('', { status: 200, headers: { 'Set-Cookie': 'A3=token; Path=/' } });
+      }
+      if (u.includes('getcrumb')) {
+        seen.crumb++;
+        return new Response(opts.crumb === null ? 'Too Many Requests' : 'abc123', { status: 200 });
+      }
+      if (u.includes('quoteSummary')) {
+        const sym = decodeURIComponent(u.split('quoteSummary/')[1].split('?')[0]);
+        seen.symbols.push(sym);
+        const trend = trendBySymbol[sym];
+        if (!trend) return new Response('', { status: 404 });
+        return new Response(JSON.stringify({ quoteSummary: { result: [{ earningsTrend: { trend } }] } }), { status: 200 });
+      }
+      return new Response('', { status: 404 });
+    }));
+    return seen;
+  };
+  const est = (period, avg, n) => ({ period, earningsEstimate: { avg: { raw: avg }, numberOfAnalysts: { raw: n } } });
+
+  it('/fundamentals attaches the Yahoo analyst estimate as forward', async () => {
+    yahooStub({ '2211.TW': [est('0q', 2, 9), est('0y', 10, 30), est('+1y', 13, 32)] });
+
+    const res = await worker.fetch(new Request('https://worker.example/fundamentals?codes=2211'), env, ctx);
+    const body = await res.json();
+
+    expect(body.items['2211'].forward).toEqual({ eps0y: 10, eps1y: 13, analysts: 32, symbol: '2211.TW' });
+    expect(body.forwardSource).toBe('yahoo');
+    expect(body.items['2211'].epsTTM).toBe(4); // 主資料照舊
+  });
+
+  // 實測 2330 只有 .TW 有、5274 只有 .TWO 有，猜錯後綴就是整檔 404
+  it('/fundamentals falls back from .TW to .TWO for over-the-counter codes', async () => {
+    const seen = yahooStub({ '2212.TWO': [est('0y', 20, 12), est('+1y', 30, 14)] });
+
+    const res = await worker.fetch(new Request('https://worker.example/fundamentals?codes=2212'), env, ctx);
+    const body = await res.json();
+
+    expect(seen.symbols).toEqual(['2212.TW', '2212.TWO']); // 先試上市、再試上櫃
+    expect(body.items['2212'].forward.symbol).toBe('2212.TWO');
+  });
+
+  it('/fundamentals omits forward when the stock has no analyst coverage', async () => {
+    yahooStub({}); // 每個代號都 404
+
+    const res = await worker.fetch(new Request('https://worker.example/fundamentals?codes=2213'), env, ctx);
+    const body = await res.json();
+
+    expect(body.items['2213'].forward).toBeUndefined();
+    expect(body.items['2213'].epsAnnual).toEqual({ 2025: 4 }); // 主資料仍完整
+    expect(body.forwardSource).toBe('yahoo'); // 有拿到 crumb，只是這檔沒人覆蓋
+  });
+
+  it('/fundamentals only needs one crumb for the whole batch', async () => {
+    const seen = yahooStub({ '2214.TW': [est('0y', 5, 4), est('+1y', 6, 4)] });
+
+    await worker.fetch(new Request('https://worker.example/fundamentals?codes=2214,2215,2216'), env, ctx);
+
+    expect(seen.crumb).toBe(1); // 每檔各取一次會把 Yahoo 的限流打爆
+  });
+
+  // 被限流時 getcrumb 回的是「Too Many Requests」這串字，不是錯誤碼
+  it('/fundamentals reports forwardSource unavailable when the crumb is rejected', async () => {
+    yahooStub({ '2217.TW': [est('0y', 5, 4), est('+1y', 6, 4)] }, { crumb: null });
+
+    const res = await worker.fetch(new Request('https://worker.example/fundamentals?codes=2217'), env, ctx);
+    const body = await res.json();
+
+    expect(body.forwardSource).toBe('unavailable');
+    expect(body.items['2217'].forward).toBeUndefined();
+    expect(body.items['2217'].epsTTM).toBe(4); // Yahoo 掛掉不影響 EPS 主資料
+  });
+
+  // 預估獨立日快取的重點：Yahoo 暫時掛掉不能被記成「這檔今天沒有預估」，
+  // 否則綁在 EPS 的月快取裡會讓這檔整個月都沒有預估，前端按刷新也救不回來。
+  it('/fundamentals retries the estimate after a Yahoo outage instead of caching the failure', async () => {
+    await clearForward('2219');
+    yahooStub({ '2219.TW': [est('0y', 5, 4), est('+1y', 6, 4)] }, { crumb: null }); // Yahoo 拿不到 crumb
+    const bad = await (await worker.fetch(new Request('https://worker.example/fundamentals?codes=2219'), env, ctx)).json();
+    expect(bad.forwardSource).toBe('unavailable');
+    expect(bad.items['2219'].forward).toBeUndefined();
+
+    await Promise.allSettled(pending.splice(0));
+    vi.unstubAllGlobals();
+    await clearYahooAuth();
+
+    yahooStub({ '2219.TW': [est('0y', 5, 4), est('+1y', 6, 4)] }); // Yahoo 恢復
+    const good = await (await worker.fetch(new Request('https://worker.example/fundamentals?codes=2219'), env, ctx)).json();
+    expect(good.items['2219'].forward.eps1y).toBe(6); // 沒有被前一次失敗鎖住
+    await clearForward('2219');
+  });
+
+  it('/fundamentals ignores an estimate that is missing the next-year figure', async () => {
+    yahooStub({ '2218.TW': [est('0q', 2, 9), est('0y', 10, 30)] }); // 只有本年度，沒有 +1y
+
+    const res = await worker.fetch(new Request('https://worker.example/fundamentals?codes=2218'), env, ctx);
+    const body = await res.json();
+
+    expect(body.items['2218'].forward).toBeUndefined(); // 算不出預估成長率
   });
 
   it('/fundamentals survives an upstream failure without failing the whole request', async () => {
