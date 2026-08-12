@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { ffEpsCagr, ffTtmYoy, ffPe, ffPeg, ffPegZone, ffValuationRow, ffComparePeg } from './valuation.js';
+import { ffEpsCagr, ffTtmYoy, ffForwardGrowth, ffPe, ffPeg, ffPegZone, ffValuationRow, ffComparePeg } from './valuation.js';
 
 // 三年剛好翻倍 → 年化約 26%
 const GROWING = { 2022: 10, 2023: 12, 2024: 16, 2025: 20 };
@@ -43,6 +43,20 @@ describe('ffTtmYoy', () => {
     expect(ffTtmYoy(12, -3)).toBeNull();
     expect(ffTtmYoy(null, 10)).toBeNull();
     expect(ffTtmYoy(12, null)).toBeNull();
+  });
+});
+
+describe('ffForwardGrowth', () => {
+  it('算下年度預估相對本年度預估的成長率', () => {
+    expect(ffForwardGrowth(100, 130)).toBeCloseTo(30.0, 5);
+    expect(ffForwardGrowth(100, 80)).toBeCloseTo(-20.0, 5); // 法人也會預估衰退
+  });
+
+  it('本年度預估 <= 0 或任一為空時回 null', () => {
+    expect(ffForwardGrowth(0, 130)).toBeNull();
+    expect(ffForwardGrowth(-5, 130)).toBeNull();
+    expect(ffForwardGrowth(undefined, 130)).toBeNull();
+    expect(ffForwardGrowth(100, undefined)).toBeNull();
   });
 });
 
@@ -156,6 +170,46 @@ describe('ffValuationRow', () => {
     expect(r.cagr).toBeCloseTo(26.0, 1);
   });
 
+  // 分析師預估是唯一真正前瞻的分母，有的話主數字就用它
+  it('有法人預估時主數字用預估 PEG，並標示 pegBasis', () => {
+    const withFwd = { ...fund, forward: { eps0y: 25, eps1y: 30, analysts: 12 } };
+    const r = ffValuationRow('2330', withFwd, 600);
+    expect(r.hasForward).toBe(true);
+    expect(r.analysts).toBe(12);
+    expect(r.fwdPe).toBeCloseTo(24, 5); // 600 / 25（本年度預估），不是 trailing EPS
+    expect(r.fwdGrowth).toBeCloseTo(20, 5); // (30-25)/25
+    expect(r.pegFwd).toBeCloseTo(1.2, 5);
+    expect(r.pegMain).toBe(r.pegFwd);
+    expect(r.pegBasis).toBe('forward');
+    expect(r.pegCagr).not.toBeNull(); // trailing 仍然算得出來，只是不當主數字
+  });
+
+  it('沒有法人預估時主數字退回歷史 PEG', () => {
+    const r = ffValuationRow('2330', fund, 600);
+    expect(r.hasForward).toBe(false);
+    expect(r.analysts).toBeNull();
+    expect(r.pegFwd).toBeNull();
+    expect(r.pegMain).toBe(r.pegCagr);
+    expect(r.pegBasis).toBe('cagr');
+  });
+
+  it('法人預估衰退時算不出預估 PEG，主數字退回歷史', () => {
+    const r = ffValuationRow('2330', { ...fund, forward: { eps0y: 30, eps1y: 25, analysts: 4 } }, 600);
+    expect(r.fwdGrowth).toBeCloseTo(-16.67, 1);
+    expect(r.pegFwd).toBeNull();
+    expect(r.pegBasis).toBe('cagr');
+    expect(r.hasForward).toBe(true); // 有預估資料，只是成長率是負的
+  });
+
+  it('可以手動覆寫預估成長率', () => {
+    const withFwd = { ...fund, forward: { eps0y: 25, eps1y: 30, analysts: 12 } };
+    const r = ffValuationRow('2330', withFwd, 600, { fwd: 40 });
+    expect(r.fwdGrowth).toBe(40);
+    expect(r.fwdOverridden).toBe(true);
+    expect(r.pegFwd).toBeCloseTo(0.6, 5); // 24 / 40
+    expect(r.pegBasis).toBe('forward');
+  });
+
   it('沒有歷史 PEG 時分區退而用近期 PEG', () => {
     const r = ffValuationRow('2330', { epsAnnual: { 2025: 20 }, epsTTM: 20, epsTTMPrev: 16 }, 600);
     expect(r.pegCagr).toBeNull(); // 只有一年，算不出 CAGR
@@ -165,19 +219,25 @@ describe('ffValuationRow', () => {
 });
 
 describe('ffComparePeg', () => {
-  const row = (pegCagr, pegYoy = null) => ({ pegCagr, pegYoy });
+  const row = (pegMain, tag) => ({ pegMain, tag });
 
   it('PEG 小的排前面', () => {
-    expect([row(2), row(0.5), row(1.2)].sort(ffComparePeg).map((r) => r.pegCagr)).toEqual([0.5, 1.2, 2]);
+    expect([row(2), row(0.5), row(1.2)].sort(ffComparePeg).map((r) => r.pegMain)).toEqual([0.5, 1.2, 2]);
   });
 
   it('算不出 PEG 的一律排在最後', () => {
     const sorted = [row(null), row(1.5), row(null), row(0.3)].sort(ffComparePeg);
-    expect(sorted.map((r) => r.pegCagr)).toEqual([0.3, 1.5, null, null]);
+    expect(sorted.map((r) => r.pegMain)).toEqual([0.3, 1.5, null, null]);
   });
 
-  it('沒有歷史 PEG 時退而比近期 PEG', () => {
-    const sorted = [row(null, 3), row(1)].sort(ffComparePeg);
-    expect(sorted[0].pegCagr).toBe(1);
+  // 排序用的值必須跟畫面上那個大數字是同一個，否則「PEG 由低到高」看起來會像亂排
+  it('用主數字排序——有預估的用預估 PEG 參與比較', () => {
+    const fwd = ffValuationRow('A', { epsAnnual: { 2024: 10, 2025: 12 }, epsTTM: 12, epsTTMPrev: 10,
+      forward: { eps0y: 20, eps1y: 30, analysts: 5 } }, 200);
+    const trailing = ffValuationRow('B', { epsAnnual: { 2024: 10, 2025: 12 }, epsTTM: 12, epsTTMPrev: 10 }, 200);
+    expect(fwd.pegMain).toBe(fwd.pegFwd);
+    expect(trailing.pegMain).toBe(trailing.pegCagr);
+    const sorted = [trailing, fwd].sort(ffComparePeg);
+    expect(sorted[0].pegMain).toBeLessThanOrEqual(sorted[1].pegMain);
   });
 });

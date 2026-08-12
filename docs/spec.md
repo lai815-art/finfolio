@@ -182,10 +182,19 @@ App 分四個主要分頁（底部 TabBar）＋一個全螢幕設定頁：
 
 **估值分析與 PEG**（`valuation.js` + `screens/valuation.jsx`）
 - 入口在投資頁市值卡下方，開的是全螢幕 overlay（`window.ValuationSheet`），不是新分頁——底部五個主分頁維持不變。
-- **PEG = 本益比 ÷ EPS 成長率(%)**。並列兩個成長率，因為免費資料源都沒有法人預估值：
+- **PEG = 本益比 ÷ EPS 成長率(%)**。並列三個成長率，各自看不同的東西：
+  - **預估成長率** = 分析師共識的下年度 EPS 成長（Yahoo `earningsTrend`），唯一真正前瞻的一個
   - 歷史成長率 = 近 3 年「年度 EPS」的年化成長率（CAGR）
   - 近期成長率 = 近四季 EPS（TTM）相對前一個 TTM 的年增率，反應最近的動能
-  - 兩者都可被使用者手動覆寫（存 `ff_valuation_override`），覆寫就是「填自己的預估值」的入口
+  - 三者都可被使用者手動覆寫（存 `ff_valuation_override`，`{cagr, yoy, fwd}`）
+- **主數字的優先序：預估 > 歷史 > 近期**，由 `ffValuationRow()` 收斂成 `pegMain` + `pegBasis`，
+  排序（`ffComparePeg`）也用同一個值——畫面上那個大數字跟排序依據必須是同一個，否則
+  「PEG 由低到高」看起來會像亂排。`pegBasis` 讓畫面標示得出「預估 PEG／歷史 PEG」，
+  沒有分析師覆蓋的標的則標「無法人預估」：兩者基準不同，不標的話跨標的比較會被誤讀。
+- **預估本益比用「本年度預估 EPS」、成長率用「下年度相對本年度」**，分子的基準年與分母的
+  成長區間才對得上。拿 trailing EPS 配預估成長率會系統性高估便宜程度。
+- 分析師家數會顯示出來，少於 3 位時額外標「家數少，參考性有限」——一兩個人的看法跟
+  三十幾位的共識不是同一回事。
 - **Worker 只回原始 EPS，本益比與 PEG 都在前端算**：現價本來就在前端手上（`livePrices`），而且覆寫要有單一計算點。這也讓 Worker 不必再多抓 TWSE `BWIBBU_ALL` / TPEx 本益比兩份全市場總表。
 - 起點 EPS ≤ 0（由虧轉盈）算不出有意義的 CAGR、EPS ≤ 0 沒有本益比、成長率 ≤ 0 沒有 PEG——這些一律回 `null` 顯示「—」，不硬算出天文數字。ETF 與債券 ETF 本來就沒有 EPS，顯示「無 EPS 資料」。
 - 展開的個股明細可切「年/季」看每股盈餘：年度圖看長期趨勢，單季圖看轉折。舊快取沒有 `epsQuarters` 時不顯示切換鈕，免得切過去是一片空白。
@@ -206,6 +215,17 @@ App 分四個主要分頁（底部 TabBar）＋一個全螢幕設定頁：
   - 台股與美股共用同一支 `aggregateEps()`：單季 EPS → 年度 EPS（只收湊滿四季的年份）+ TTM（四季首尾須相距約九個月，缺季就回 `null`）。
   - 美股的 10-Q 只涵蓋前三個會計季，第四季只出現在 10-K 的全年數字裡，所以季序列固定缺一季，用「全年 − 已知三季」補回來，TTM 才算得出來。
   - `epsQuarters` 是最近 12 季的單季 EPS，供前端圖表切「年/季」；再往前的季資料細到看不出趨勢。
+  - `forward: { eps0y, eps1y, analysts, symbol }` 是分析師共識預估，來自 Yahoo `quoteSummary?modules=earningsTrend`。
+    台股要試 `.TW`（上市）與 `.TWO`（上櫃）兩個後綴——實測 2330 只有 `.TW` 有、5274 只有 `.TWO` 有，
+    猜錯後綴的 404 跟「沒有分析師覆蓋」長得一模一樣。
+  - Yahoo 的 quoteSummary 需要 cookie + crumb（非正規管道，隨時可能被關掉），所以整條路徑是
+    **best-effort**：拿不到就只是少一個 `forward` 欄位，EPS 主資料完全不受影響。cookie + crumb
+    在扇出前取一次共用並快取 6 小時——每個代號各取一次會把 Yahoo 的限流打爆。
+  - 回應帶 `forwardSource`（`yahoo` / `unavailable`），用來分辨「Yahoo 沒回」與「這檔沒人覆蓋」：
+    兩者在畫面上都是沒有預估，但一個要修、一個是正常的。
+  - **EPS 走月快取（`fund/vN`）、預估走日快取（`fwd/vN`），刻意分開**：分析師隨時在調預估，而且
+    Yahoo 偶爾抽風；綁在同一份月快取裡的話，一次暫時性失敗會讓這檔整整一個月都沒有預估，
+    而且使用者從前端按刷新也救不回來（那只清得掉前端快取）。
   - 財報是季頻資料，逐檔快取一個月。**回傳欄位改變時兩邊的快取版本都要 bump**（Worker 的 `fund/vN` key 與前端的 `FUND_CACHE_V`），否則使用者要等到下個月才看得到新欄位。
 - 兩個機密設定都是選用：`FINNHUB_KEY`（美股報價）與 `SEC_CONTACT`（美股 EPS 的聯絡信箱；repo 是公開的所以不寫死在程式碼裡，**沒設定就完全不打 SEC**，美股一律回報查無 EPS）。其餘資料源皆為公開、免金鑰。
 - 只傳股票代號，不傳使用者的持倉/金額/身分資訊。
@@ -237,8 +257,10 @@ App 分四個主要分頁（底部 TabBar）＋一個全螢幕設定頁：
 - `parseUtterance()`（voice-parse.js 的語音解析）——規則多、邊界案例多，已有單元測試
 - 分類→帳戶記憶的讀寫與失效過濾（`last-account.js`，`last-account.test.js`）——`ffRememberAccount`／`ffLastAccountFor`
 - 股票類別配色（`asset-class-color.js`，`asset-class-color.test.js`）——`ffAssetClassColorMap`／`ffClassShade`／`ffMixHex`／`ffAssetClassPalette`
-- 估值指標（`valuation.js`，`valuation.test.js`）——`ffEpsCagr`／`ffTtmYoy`／`ffPe`／`ffPeg`／`ffPegZone`／`ffValuationRow`／`ffComparePeg`，重點在「算不出來時要回 null」的各種邊界（EPS ≤ 0、起點虧損、成長率 ≤ 0、年數不足）與覆寫優先序
+- 估值指標（`valuation.js`，`valuation.test.js`）——`ffEpsCagr`／`ffTtmYoy`／`ffForwardGrowth`／`ffPe`／`ffPeg`／`ffPegZone`／`ffValuationRow`／`ffComparePeg`，重點在「算不出來時要回 null」的各種邊界（EPS ≤ 0、起點虧損、成長率 ≤ 0、年數不足）、主數字的優先序（預估 > 歷史 > 近期）與覆寫優先序
 - Worker 的 `/fundamentals`（`worker/index.test.js`）——季 EPS 聚合、季序列上限 12 季、缺季不算 TTM、SEC 缺季補算、大小寫攤回、沒設 `SEC_CONTACT` 時不打 SEC、上游失敗仍回 200
+- Worker 的法人預估路徑——`.TW` → `.TWO` 後綴 fallback、整批只取一次 crumb、缺 `+1y` 不算預估、Yahoo 掛掉不影響 EPS 主資料、**暫時性失敗不會被寫進快取**（測試會連跑「Yahoo 掛掉」與「Yahoo 恢復」兩次）
+- 註：Worker 測試的 `ctx.waitUntil` 必須收下 promise 並在 `afterEach` 等它落地，且要清掉 Yahoo 的 cookie/crumb 快取；不做的話背景寫快取會在下一個測試進行中才完成，變成「單獨跑會過、整批跑會紅」的偶發污染
 - 下拉面板的展開方向與高度（`accounting.jsx`，`accounting.dropdown.test.js`）——`ffDropdownPlacement`；DOM 量測留在 `DropField` 裡，純幾何計算抽出來測
 - 收支統計的分類聚合與期間計算（`dashboard.jsx`，`dashboard.stats.test.js`）——`ffCatTotals`（含「投資損失有被納入支出」與「同名 cat 在收入/支出間不互相污染」兩條回歸防護）、`ffStatsPeriod`（跨年/十年邊界、上一期＝`offset-1`）、`ffGroupColorMap`、`ffCatGroupOf`；`MonthlyStatsSheet` 的 UI 渲染（期間列排版、`pick()` 的 reset 行為、圓餅實際顏色）仍靠手動操作驗證
 - 財務目標的聚合/進度計算（`dashboard.jsx`，`dashboard.goals.test.js`）——`ffIncomeForYear/Month`、`ffMonthlyBalance`/`ffYearlyBalance`、`ffResolvePeriodTarget`、`ffAchievementHistory`、`computeGoalProgress`；這些函式雖然定義在一個沒有任何 `export` 的「legacy 全域腳本」檔案裡，但 `dashboard.jsx` 本身仍是可以被 import 的 ES module（檔案開頭有 `import`），所以照樣可以個別加 `export` 讓測試檔案匯入，不用像 `compute.js` 一樣整個抽成獨立檔案。`dashboard.jsx` 其餘的圖表/UI 渲染邏輯仍未涵蓋，沿用手動操作驗證。

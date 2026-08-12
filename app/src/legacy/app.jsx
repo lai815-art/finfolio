@@ -11,7 +11,7 @@ window.navigator && window.navigator.standalone === true);
 // 舊寫法 env()−18px 沒做縮放校正、又收太多，右上角眼睛按鈕會頂進系統狀態列被切到。
 // ff_fundamentals 的快取形狀版本。Worker 的 /fundamentals 多回欄位時要 +1，
 // 否則快取是以「月」為單位，使用者要等到下個月才看得到新欄位。
-const FUND_CACHE_V = 2;
+const FUND_CACHE_V = 3;
 const TOP_INSET = IS_STANDALONE ? 'var(--ff-main-top, 44px)' : '62px';
 const SBAR_H = TOP_INSET;
 const CONTENT_TOP = IS_STANDALONE ? `calc(${TOP_INSET} + 60px)` : '122px';

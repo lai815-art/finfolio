@@ -9,6 +9,8 @@ const fmtPct = (n) => n == null ? '—' : (n >= 0 ? '+' : '') + n.toFixed(1) + '
 
 // PEG 分區只是估值參考，不是買賣訊號——文案一律用「偏低／合理／偏高」，不用「買進／賣出」。
 const ZONE_LABEL = { low: '偏低', fair: '合理', high: '偏高' };
+// 主數字用的是哪一個成長率。沒標的話，有法人預估與只有回顧值的兩列會被誤讀成同一個基準。
+const BASIS_LABEL = { forward: '預估 PEG', cagr: '歷史 PEG', yoy: '近期 PEG' };
 const zoneColor = (zone) =>
 zone === 'low' ? TOKENS.green : zone === 'fair' ? TOKENS.gold2 : zone === 'high' ? TOKENS.red : TOKENS.gray4;
 
@@ -86,12 +88,31 @@ function ValuationDetail({ row, onOverride, onRemoveWatch }) {
       </>
       }
 
-      <div style={{ marginTop: SP(12), display: 'flex', gap: SP(10), fontSize: FS(14), color: TOKENS.ink2 }}>
+      <div style={{ marginTop: SP(12), display: 'flex', flexWrap: 'wrap', gap: SP(4) + 'px ' + SP(12) + 'px',
+        fontSize: FS(14), color: TOKENS.ink2 }}>
         <div>近四季 EPS <span style={{ color: TOKENS.ink, fontFamily: TOKENS.fontMono }}>{fmtVal(row.epsTTM, 2)}</span></div>
         <div>本益比 <span style={{ color: TOKENS.ink, fontFamily: TOKENS.fontMono }}>{fmtVal(row.pe, 1)}</span></div>
       </div>
 
+      {row.hasForward &&
+      <div style={{ marginTop: SP(6), display: 'flex', flexWrap: 'wrap', gap: SP(4) + 'px ' + SP(12) + 'px',
+        fontSize: FS(14), color: TOKENS.ink2 }}>
+        <div>預估 EPS <span style={{ color: TOKENS.ink, fontFamily: TOKENS.fontMono }}>{fmtVal(row.fwdEps, 2)}</span>
+          <span style={{ color: TOKENS.gray4 }}> → {fmtVal(row.fwdEpsNext, 2)}</span></div>
+        <div>預估本益比 <span style={{ color: TOKENS.ink, fontFamily: TOKENS.fontMono }}>{fmtVal(row.fwdPe, 1)}</span></div>
+      </div>
+      }
+      {row.hasForward && row.analysts != null &&
+      // 家數少的共識就是一兩個人的看法，跟三十幾位分析師的共識不是同一回事
+      <div style={{ marginTop: SP(4), fontSize: FS(13), color: TOKENS.gray4 }}>
+        法人預估來自 {row.analysts} 位分析師{row.analysts < 3 ? '（家數少，參考性有限）' : ''}
+      </div>
+      }
+
       <div style={{ marginTop: SP(12), display: 'flex', flexDirection: 'column', gap: SP(8) }}>
+        <OverrideInput label={'預估成長率' + (row.fwdOverridden ? '（已自訂）' : '')}
+          auto={row.autoFwd} value={row.fwdOverridden ? row.fwdGrowth : null}
+          onCommit={(v) => onOverride(row.code, 'fwd', v)} />
         <OverrideInput label={'歷史成長率' + (row.cagrOverridden ? '（已自訂）' : '')}
           auto={row.autoCagr} value={row.cagrOverridden ? row.cagr : null}
           onCommit={(v) => onOverride(row.code, 'cagr', v)} />
@@ -100,7 +121,7 @@ function ValuationDetail({ row, onOverride, onRemoveWatch }) {
           onCommit={(v) => onOverride(row.code, 'yoy', v)} />
       </div>
       <div style={{ marginTop: SP(6), fontSize: FS(13), color: TOKENS.gray4, lineHeight: 1.5 }}>
-        留空 = 用財報自動算。填入自己的預估值可覆寫。
+        留空 = 用財報與法人預估自動算。填入自己的預估值可覆寫。
       </div>
 
       {onRemoveWatch &&
@@ -132,10 +153,10 @@ function ValuationRow({ row, expanded, onToggle, onOverride, onRemoveWatch }) {
           {row.hasFundamentals ?
           <>
           <div style={{ fontSize: FS(19), fontWeight: 700, fontFamily: TOKENS.fontMono, color: zoneColor(row.zone) }}>
-            {fmtVal(row.pegCagr != null ? row.pegCagr : row.pegYoy, 2)}
+            {fmtVal(row.pegMain, 2)}
           </div>
           <div style={{ marginTop: SP(2), fontSize: FS(13), color: TOKENS.gray4 }}>
-            PE {fmtVal(row.pe, 1)}{row.zone ? ' · ' + ZONE_LABEL[row.zone] : ''}
+            {BASIS_LABEL[row.pegBasis] || ''}{row.zone ? ' · ' + ZONE_LABEL[row.zone] : ''}
           </div>
           </> :
 
@@ -147,7 +168,15 @@ function ValuationRow({ row, expanded, onToggle, onOverride, onRemoveWatch }) {
       </div>
 
       {row.hasFundamentals &&
-      <div style={{ marginTop: SP(8), display: 'flex', gap: SP(14), fontSize: FS(13), color: TOKENS.ink2 }}>
+      <div style={{ marginTop: SP(8), display: 'flex', flexWrap: 'wrap', gap: SP(4) + 'px ' + SP(12) + 'px',
+        fontSize: FS(13), color: TOKENS.ink2 }}>
+        {row.hasForward || row.fwdOverridden ?
+        <div>預估 {fmtPct(row.fwdGrowth)} · PEG {fmtVal(row.pegFwd, 2)}{row.fwdOverridden ? ' ✎' :
+          row.analysts ? ` · ${row.analysts} 位分析師` : ''}</div> :
+
+        // 沒有法人預估要講出來——主數字是回顧值，跟有預估的那幾列不是同一個基準
+        <div style={{ color: TOKENS.gray4 }}>無法人預估</div>
+        }
         <div>歷史 {fmtPct(row.cagr)} · PEG {fmtVal(row.pegCagr, 2)}{row.cagrOverridden ? ' ✎' : ''}</div>
         <div>近期 {fmtPct(row.yoy)} · PEG {fmtVal(row.pegYoy, 2)}{row.yoyOverridden ? ' ✎' : ''}</div>
       </div>
@@ -238,7 +267,8 @@ function ValuationSheet({ open, onClose, computedHoldings = [], fundamentals = {
     // 查過但沒有（ETF/債券，存成 null）與「還沒查過」要分開講，否則報價服務掛掉時
     // 整頁都會顯示「無 EPS 資料」，看起來像每一檔都沒有財報。
     const fetched = Object.prototype.hasOwnProperty.call(fundamentals, s.code);
-    return { ...r, name: s.name, mvT: s.mvTWD != null ? s.mvTWD : 0, autoCagr: auto.cagr, autoYoy: auto.yoy, fetched };
+    return { ...r, name: s.name, mvT: s.mvTWD != null ? s.mvTWD : 0,
+      autoCagr: auto.cagr, autoYoy: auto.yoy, autoFwd: auto.fwdGrowth, fetched };
   });
 
   const rows = rowsOf(tab === 'holdings' ? held : watchlist);
@@ -262,7 +292,8 @@ function ValuationSheet({ open, onClose, computedHoldings = [], fundamentals = {
   const setOverride = (code, field, value) => {
     setValuationOverride((prev) => {
       const next = { ...prev, [code]: { ...(prev[code] || {}), [field]: value } };
-      if (next[code].cagr == null && next[code].yoy == null) delete next[code];
+      const o = next[code];
+      if (o.cagr == null && o.yoy == null && o.fwd == null) delete next[code];
       return next;
     });
   };
@@ -354,8 +385,11 @@ function ValuationSheet({ open, onClose, computedHoldings = [], fundamentals = {
 
         <div style={{ marginTop: SP(16), fontSize: FS(13), color: TOKENS.gray4, lineHeight: 1.6 }}>
           PEG = 本益比 ÷ EPS 成長率。低於 1 視為偏低、1～2 合理、高於 2 偏高。
+          主數字優先用「預估 PEG」（分析師共識的下年度成長，來自 Yahoo），沒有覆蓋的標的
+          退回「歷史 PEG」——兩者基準不同，跨標的比較時要看清楚標示。
           EPS 取自公開財報（台股 FinMind、美股 SEC EDGAR），可能延遲或缺漏；
-          ETF 與債券沒有 EPS，不適用本指標。此頁為估值參考，非投資建議。
+          法人預估會錯，且分析師家數少時更不可靠。ETF 與債券沒有 EPS，不適用本指標。
+          此頁為估值參考，非投資建議。
         </div>
       </div>
     </div>);

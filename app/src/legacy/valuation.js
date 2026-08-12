@@ -4,10 +4,12 @@
    Worker 只回原始 EPS（年度與 TTM），本益比與 PEG 一律在這裡算：現價本來就在
    前端手上，而且使用者要能手動覆寫成長率，指標留在同一個地方才有單一計算點。
 
-   兩個成長率並列，因為免費資料源都沒有法人預估值：
+   三個成長率並列，各自看不同的東西：
+     預估成長率 = 分析師共識的下年度 EPS 成長（Yahoo），唯一真正前瞻的一個
      歷史成長率 = 近幾年「年度 EPS」的年化成長率（CAGR），看的是後照鏡
      近期成長率 = TTM EPS 相對前一個 TTM 的年增率，反應最近四季的動能
-   兩者都可被使用者手動覆寫——覆寫就是「填自己的預估」的入口。
+   三個都可被使用者手動覆寫。預估不是每檔都有（台股中小型股常常無人覆蓋），
+   沒有時主數字退回歷史 PEG，並靠 pegBasis 讓畫面標示得出來。
 
    純邏輯、無 React/DOM，方便單獨做單元測試。 */
 
@@ -35,6 +37,12 @@ export function ffTtmYoy(epsTTM, epsTTMPrev) {
   return (epsTTM - epsTTMPrev) / epsTTMPrev * 100;
 }
 
+// 分析師預估的下年度 EPS 成長率(%)。本年度預估 <= 0 時同樣算不出有意義的倍數。
+export function ffForwardGrowth(eps0y, eps1y) {
+  if (!isNum(eps0y) || !isNum(eps1y) || eps0y <= 0) return null;
+  return (eps1y - eps0y) / eps0y * 100;
+}
+
 // 本益比 = 現價 ÷ TTM EPS。虧損（EPS <= 0）沒有本益比可談。
 export function ffPe(price, epsTTM) {
   if (!isNum(price) || price <= 0 || !isNum(epsTTM) || epsTTM <= 0) return null;
@@ -56,26 +64,40 @@ export function ffPegZone(peg) {
 }
 
 /* 組出估值列表的一列。
-   fund     = Worker /fundamentals 回的 { epsAnnual, epsTTM, epsTTMPrev }
+   fund     = Worker /fundamentals 回的 { epsAnnual, epsTTM, epsTTMPrev, forward? }
    price    = 現價（同幣別，不換算——本益比是比值，換不換算結果一樣）
-   override = 使用者手動覆寫 { cagr, yoy }，任一為數字就蓋掉自動值
+   override = 使用者手動覆寫 { cagr, yoy, fwd }，任一為數字就蓋掉自動值
 
-   覆寫在這裡收斂成單一計算點，UI 只要讀 cagrOverridden / yoyOverridden 標記。*/
+   覆寫在這裡收斂成單一計算點，UI 只要讀 *Overridden 標記。*/
 export function ffValuationRow(code, fund, price, override, cagrYears = 3) {
   const f = fund || {};
   const ov = override || {};
+  const fwd = f.forward || {};
   const epsTTM = isNum(f.epsTTM) ? f.epsTTM : null;
 
   const autoCagr = ffEpsCagr(f.epsAnnual, cagrYears);
   const autoYoy = ffTtmYoy(epsTTM, f.epsTTMPrev);
+  const autoFwd = ffForwardGrowth(fwd.eps0y, fwd.eps1y);
   const cagrOverridden = isNum(ov.cagr);
   const yoyOverridden = isNum(ov.yoy);
+  const fwdOverridden = isNum(ov.fwd);
   const cagr = cagrOverridden ? ov.cagr : autoCagr;
   const yoy = yoyOverridden ? ov.yoy : autoYoy;
+  const fwdGrowth = fwdOverridden ? ov.fwd : autoFwd;
 
   const pe = ffPe(price, epsTTM);
+  // 預估本益比用「本年度預估 EPS」，成長率用「下年度相對本年度」——分子的基準年與
+  // 分母的成長區間才對得上。混用 trailing EPS 配預估成長率會高估便宜程度。
+  const fwdEps = isNum(fwd.eps0y) ? fwd.eps0y : null;
+  const fwdPe = ffPe(price, fwdEps);
   const pegCagr = ffPeg(pe, cagr);
   const pegYoy = ffPeg(pe, yoy);
+  const pegFwd = ffPeg(fwdPe, fwdGrowth);
+
+  // 主數字的優先序：預估 > 歷史 > 近期。UI 要靠 pegBasis 標示這個數字的基準，
+  // 否則使用者無從分辨某一列是法人預估還是回顧值。
+  const pegMain = pegFwd != null ? pegFwd : pegCagr != null ? pegCagr : pegYoy;
+  const pegBasis = pegFwd != null ? 'forward' : pegCagr != null ? 'cagr' : pegYoy != null ? 'yoy' : null;
 
   return {
     code,
@@ -83,18 +105,22 @@ export function ffValuationRow(code, fund, price, override, cagrYears = 3) {
     epsAnnual: f.epsAnnual || {},
     epsQuarters: f.epsQuarters || [], // 圖表切「季」時用；舊快取沒有這個欄位就是空陣列
     epsTTM, pe,
-    cagr, yoy, cagrOverridden, yoyOverridden,
-    pegCagr, pegYoy,
-    zone: ffPegZone(pegCagr != null ? pegCagr : pegYoy),
+    cagr, yoy, fwdGrowth, cagrOverridden, yoyOverridden, fwdOverridden,
+    fwdEps, fwdEpsNext: isNum(fwd.eps1y) ? fwd.eps1y : null, fwdPe,
+    analysts: isNum(fwd.analysts) ? fwd.analysts : null,
+    hasForward: isNum(fwd.eps0y) && isNum(fwd.eps1y),
+    pegCagr, pegYoy, pegFwd, pegMain, pegBasis,
+    zone: ffPegZone(pegMain),
     // UI 要能分辨「還沒抓」「這檔沒有 EPS（ETF/債券）」「有 EPS 但在虧損」三種空白
     hasFundamentals: epsTTM != null || Object.keys(f.epsAnnual || {}).length > 0,
   };
 }
 
-// 依 PEG 由小到大排序用的比較子。算不出 PEG 的一律排在最後，不要混在便宜的那一頭。
+// 依 PEG 由小到大排序用的比較子。用跟主數字同一個值（預估優先），畫面上看到的排序才
+// 跟看到的數字一致。算不出 PEG 的一律排在最後，不要混在便宜的那一頭。
 export function ffComparePeg(a, b) {
-  const av = isNum(a && a.pegCagr) ? a.pegCagr : isNum(a && a.pegYoy) ? a.pegYoy : null;
-  const bv = isNum(b && b.pegCagr) ? b.pegCagr : isNum(b && b.pegYoy) ? b.pegYoy : null;
+  const av = isNum(a && a.pegMain) ? a.pegMain : null;
+  const bv = isNum(b && b.pegMain) ? b.pegMain : null;
   if (av == null && bv == null) return 0;
   if (av == null) return 1;
   if (bv == null) return -1;
