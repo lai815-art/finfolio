@@ -428,6 +428,127 @@ describe('finfolio-prices worker', () => {
     expect(body.partial).toBe(true);
   });
 
+  // ── /estimates（分析師預估明細）────────────────────────────────────────
+  const clearEstimates = async (code) => {
+    const d = new Date(Date.now() + 8 * 3600 * 1000).toISOString().slice(0, 10);
+    try { await caches.default.delete(new Request(`https://ff-cache.local/est/v1/${code}/${d}`)); } catch (e) {}
+  };
+  const num = (v) => ({ raw: v, fmt: String(v) });
+  const fullTrend = [
+    { period: '0q', endDate: '2026-09-30', growth: num(0.6154),
+      earningsEstimate: { avg: num(28.17), low: num(26.3), high: num(29.85), numberOfAnalysts: num(23), yearAgoEps: num(17.44) },
+      epsTrend: { current: num(28.17), '30daysAgo': num(26.89), '90daysAgo': num(25.98) },
+      epsRevisions: { upLast30days: num(18), downLast30days: num(0) } },
+    { period: '+1q', endDate: '2026-12-31', growth: num(0.5877),
+      earningsEstimate: { avg: num(30.96), low: num(28.2), high: num(33.17), numberOfAnalysts: num(23), yearAgoEps: num(19.5) },
+      epsTrend: {}, epsRevisions: {} },
+    { period: '0y', endDate: '2026-12-31', growth: num(0.6203),
+      earningsEstimate: { avg: num(107.34), low: num(98.4), high: num(111.91), numberOfAnalysts: num(33), yearAgoEps: num(66.25) },
+      epsTrend: { current: num(107.34), '30daysAgo': num(99.91), '90daysAgo': num(97.6) },
+      epsRevisions: { upLast30days: num(26), downLast30days: num(0) } },
+    { period: '+1y', endDate: '2027-12-31', growth: num(0.2896),
+      earningsEstimate: { avg: num(138.43), low: num(93.3), high: num(159.67), numberOfAnalysts: num(36), yearAgoEps: num(107.34) },
+      epsTrend: {}, epsRevisions: {} },
+  ];
+  const estStub = (bySymbol, opts = {}) => {
+    const seen = { symbols: [] };
+    vi.stubGlobal('fetch', vi.fn(async (url) => {
+      const u = String(url);
+      if (u.includes('fc.yahoo.com')) return new Response('', { status: 200, headers: { 'Set-Cookie': 'A3=t; Path=/' } });
+      if (u.includes('getcrumb')) return new Response(opts.crumb === null ? 'Too Many Requests' : 'abc123', { status: 200 });
+      if (u.includes('quoteSummary')) {
+        const sym = decodeURIComponent(u.split('quoteSummary/')[1].split('?')[0]);
+        seen.symbols.push(sym);
+        const payload = bySymbol[sym];
+        if (!payload) return new Response('', { status: 404 });
+        return new Response(JSON.stringify({ quoteSummary: { result: [payload] } }), { status: 200 });
+      }
+      return new Response('', { status: 404 });
+    }));
+    return seen;
+  };
+
+  it('/estimates shapes the analyst detail, keeping the low–high spread', async () => {
+    await clearEstimates('3311');
+    estStub({ '3311.TW': {
+      earningsTrend: { trend: fullTrend },
+      financialData: { targetMeanPrice: num(3141.6), targetHighPrice: num(4200), targetLowPrice: num(2147),
+        numberOfAnalystOpinions: num(35), recommendationKey: 'strong_buy', financialCurrency: 'TWD' },
+      recommendationTrend: { trend: [{ period: '0m', strongBuy: 9, buy: 25, hold: 1, sell: 0, strongSell: 0 }] },
+    } });
+
+    const res = await worker.fetch(new Request('https://worker.example/estimates?code=3311'), env, ctx);
+    const b = await res.json();
+
+    expect(b.source).toBe('yahoo');
+    expect(b.symbol).toBe('3311.TW');
+    expect(b.currency).toBe('TWD');
+    expect(b.periods.map((p) => p.key)).toEqual(['0q', '+1q', '0y', '+1y']);
+    // 區間是這個端點存在的理由——平均值 138.43 藏住了 93.3~159.67 的分歧
+    const y1 = b.periods.find((p) => p.key === '+1y');
+    expect([y1.low, y1.avg, y1.high]).toEqual([93.3, 138.43, 159.67]);
+    expect(y1.analysts).toBe(36);
+    const y0 = b.periods.find((p) => p.key === '0y');
+    expect(y0.trend).toEqual({ current: 107.34, d30: 99.91, d90: 97.6 }); // 預估被調升
+    expect(y0.revisions).toEqual({ up30: 26, down30: 0 });
+    expect(b.target).toEqual({ mean: 3141.6, high: 4200, low: 2147, analysts: 35, key: 'strong_buy' });
+    expect(b.ratings).toEqual({ strongBuy: 9, buy: 25, hold: 1, sell: 0, strongSell: 0 });
+    await clearEstimates('3311');
+  });
+
+  it('/estimates falls back to the .TWO suffix', async () => {
+    await clearEstimates('3312');
+    const seen = estStub({ '3312.TWO': { earningsTrend: { trend: fullTrend } } });
+
+    const b = await (await worker.fetch(new Request('https://worker.example/estimates?code=3312'), env, ctx)).json();
+
+    expect(seen.symbols).toEqual(['3312.TW', '3312.TWO']);
+    expect(b.symbol).toBe('3312.TWO');
+    await clearEstimates('3312');
+  });
+
+  it('/estimates keeps the periods when the target and rating modules are absent', async () => {
+    await clearEstimates('3313');
+    estStub({ '3313.TW': { earningsTrend: { trend: fullTrend } } }); // 沒有 financialData / recommendationTrend
+
+    const b = await (await worker.fetch(new Request('https://worker.example/estimates?code=3313'), env, ctx)).json();
+
+    expect(b.periods).toHaveLength(4);
+    expect(b.target).toBeNull();
+    expect(b.ratings).toBeNull();
+    await clearEstimates('3313');
+  });
+
+  it('/estimates returns 200 with an empty shape when the stock has no coverage', async () => {
+    await clearEstimates('3314');
+    estStub({}); // 每個後綴都 404
+
+    const res = await worker.fetch(new Request('https://worker.example/estimates?code=3314'), env, ctx);
+    const b = await res.json();
+
+    expect(res.status).toBe(200);
+    expect(b.periods).toEqual([]);
+    expect(b.source).toBe('yahoo'); // 拿得到 crumb，只是這檔沒人覆蓋
+    await clearEstimates('3314');
+  });
+
+  it('/estimates reports source unavailable and does not cache when Yahoo is rate-limited', async () => {
+    await clearEstimates('3315');
+    estStub({ '3315.TW': { earningsTrend: { trend: fullTrend } } }, { crumb: null });
+    const bad = await (await worker.fetch(new Request('https://worker.example/estimates?code=3315'), env, ctx)).json();
+    expect(bad.source).toBe('unavailable');
+    expect(bad.periods).toEqual([]);
+
+    await Promise.allSettled(pending.splice(0));
+    vi.unstubAllGlobals();
+    await clearYahooAuth();
+
+    estStub({ '3315.TW': { earningsTrend: { trend: fullTrend } } }); // Yahoo 恢復
+    const good = await (await worker.fetch(new Request('https://worker.example/estimates?code=3315'), env, ctx)).json();
+    expect(good.periods).toHaveLength(4); // 失敗沒有被寫進快取
+    await clearEstimates('3315');
+  });
+
   it('GET /stocks returns the {stocks, us} shape, with us empty when no FINNHUB_KEY is set', async () => {
     vi.stubGlobal(
       'fetch',

@@ -8,6 +8,9 @@
  *     → { date, items: { "2330": { epsAnnual, epsQuarters, epsTTM, epsTTMPrev, forward?, source } },
  *         missing, partial, forwardSource }
  *
+ *   GET /estimates?code=2330
+ *     → { date, code, symbol, currency, periods, target, ratings, source }
+ *
  * Privacy: only stock CODES are sent here — never holdings, amounts or identity.
  * Taiwan price: TWSE MIS latest trade/close (server-side, no CORS), with the
  *   TWSE/TPEX daily-close open data as a fallback.
@@ -541,12 +544,14 @@ async function getYahooAuth(ctx) {
 // 猜錯後綴就是整檔 404，跟「沒有分析師覆蓋」長得一模一樣。
 const yahooSymbols = (code) => (isTW(code) ? [`${code}.TW`, `${code}.TWO`] : [code]);
 
-async function getForwardEps(code, auth) {
+// 依序試每個後綴，回第一個查得到的。/fundamentals 的預估與 /estimates 的明細共用這支，
+// 後綴 fallback 只留一份。
+async function yahooQuoteSummary(code, auth, modules) {
   if (!auth) return null;
   for (const symbol of yahooSymbols(code)) {
     try {
       const u = `https://query1.finance.yahoo.com/v10/finance/quoteSummary/${encodeURIComponent(symbol)}` +
-        `?modules=earningsTrend&crumb=${encodeURIComponent(auth.crumb)}`;
+        `?modules=${encodeURIComponent(modules)}&crumb=${encodeURIComponent(auth.crumb)}`;
       const r = await fetch(u, {
         headers: { 'User-Agent': YH_UA, Cookie: auth.cookie, Referer: 'https://finance.yahoo.com/' },
         cf: { cacheTtl: 86400 },
@@ -554,21 +559,90 @@ async function getForwardEps(code, auth) {
       if (!r.ok) continue;
       const d = await r.json();
       const res = d && d.quoteSummary && d.quoteSummary.result && d.quoteSummary.result[0];
-      const trend = res && res.earningsTrend && res.earningsTrend.trend || [];
-      const avgOf = (period) => {
-        const t = trend.find((x) => x.period === period);
-        const e = t && t.earningsEstimate;
-        const v = e && e.avg && e.avg.raw;
-        return typeof v === 'number' ? { avg: v, n: e.numberOfAnalysts && e.numberOfAnalysts.raw } : null;
-      };
-      // 0y = 本會計年度預估、+1y = 下一年度。兩個都要有才算得出預估成長率。
-      const y0 = avgOf('0y');
-      const y1 = avgOf('+1y');
-      if (!y0 || !y1) continue;
-      return { eps0y: round2(y0.avg), eps1y: round2(y1.avg), analysts: y1.n || null, symbol };
+      if (res) return { res, symbol };
     } catch (e) { /* 換下一個後綴 */ }
   }
   return null;
+}
+
+// Yahoo 的數值一律包成 { raw, fmt }，取不到時整個欄位可能不存在。
+const yhNum = (o) => (o && typeof o.raw === 'number' ? o.raw : null);
+
+async function getForwardEps(code, auth) {
+  const hit = await yahooQuoteSummary(code, auth, 'earningsTrend');
+  if (!hit) return null;
+  const trend = hit.res.earningsTrend && hit.res.earningsTrend.trend || [];
+  const avgOf = (period) => {
+    const t = trend.find((x) => x.period === period);
+    const e = t && t.earningsEstimate;
+    const v = yhNum(e && e.avg);
+    return v == null ? null : { avg: v, n: yhNum(e.numberOfAnalysts) };
+  };
+  // 0y = 本會計年度預估、+1y = 下一年度。兩個都要有才算得出預估成長率。
+  const y0 = avgOf('0y');
+  const y1 = avgOf('+1y');
+  if (!y0 || !y1) return null;
+  return { eps0y: round2(y0.avg), eps1y: round2(y1.avg), analysts: y1.n || null, symbol: hit.symbol };
+}
+
+/* ── 分析師預估明細（/estimates）─────────────────────────────────────
+   列表上只顯示一個平均值，但共識的「品質」比平均值更值得看：實測 2330 明年預估
+   平均 138.43、區間卻是 93.3～159.67，同一個 PEG 0.78 照最低估值算會變成 1.2。
+   所以這裡把區間、家數、以及預估最近被調升還是調降都帶出來。 */
+const EST_KEY = (code) => new Request(`https://ff-cache.local/est/v1/${code}/${todayStr()}`);
+const EST_PERIODS = ['0q', '+1q', '0y', '+1y'];
+
+function shapeEstimates(res, symbol) {
+  const trend = res.earningsTrend && res.earningsTrend.trend || [];
+  const periods = EST_PERIODS.map((key) => {
+    const t = trend.find((x) => x.period === key);
+    if (!t) return null;
+    const e = t.earningsEstimate || {};
+    const tr = t.epsTrend || {};
+    const rv = t.epsRevisions || {};
+    if (yhNum(e.avg) == null) return null;
+    return {
+      key, endDate: t.endDate || null,
+      avg: yhNum(e.avg), low: yhNum(e.low), high: yhNum(e.high),
+      analysts: yhNum(e.numberOfAnalysts), yearAgo: yhNum(e.yearAgoEps),
+      growth: yhNum(t.growth),
+      trend: { current: yhNum(tr.current), d30: yhNum(tr['30daysAgo']), d90: yhNum(tr['90daysAgo']) },
+      revisions: { up30: yhNum(rv.upLast30days), down30: yhNum(rv.downLast30days) },
+    };
+  }).filter(Boolean);
+
+  const fd = res.financialData || {};
+  const mean = yhNum(fd.targetMeanPrice);
+  const target = mean == null ? null : {
+    mean, high: yhNum(fd.targetHighPrice), low: yhNum(fd.targetLowPrice),
+    analysts: yhNum(fd.numberOfAnalystOpinions), key: fd.recommendationKey || null,
+  };
+
+  const recTrend = res.recommendationTrend && res.recommendationTrend.trend || [];
+  const r0 = recTrend[0];
+  const ratings = r0 ? {
+    strongBuy: r0.strongBuy || 0, buy: r0.buy || 0, hold: r0.hold || 0,
+    sell: r0.sell || 0, strongSell: r0.strongSell || 0,
+  } : null;
+
+  return { symbol, currency: fd.financialCurrency || null, periods, target, ratings };
+}
+
+async function getEstimates(code, auth, ctx) {
+  const cache = caches.default;
+  const key = EST_KEY(code);
+  try {
+    const hit = await cache.match(key);
+    if (hit) return hit.json();
+  } catch (e) { /* 讀不到就重查 */ }
+  // Yahoo 整個不可用時不寫快取，否則會把「暫時拿不到」記成「今天沒有」。
+  if (!auth) return null;
+  const hit = await yahooQuoteSummary(code, auth, 'earningsTrend,financialData,recommendationTrend');
+  const out = hit ? shapeEstimates(hit.res, hit.symbol) : { symbol: null, currency: null, periods: [], target: null, ratings: null };
+  ctx.waitUntil(cache.put(key, new Response(JSON.stringify(out), {
+    headers: { 'Content-Type': 'application/json', 'Cache-Control': 'public, max-age=86400' },
+  })).catch(() => {}));
+  return out;
 }
 
 // 法人預估獨立快取一天，不跟 EPS 綁在同一份月快取裡：分析師隨時在調預估，而且 Yahoo
@@ -653,8 +727,20 @@ export default {
       return json({ date: todayStr(), items, missing, partial: missing.length > 0,
         forwardSource: yhAuth ? 'yahoo' : 'unavailable' });
     }
+    if (url.pathname === '/estimates') {
+      const code = norm(url.searchParams.get('code') || '');
+      if (!code) return json({ date: todayStr(), code: '', periods: [], target: null, ratings: null, source: 'unavailable' });
+      const auth = await getYahooAuth(ctx).catch(() => null);
+      let out = null;
+      try { out = await getEstimates(code, auth, ctx); } catch (e) { /* best-effort */ }
+      // 比照其他端點：永遠回 200，拿不到就靠 source 講清楚是「Yahoo 沒回」而不是「這檔沒資料」。
+      return json({ date: todayStr(), code,
+        symbol: out && out.symbol || null, currency: out && out.currency || null,
+        periods: out && out.periods || [], target: out && out.target || null, ratings: out && out.ratings || null,
+        source: auth ? 'yahoo' : 'unavailable' });
+    }
     if (url.pathname !== '/quotes') {
-      return new Response('FinFolio price service · /quotes?codes=2330,0050 · /stocks · /fundamentals?codes=2330,AAPL', { status: url.pathname === '/' ? 200 : 404, headers: CORS });
+      return new Response('FinFolio price service · /quotes?codes=2330,0050 · /stocks · /fundamentals?codes=2330,AAPL · /estimates?code=2330', { status: url.pathname === '/' ? 200 : 404, headers: CORS });
     }
     const { askedBy, codes } = parseCodes(url);
     const twCodes = codes.filter(isTW);
