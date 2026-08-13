@@ -89,10 +89,10 @@ function ValuationDetail({ row, onOverride, onOpenEstimates }) {
       <div style={{ marginTop: SP(8), display: 'flex', alignItems: 'flex-end', gap: SP(4), height: 72 }}>
         {bars.map((b) =>
         <div key={b.key} style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: SP(3) }}>
-          <div style={{ fontSize: FS(11), color: TOKENS.ink, fontFamily: TOKENS.fontMono, whiteSpace: 'nowrap' }}>{b.val.toFixed(1)}</div>
+          <div style={{ fontSize: FS(12), color: TOKENS.ink, fontFamily: TOKENS.fontMono, whiteSpace: 'nowrap' }}>{b.val.toFixed(1)}</div>
           <div style={{ width: '100%', height: Math.max(3, Math.abs(b.val) / maxEps * 40), borderRadius: RS(4),
             background: b.val < 0 ? TOKENS.red : TOKENS.ink2, opacity: 0.85 }} />
-          <div style={{ fontSize: FS(11), color: TOKENS.gray4, whiteSpace: 'nowrap' }}>{b.label}</div>
+          <div style={{ fontSize: FS(12), color: TOKENS.gray3, whiteSpace: 'nowrap' }}>{b.label}</div>
         </div>
         )}
       </div>
@@ -109,7 +109,7 @@ function ValuationDetail({ row, onOverride, onOpenEstimates }) {
       <div style={{ marginTop: SP(6), display: 'flex', flexWrap: 'wrap', gap: SP(4) + 'px ' + SP(12) + 'px',
         fontSize: FS(14), color: TOKENS.ink2 }}>
         <div>預估 EPS <span style={{ color: TOKENS.ink, fontFamily: TOKENS.fontMono }}>{fmtVal(row.fwdEps, 2)}</span>
-          <span style={{ color: TOKENS.gray4 }}> → {fmtVal(row.fwdEpsNext, 2)}</span></div>
+          <span style={{ color: TOKENS.gray3 }}> → {fmtVal(row.fwdEpsNext, 2)}</span></div>
         <div>預估本益比 <span style={{ color: TOKENS.ink, fontFamily: TOKENS.fontMono }}>{fmtVal(row.fwdPe, 1)}</span></div>
       </div>
       }
@@ -120,7 +120,7 @@ function ValuationDetail({ row, onOverride, onOpenEstimates }) {
         style={{ marginTop: SP(6), padding: PAD('8px 10px'), borderRadius: RS(12),
           background: 'rgba(0,0,0,0.04)', cursor: 'pointer',
           display: 'flex', alignItems: 'center', gap: SP(8) }}>
-        <div style={{ flex: 1, fontSize: FS(13), color: TOKENS.ink2 }}>
+        <div style={{ flex: 1, fontSize: FS(14), color: TOKENS.ink2 }}>
           {/* 家數少的共識就是一兩個人的看法，跟三十幾位分析師的共識不是同一回事 */}
           {row.analysts != null ?
           `法人預估來自 ${row.analysts} 位分析師${row.analysts < 3 ? '（家數少，參考性有限）' : ''}` :
@@ -141,7 +141,7 @@ function ValuationDetail({ row, onOverride, onOpenEstimates }) {
           auto={row.autoYoy} value={row.yoyOverridden ? row.yoy : null}
           onCommit={(v) => onOverride(row.code, 'yoy', v)} />
       </div>
-      <div style={{ marginTop: SP(6), fontSize: FS(13), color: TOKENS.gray4, lineHeight: 1.5 }}>
+      <div style={{ marginTop: SP(6), fontSize: FS(14), color: TOKENS.gray3, lineHeight: 1.5 }}>
         留空 = 用財報與法人預估自動算。填入自己的預估值可覆寫。
       </div>
     </div>);
@@ -195,7 +195,7 @@ function EstimatesSheet({ row, onClose, onFetchEstimates }) {
         <div style={{ minWidth: 0 }}>
           <div style={{ fontSize: FS(24), fontWeight: 700, color: TOKENS.ink, letterSpacing: -0.5, lineHeight: 1.25,
             whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{row.name || row.code}</div>
-          <div style={{ fontSize: FS(13), color: TOKENS.gray4 }}>
+          <div style={{ fontSize: FS(14), color: TOKENS.gray3 }}>
             法人預估{d && d.symbol ? ' · ' + d.symbol : ''}
           </div>
         </div>
@@ -203,7 +203,7 @@ function EstimatesSheet({ row, onClose, onFetchEstimates }) {
 
       <div style={{ flex: 1, overflowY: 'auto', overflowX: 'hidden', padding: PAD('0 12px 32px') }}>
         {state.loading &&
-        <div style={{ ...cardStyleVal, textAlign: 'center', color: TOKENS.gray4, fontSize: FS(15), padding: PAD('28px 14px') }}>
+        <div style={{ ...cardStyleVal, textAlign: 'center', color: TOKENS.gray3, fontSize: FS(15), padding: PAD('28px 14px') }}>
           載入中…
         </div>
         }
@@ -213,7 +213,7 @@ function EstimatesSheet({ row, onClose, onFetchEstimates }) {
         </div>
         }
         {!state.loading && !state.error && periods.length === 0 &&
-        <div style={{ ...cardStyleVal, textAlign: 'center', color: TOKENS.gray4, fontSize: FS(15), padding: PAD('28px 14px') }}>
+        <div style={{ ...cardStyleVal, textAlign: 'center', color: TOKENS.gray3, fontSize: FS(15), padding: PAD('28px 14px') }}>
           這檔沒有分析師預估資料
         </div>
         }
@@ -231,7 +231,7 @@ function EstimatesSheet({ row, onClose, onFetchEstimates }) {
             </div>
             }
           </div>
-          <div style={{ marginTop: SP(4), fontSize: FS(13), color: TOKENS.gray4 }}>
+          <div style={{ marginTop: SP(4), fontSize: FS(14), color: TOKENS.gray3 }}>
             區間 {fmtNum(target.low)} ~ {fmtNum(target.high)}
             {row.price != null ? ` · 現價 ${fmtNum(row.price)}` : ''}
             {target.analysts ? ` · ${target.analysts} 位` : ''}
@@ -248,12 +248,12 @@ function EstimatesSheet({ row, onClose, onFetchEstimates }) {
               const n = ratings[r.key] || 0;
               return (
                 <div key={r.key} style={{ display: 'flex', alignItems: 'center', gap: SP(8) }}>
-                  <div style={{ width: 62, fontSize: FS(13), color: TOKENS.ink2, flexShrink: 0 }}>{r.label}</div>
+                  <div style={{ width: 62, fontSize: FS(14), color: TOKENS.ink2, flexShrink: 0 }}>{r.label}</div>
                   <div style={{ flex: 1, height: 8, borderRadius: RS(4), background: 'rgba(0,0,0,0.06)', overflow: 'hidden' }}>
                     <div style={{ width: n / ratingTotal * 100 + '%', height: '100%', background: r.color, borderRadius: RS(4) }} />
                   </div>
-                  <div style={{ width: 22, textAlign: 'right', fontSize: FS(13), fontFamily: TOKENS.fontMono,
-                    color: n ? TOKENS.ink : TOKENS.gray4 }}>{n}</div>
+                  <div style={{ width: 22, textAlign: 'right', fontSize: FS(14), fontFamily: TOKENS.fontMono,
+                    color: n ? TOKENS.ink : TOKENS.gray3 }}>{n}</div>
                 </div>);
 
             })}
@@ -272,20 +272,20 @@ function EstimatesSheet({ row, onClose, onFetchEstimates }) {
               <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', gap: SP(8) }}>
                 <div style={{ fontSize: FS(16), fontWeight: 600, color: TOKENS.ink }}>
                   {PERIOD_LABEL[p.key] || p.key}
-                  {p.endDate ? <span style={{ fontSize: FS(13), fontWeight: 400, color: TOKENS.gray4 }}> {String(p.endDate).slice(0, 7)}</span> : null}
+                  {p.endDate ? <span style={{ fontSize: FS(14), fontWeight: 400, color: TOKENS.gray3 }}> {String(p.endDate).slice(0, 7)}</span> : null}
                 </div>
                 <div style={{ fontSize: FS(20), fontWeight: 700, fontFamily: TOKENS.fontMono, color: TOKENS.ink }}>
                   {fmtVal(p.avg, 2)}
                 </div>
               </div>
-              <div style={{ marginTop: SP(4), fontSize: FS(13), color: TOKENS.ink2 }}>
+              <div style={{ marginTop: SP(4), fontSize: FS(14), color: TOKENS.ink2 }}>
                 {spread ? `區間 ${fmtVal(p.low, 2)} ~ ${fmtVal(p.high, 2)}` : ''}
                 {p.analysts ? ` · ${p.analysts} 位` : ''}
                 {p.growth != null ? ` · 年增 ${fmtPct(p.growth * 100)}` : ''}
               </div>
               {(d30 != null || d90 != null) &&
               // 預估被調升還是調降，比預估值本身更接近「最近發生了什麼」
-              <div style={{ marginTop: SP(4), fontSize: FS(13), color: TOKENS.gray4 }}>
+              <div style={{ marginTop: SP(4), fontSize: FS(14), color: TOKENS.gray3 }}>
                 30 天前 {fmtVal(d30, 2)} · 90 天前 {fmtVal(d90, 2)}
                 {revUp || revDown ? ` · 近 30 天 ${revUp || 0} 升 ${revDown || 0} 降` : ''}
               </div>
@@ -295,7 +295,7 @@ function EstimatesSheet({ row, onClose, onFetchEstimates }) {
         })}
 
         {periods.length > 0 &&
-        <div style={{ marginTop: SP(8), fontSize: FS(13), color: TOKENS.gray4, lineHeight: 1.6 }}>
+        <div style={{ marginTop: SP(8), fontSize: FS(14), color: TOKENS.gray3, lineHeight: 1.6 }}>
           資料為賣方分析師的共識預估（來源 Yahoo），會錯、也普遍偏樂觀，賣出評等本來就極少見。
           區間越寬代表分歧越大，平均值的參考性越低。此頁為資訊呈現，非投資建議。
         </div>
@@ -307,14 +307,17 @@ function EstimatesSheet({ row, onClose, onFetchEstimates }) {
 
 /* ─── 單一標的列 ─────────────────────────────────────────────────────── */
 function ValuationRow({ row, expanded, onToggle, onOverride, onRemoveWatch, onOpenEstimates }) {
+  // 展開的那一列要看得出來是「被選到的」：卡片邊框換成主色再加一圈淡光暈。
+  const selected = expanded ? { border: '1px solid ' + TOKENS.accent,
+    boxShadow: SH('0 0 0 3px rgba(217,119,87,0.20)') } : null;
   return (
-    <div onClick={onToggle} style={{ ...cardStyleVal, cursor: 'pointer' }}>
+    <div onClick={onToggle} style={{ ...cardStyleVal, ...selected, cursor: 'pointer' }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: SP(10) }}>
         <div style={{ width: 8, height: 8, borderRadius: '50%', flexShrink: 0, background: zoneColor(row.zone) }} />
         <div style={{ flex: 1, minWidth: 0 }}>
           <div style={{ fontSize: FS(17), fontWeight: 600, color: TOKENS.ink, whiteSpace: 'nowrap',
             overflow: 'hidden', textOverflow: 'ellipsis' }}>{row.name || row.code}</div>
-          <div style={{ marginTop: SP(2), fontSize: FS(13), color: TOKENS.gray4 }}>
+          <div style={{ marginTop: SP(2), fontSize: FS(14), color: TOKENS.gray3 }}>
             {row.code}{row.price != null ? ' · ' + row.price.toLocaleString() : ''}
           </div>
         </div>
@@ -324,12 +327,12 @@ function ValuationRow({ row, expanded, onToggle, onOverride, onRemoveWatch, onOp
           <div style={{ fontSize: FS(19), fontWeight: 700, fontFamily: TOKENS.fontMono, color: zoneColor(row.zone) }}>
             {fmtVal(row.pegMain, 2)}
           </div>
-          <div style={{ marginTop: SP(2), fontSize: FS(13), color: TOKENS.gray4 }}>
+          <div style={{ marginTop: SP(2), fontSize: FS(14), color: TOKENS.gray3 }}>
             {BASIS_LABEL[row.pegBasis] || ''}{row.zone ? ' · ' + ZONE_LABEL[row.zone] : ''}
           </div>
           </> :
 
-          <div style={{ fontSize: FS(14), color: TOKENS.gray4 }}>
+          <div style={{ fontSize: FS(14), color: TOKENS.gray3 }}>
             {row.fetched ? '無 EPS 資料' : '尚未取得'}
           </div>
           }
@@ -345,13 +348,13 @@ function ValuationRow({ row, expanded, onToggle, onOverride, onRemoveWatch, onOp
 
       {row.hasFundamentals &&
       <div style={{ marginTop: SP(8), display: 'flex', flexWrap: 'wrap', gap: SP(4) + 'px ' + SP(12) + 'px',
-        fontSize: FS(13), color: TOKENS.ink2 }}>
+        fontSize: FS(14), color: TOKENS.ink2 }}>
         {row.hasForward || row.fwdOverridden ?
         <div>預估 {fmtPct(row.fwdGrowth)} · PEG {fmtVal(row.pegFwd, 2)}{row.fwdOverridden ? ' ✎' :
           row.analysts ? ` · ${row.analysts} 位分析師` : ''}</div> :
 
         // 沒有法人預估要講出來——主數字是回顧值，跟有預估的那幾列不是同一個基準
-        <div style={{ color: TOKENS.gray4 }}>無法人預估</div>
+        <div style={{ color: TOKENS.gray3 }}>無法人預估</div>
         }
         <div>歷史 {fmtPct(row.cagr)} · PEG {fmtVal(row.pegCagr, 2)}{row.cagrOverridden ? ' ✎' : ''}</div>
         <div>近期 {fmtPct(row.yoy)} · PEG {fmtVal(row.pegYoy, 2)}{row.yoyOverridden ? ' ✎' : ''}</div>
@@ -526,7 +529,7 @@ function ValuationSheet({ open, onClose, fundamentals = {}, livePrices = {},
 
       <div style={{ flex: 1, overflowY: 'auto', overflowX: 'hidden', padding: PAD('0 12px 32px') }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: SP(8) }}>
-          <div style={{ flex: 1, fontSize: FS(14), color: TOKENS.gray4 }}>排序</div>
+          <div style={{ flex: 1, fontSize: FS(14), color: TOKENS.gray3 }}>排序</div>
           {sortBtn('peg', 'PEG 由低到高')}{sortBtn('code', '代號')}
         </div>
 
@@ -538,7 +541,7 @@ function ValuationSheet({ open, onClose, fundamentals = {}, livePrices = {},
           {searchOpen && <AddWatchRow universe={universe} onAdd={addWatch} />}
 
           {sorted.length === 0 ?
-          <div style={{ ...cardStyleVal, textAlign: 'center', color: TOKENS.gray4, fontSize: FS(15), padding: PAD('24px 14px') }}>
+          <div style={{ ...cardStyleVal, textAlign: 'center', color: TOKENS.gray3, fontSize: FS(15), padding: PAD('24px 14px') }}>
             尚無追蹤標的，用右上角的放大鏡加入
           </div> :
 
@@ -553,7 +556,7 @@ function ValuationSheet({ open, onClose, fundamentals = {}, livePrices = {},
           }
         </div>
 
-        <div style={{ marginTop: SP(16), fontSize: FS(13), color: TOKENS.gray4, lineHeight: 1.6 }}>
+        <div style={{ marginTop: SP(16), fontSize: FS(14), color: TOKENS.gray3, lineHeight: 1.6 }}>
           PEG = 本益比 ÷ EPS 成長率。低於 1 視為偏低、1～2 合理、高於 2 偏高。
           主數字優先用「預估 PEG」（分析師共識的下年度成長，來自 Yahoo），沒有覆蓋的標的
           退回「歷史 PEG」——兩者基準不同，跨標的比較時要看清楚標示。
