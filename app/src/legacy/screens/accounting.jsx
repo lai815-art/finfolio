@@ -145,7 +145,7 @@ function AccountingScreen({ onSaved, onDelete, initialDraft, masterData, compute
       feeOverride: null, // null = 依費率自動計算；字串(含空字串)= 使用者自己填的手續費（空 = 清成 0）
       taxOverride: null, // null = 依稅率自動計算；字串(含空字串)= 使用者自己填的證交稅（空 = 清成 0）
       taxRateMode: null, // null = 依股票類別自動選稅率；數字 = 使用者手動選的稅率
-      date: baseDate(), note: '',
+      date: baseDate(),
       ...(draftStock || {})
     };
   });
@@ -1056,18 +1056,6 @@ function StockForm({ state, update, onSaved, onDelete, recordId, masterData, com
       {/* Date */}
       <SectionLabel>日期</SectionLabel>
       <DatePicker value={state.date} onChange={(v) => update({ date: v })} />
-
-      {/* Note */}
-      <SectionLabel>備註</SectionLabel>
-      <div style={{ ...{ padding: PAD('10px 16px'), borderRadius: RS(16), background: TOKENS.surface,
-          border: '1px solid rgba(0,0,0,0.20)', height: "44px" }, padding: "5px 14px 10px" }}>
-        <input value={state.note} onChange={(e) => update({ note: e.target.value })}
-        placeholder="例：除權息前布局"
-        style={{
-          width: '100%', background: 'transparent', border: 'none', outline: 'none',
-          fontSize: FS(18), color: TOKENS.ink
-        }} />
-      </div>
 
       {/* Calc */}
       <div style={{
