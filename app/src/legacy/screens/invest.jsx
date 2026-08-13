@@ -187,21 +187,16 @@ function InvestDetailSheet({ data, mask, onClose, savedTrades = [], onEditRecord
         }}>
           <div style={{ position: 'absolute', top: -35, left: -25, width: 110, height: 110,
             borderRadius: '50%', background: 'rgba(255,255,255,0.10)', pointerEvents: 'none' }} />
-          <div style={{ position: 'relative', fontSize: FS(16), color: 'rgba(255,255,255,0.78)',
-            letterSpacing: 1, textTransform: 'uppercase', marginBottom: SP(10) }}>部位摘要</div>
           <div style={{ position: 'relative', display: 'grid', gridTemplateColumns: '1fr 1fr', gap: SP(8) }}>
             {[
-            ['現價', '即時報價', cp(`${data.price.toLocaleString()}`)],
-            ['市值', '', cp(`${mask(adjMv)}`)],
-            ['均價', '', cp(`${Math.round(adjAvg).toLocaleString()}`)],
-            ['成本', '含手續費', cp(`${mask(adjCost)}`)]].
-            map(([label, sub, value]) =>
+            ['現價', cp(`${data.price.toLocaleString()}`)],
+            ['市值', cp(`${mask(adjMv)}`)],
+            ['均價', cp(`${Math.round(adjAvg).toLocaleString()}`)],
+            ['成本', cp(`${mask(adjCost)}`)]].
+            map(([label, value]) =>
             <div key={label} style={{ padding: PAD('9px 12px'), borderRadius: RS(12),
               background: 'rgba(255,255,255,0.15)', border: '1px solid rgba(255,255,255,0.20)' }}>
-                <div style={{ display: 'flex', alignItems: 'baseline', gap: SP(4) }}>
-                  <span style={{ fontSize: 14, color: 'rgba(255,255,255,0.70)' }}>{label}</span>
-                  {sub && <span style={{ fontSize: FS(12), color: 'rgba(255,255,255,0.42)' }}>{sub}</span>}
-                </div>
+                <div style={{ fontSize: 14, fontWeight: 600, color: 'rgba(255,255,255,0.95)' }}>{label}</div>
                 <div style={{ fontSize: 18, fontWeight: 600, color: TOKENS.surface, marginTop: SP(3),
                 fontFamily: TOKENS.fontMono, letterSpacing: -0.2 }}>{value}</div>
               </div>
@@ -491,6 +486,7 @@ function InvestScreen({ hideAmounts, onOpenDetail, savedTrades = [], computedHol
         boxShadow: SH('0 2px 8px rgba(0,0,0,0.06)'), cursor: 'pointer',
         display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: SP(10) }}>
         <div style={{ fontSize: FS(17), fontWeight: 600, color: TOKENS.ink }}>追蹤</div>
+        <div style={{ marginLeft: 'auto', fontSize: FS(14), color: TOKENS.gray3 }}>PEG 本益成長比</div>
         <ChevronRight size={20} style={{ color: TOKENS.ink2, flexShrink: 0 }} />
       </div>
 

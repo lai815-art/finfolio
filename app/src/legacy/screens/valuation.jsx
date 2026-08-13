@@ -220,20 +220,33 @@ function EstimatesSheet({ row, onClose, onFetchEstimates }) {
 
         {target &&
         <div style={{ ...cardStyleVal, marginBottom: SP(8) }}>
-          <div style={{ fontSize: FS(14), color: TOKENS.ink2 }}>目標價</div>
-          <div style={{ marginTop: SP(6), display: 'flex', alignItems: 'baseline', gap: SP(8) }}>
-            <div style={{ fontSize: FS(26), fontWeight: 700, fontFamily: TOKENS.fontMono, color: TOKENS.ink }}>
-              {fmtNum(target.mean)}
+          {/* 現價與目標價並排：上漲空間是拿這兩個數字算出來的，藏在小字裡對不起來 */}
+          <div style={{ display: 'flex', alignItems: 'flex-end', gap: SP(20) }}>
+            <div>
+              <div style={{ fontSize: FS(14), color: TOKENS.ink2 }}>目標價</div>
+              <div style={{ marginTop: SP(6), display: 'flex', alignItems: 'baseline', gap: SP(8) }}>
+                <div style={{ fontSize: FS(26), fontWeight: 700, fontFamily: TOKENS.fontMono, color: TOKENS.ink }}>
+                  {fmtNum(target.mean)}
+                </div>
+                {upside != null &&
+                <div style={{ fontSize: FS(16), fontWeight: 600, color: upside < 0 ? TOKENS.red : TOKENS.incBlue }}>
+                  {fmtPct(upside)}
+                </div>
+                }
+              </div>
             </div>
-            {upside != null &&
-            <div style={{ fontSize: FS(16), fontWeight: 600, color: upside < 0 ? TOKENS.red : TOKENS.incBlue }}>
-              {fmtPct(upside)}
+            {row.price != null &&
+            <div style={{ marginLeft: 'auto', textAlign: 'right' }}>
+              <div style={{ fontSize: FS(14), color: TOKENS.ink2 }}>現價</div>
+              <div style={{ marginTop: SP(6), fontSize: FS(22), fontWeight: 600,
+                fontFamily: TOKENS.fontMono, color: TOKENS.ink2 }}>
+                {fmtNum(row.price)}
+              </div>
             </div>
             }
           </div>
           <div style={{ marginTop: SP(4), fontSize: FS(14), color: TOKENS.gray3 }}>
             區間 {fmtNum(target.low)} ~ {fmtNum(target.high)}
-            {row.price != null ? ` · 現價 ${fmtNum(row.price)}` : ''}
             {target.analysts ? ` · ${target.analysts} 位` : ''}
             {target.key && REC_LABEL[target.key] ? ` · ${REC_LABEL[target.key]}` : ''}
           </div>
@@ -315,11 +328,16 @@ function ValuationRow({ row, expanded, onToggle, onOverride, onRemoveWatch, onOp
       <div style={{ display: 'flex', alignItems: 'center', gap: SP(10) }}>
         <div style={{ width: 8, height: 8, borderRadius: '50%', flexShrink: 0, background: zoneColor(row.zone) }} />
         <div style={{ flex: 1, minWidth: 0 }}>
-          <div style={{ fontSize: FS(17), fontWeight: 600, color: TOKENS.ink, whiteSpace: 'nowrap',
-            overflow: 'hidden', textOverflow: 'ellipsis' }}>{row.name || row.code}</div>
-          <div style={{ marginTop: SP(2), fontSize: FS(14), color: TOKENS.gray3 }}>
-            {row.code}{row.price != null ? ' · ' + row.price.toLocaleString() : ''}
+          {/* 現價跟名稱同一行：它是每天在看的數字，擠在代號後面的小字裡太不顯眼 */}
+          <div style={{ display: 'flex', alignItems: 'baseline', gap: SP(8) }}>
+            <div style={{ minWidth: 0, fontSize: FS(17), fontWeight: 600, color: TOKENS.ink, whiteSpace: 'nowrap',
+              overflow: 'hidden', textOverflow: 'ellipsis' }}>{row.name || row.code}</div>
+            {row.price != null &&
+            <div style={{ flexShrink: 0, fontSize: FS(17), fontWeight: 600,
+              fontFamily: TOKENS.fontMono, color: TOKENS.ink }}>{row.price.toLocaleString()}</div>
+            }
           </div>
+          <div style={{ marginTop: SP(2), fontSize: FS(14), color: TOKENS.gray3 }}>{row.code}</div>
         </div>
         <div style={{ textAlign: 'right', flexShrink: 0 }}>
           {row.hasFundamentals ?
@@ -346,7 +364,8 @@ function ValuationRow({ row, expanded, onToggle, onOverride, onRemoveWatch, onOp
         </button>
       </div>
 
-      {row.hasFundamentals &&
+      {/* 三種成長率是展開後才要看的細節，收合列只留主數字，清單才掃得快 */}
+      {row.hasFundamentals && expanded &&
       <div style={{ marginTop: SP(8), display: 'flex', flexWrap: 'wrap', gap: SP(4) + 'px ' + SP(12) + 'px',
         fontSize: FS(14), color: TOKENS.ink2 }}>
         {row.hasForward || row.fwdOverridden ?
@@ -503,7 +522,7 @@ function ValuationSheet({ open, onClose, fundamentals = {}, livePrices = {},
     <div style={{ position: 'absolute', inset: 0, zIndex: 80, background: TOKENS.bg,
       display: 'flex', flexDirection: 'column' }}>
       <div style={{ height: 'var(--ff-detail-top, 62px)', flexShrink: 0 }} />
-      <div style={{ display: 'flex', alignItems: 'center', gap: SP(12), padding: PAD('3px 10px 8px') }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: SP(12), padding: PAD('3px 10px 16px') }}>
         <button onClick={onClose} style={{ width: 40, height: 40, borderRadius: RS(20), flexShrink: 0,
           background: 'rgba(0,0,0,0.09)', border: '1px solid rgba(0,0,0,0.12)', color: 'rgba(60,60,67,0.88)',
           display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
