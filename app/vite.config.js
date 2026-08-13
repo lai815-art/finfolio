@@ -14,4 +14,8 @@ export default defineConfig({
   build: {
     target: 'es2020',
   },
+  // 讓外部工具能用 PORT 指定連接埠；沒設就用 Vite 預設的 5173。
+  server: {
+    port: process.env.PORT ? Number(process.env.PORT) : undefined,
+  },
 });
