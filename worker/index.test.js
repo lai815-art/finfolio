@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, afterEach } from 'vitest';
-import worker from './index.js';
+import worker, { parseISINHtml } from './index.js';
 
 const env = {};
 // 收下背景工作並在每個測試結束時等它落地。丟掉不管的話，寫快取會在下一個測試進行中
@@ -561,5 +561,28 @@ describe('finfolio-prices worker', () => {
 
     expect(Array.isArray(body.stocks)).toBe(true);
     expect(body.us).toEqual([]);
+  });
+
+  // TWSE ISIN 的分類標題是 <B> 股票 <B>——沒有收尾標籤。曾經因為正則要求 </b> 而永遠比不中，
+  // 分類一直是空字串，權證的排除條件形同虛設，/stocks 回了四萬多筆、其中三萬八是權證。
+  // 這裡測的是解析後的 HTML 字串（Big5 編碼在 Node 端做不出來，所以不從 fetch 那層測）。
+  describe('parseISINHtml', () => {
+    const row = (code, name) => `<tr><td bgcolor=#FAFAD2>${code}　${name}</td><td bgcolor=#FAFAD2>TW000${code}</td></tr>`;
+    const header = (cat) => `<tr><td bgcolor=#FAFAD2 colspan=7 ><B> ${cat} <B> </td></tr>`;
+    const html =
+      header('股票') + row('1101', '台泥') +
+      header('上市認購(售)權證') + row('03001T', '啟碁台新5A售02') +
+      header('ETF') + row('0050', '元大台灣50');
+
+    it('keeps 股票 and ETF rows', () => {
+      expect(parseISINHtml(html)).toEqual([
+        { code: '1101', name: '台泥' },
+        { code: '0050', name: '元大台灣50' },
+      ]);
+    });
+
+    it('drops rows under a 權證 category', () => {
+      expect(parseISINHtml(html).some((s) => s.code === '03001T')).toBe(false);
+    });
   });
 });

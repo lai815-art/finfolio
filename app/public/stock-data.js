@@ -544,7 +544,9 @@ window.TW_STOCK_FALLBACK = [
 ];
 
 /* ── 台股：從 TWSE / TPEX 完整清單 API 抓取 + 24h 快取 ── */
-const TW_CACHE_KEY = 'ff_tw_stocks_v7'; // v7: 併入興櫃（emerging）清單
+// v8: 權證濾掉後清單從四萬多筆縮到三千以內。不換版號的話，手機上那份 2MB 的舊快取
+// 要等 24h TTL 到期才會換掉，搜尋照樣被權證洗版。
+const TW_CACHE_KEY = 'ff_tw_stocks_v8';
 const TW_CACHE_TTL = 24 * 60 * 60 * 1000;
 
 // 永遠把靜態清單併入結果：API / Worker 的「當日成交」清單常缺少低成交量的

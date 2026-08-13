@@ -223,7 +223,11 @@ App 分四個主要分頁（底部 TabBar）＋一個全螢幕設定頁：
 
 **Worker API 合約（`finfolio-prices`）**
 - `GET /quotes?codes=...` → `{date, prices, fx, source}`：台股走 TWSE MIS 即時報價，缺的再補 TWSE/TPEx 收盤價；美股先查 Finnhub（需設定 `FINNHUB_KEY`），沒設定或查不到就 fallback 到 Yahoo Finance（不需金鑰）。
-- `GET /stocks` → 台股 + 美股清單。
+- `GET /stocks` → 台股 + 美股清單。台股來自 TWSE ISIN（Big5 HTML，上市/上櫃/興櫃三份），
+  含 ETF、債券 ETF、ETN、TDR、特別股，**但排除權證**——權證有三萬八千多檔，混進來會讓清單
+  肥到 2.8MB，手機上等清單載入的空窗期打代號會一筆都搜不到，載進來後搜尋也被權證洗版。
+  排除靠的是分類標題，而 ISIN 那頁的標題是 `<B> 股票 <B>`：**兩個開頭標籤、沒有收尾標籤**，
+  正則不能要求 `</b>`。
 - `GET /fundamentals?codes=...` → `{date, items: {代號: {epsAnnual, epsQuarters, epsTTM, epsTTMPrev, source}}, missing, partial}`：台股走 FinMind `TaiwanStockFinancialStatements`（免金鑰，給的是**單季** EPS）；美股走 SEC EDGAR `companyconcept`（免金鑰，但 User-Agent 必須是「名稱 + 聯絡 email」格式，否則 403）。
   - 台股與美股共用同一支 `aggregateEps()`：單季 EPS → 年度 EPS（只收湊滿四季的年份）+ TTM（四季首尾須相距約九個月，缺季就回 `null`）。
   - 美股的 10-Q 只涵蓋前三個會計季，第四季只出現在 10-K 的全年數字裡，所以季序列固定缺一季，用「全年 − 已知三季」補回來，TTM 才算得出來。

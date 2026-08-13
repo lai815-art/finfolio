@@ -244,34 +244,42 @@ async function getUS(codes, env) {
   return out;
 }
 
-// Authoritative full securities list from the TWSE ISIN service (Big5 HTML),
-// strMode=2 上市 / strMode=4 上櫃. Includes stocks, ETFs, bond ETFs (債券ETF),
-// ETNs, 受益證券, TDRs, 特別股 — everything except warrants (excluded as noise).
-async function getISINList(strMode) {
+// Parse one ISIN listing page: rows grouped under 分類 headers. Keeps stocks, ETFs,
+// bond ETFs (債券ETF), ETNs, 受益證券, TDRs, 特別股 — drops warrants (excluded as noise).
+export function parseISINHtml(html) {
   const out = [];
+  let cat = '';
+  const SKIP = /權證|認購|認售|牛證|熊證/;
+  for (const row of html.split('<tr')) {
+    // 分類標題長這樣：<td ... colspan=7 ><B> 股票 <B> </td>——兩個開頭標籤、沒有收尾，
+    // 所以不能要求 </b>。要求了就永遠比不中，cat 一直是空字串，下面的 SKIP 形同虛設，
+    // 三萬多筆權證會全部混進清單裡。
+    const hdr = row.match(/colspan[^>]*>\s*<[bB]>\s*([^<]+?)\s*</);
+    if (hdr) { cat = hdr[1].trim(); continue; }
+    if (SKIP.test(cat)) continue;
+    const m = row.match(/<td[^>]*>\s*([0-9A-Z]{4,6})　([^<]+?)\s*<\/td>/);
+    if (m) out.push({ code: m[1].trim(), name: m[2].trim() });
+  }
+  return out;
+}
+
+// Authoritative full securities list from the TWSE ISIN service (Big5 HTML),
+// strMode=2 上市 / strMode=4 上櫃 / strMode=5 興櫃.
+async function getISINList(strMode) {
   try {
     const r = await fetch(`https://isin.twse.com.tw/isin/C_public.jsp?strMode=${strMode}`, {
       headers: { 'User-Agent': 'Mozilla/5.0' }, cf: { cacheTtl: 21600 },
     });
-    if (!r.ok) return out;
-    const html = new TextDecoder('big5').decode(await r.arrayBuffer());
-    let cat = '';
-    const SKIP = /權證|認購|認售|牛證|熊證/;
-    for (const row of html.split('<tr')) {
-      const hdr = row.match(/colspan[^>]*>\s*<b>\s*([^<]+?)\s*<\/b>/i);
-      if (hdr) { cat = hdr[1].trim(); continue; }
-      if (SKIP.test(cat)) continue;
-      const m = row.match(/<td[^>]*>\s*([0-9A-Z]{4,6})　([^<]+?)\s*<\/td>/);
-      if (m) out.push({ code: m[1].trim(), name: m[2].trim() });
-    }
+    if (!r.ok) return [];
+    return parseISINHtml(new TextDecoder('big5').decode(await r.arrayBuffer()));
   } catch (e) { /* Big5 unsupported / network — fall back to OpenAPI below */ }
-  return out;
+  return [];
 }
 
 // Full Taiwan securities list (code → name), incl. ETFs/bonds — cached ~12h.
 async function getTWList(ctx) {
   const cache = caches.default;
-  const key = new Request(`https://ff-cache.local/twlist/v2/${todayStr()}`);
+  const key = new Request(`https://ff-cache.local/twlist/v3/${todayStr()}`);
   const hit = await cache.match(key);
   if (hit) return hit.json();
   const map = {};
