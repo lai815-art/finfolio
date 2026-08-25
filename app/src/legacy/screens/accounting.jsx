@@ -740,12 +740,12 @@ function FlowForm({ state, update, onSaved, onDelete, recordId, masterData }) {
           }, color: "rgb(255, 255, 255)" }}>
           <Plus size={20} strokeWidth={2.5} /> {editId ? '更新' : '儲存'}{active.label}
         </button>
-        {/* 再記一筆：送出後停留本頁、只清空金額、其餘欄位（含日期）保留，方便連續輸入。
+        {/* 再記一筆：送出後停留本頁、清空金額與備註，其餘欄位（含日期）保留，方便連續輸入。
             編輯狀態按下＝先「更新原紀錄」再轉為新增模式；新增狀態則直接存為新的一筆。 */}
         <button onClick={() => {
           if (!state.amount || parseFloat(state.amount) <= 0) return;
           onSaved && onSaved('flow', { ...state, recordId: editId }, true);
-          update({ amount: '' });
+          update({ amount: '', note: '' });
           if (editId) setSavedAsNew(true);
         }} style={{
           flex: '0 0 auto', padding: PAD('0 14px'), height: 54, borderRadius: RS(16),
