@@ -137,6 +137,8 @@ function CalendarSheet({ open, date, onPick, onClose, savedRecurring = [] }) {
   const [shown, setShown] = useStateDash(false);
   const [viewMonth, setViewMonth] = useStateDash(new Date(date.getFullYear(), date.getMonth(), 1));
   const [pickMode, setPickMode] = useStateDash(false);
+  const gridRef = useRefDash(null);
+  const swipeRef = useRefDash({ x: 0, y: 0 });
 
   useEffectDash(() => {
     if (open) {const t = setTimeout(() => setShown(true), 20);return () => clearTimeout(t);}
@@ -147,6 +149,19 @@ function CalendarSheet({ open, date, onPick, onClose, savedRecurring = [] }) {
   }, [open]);
 
   if (!open) return null;
+
+  // 左滑 → 下個月、右滑 → 上個月（橫向位移夠大且大於縱向才算）
+  const onSwipeStart = (e) => {swipeRef.current = { x: e.touches[0].clientX, y: e.touches[0].clientY };};
+  const onSwipeEnd = (e) => {
+    const dx = e.changedTouches[0].clientX - swipeRef.current.x;
+    const dy = e.changedTouches[0].clientY - swipeRef.current.y;
+    if (Math.abs(dx) < 50 || Math.abs(dx) < Math.abs(dy)) return;
+    const step = dx < 0 ? 1 : -1;
+    setViewMonth((v) => new Date(v.getFullYear(), v.getMonth() + step, 1));
+    if (gridRef.current) gridRef.current.animate(
+      [{ transform: `translateX(${step * 40}px)`, opacity: 0 }, { transform: 'translateX(0)', opacity: 1 }],
+      { duration: 220, easing: 'ease-out' });
+  };
 
   const year = viewMonth.getFullYear();
   const month = viewMonth.getMonth();
@@ -225,8 +240,8 @@ function CalendarSheet({ open, date, onPick, onClose, savedRecurring = [] }) {
             })}
           </div>
         </div> :
-        <div style={{ padding: PAD('0 18px') }}>
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7,1fr)', gap: SP(4) }}>
+        <div style={{ padding: PAD('0 18px') }} onTouchStart={onSwipeStart} onTouchEnd={onSwipeEnd}>
+          <div ref={gridRef} style={{ display: 'grid', gridTemplateColumns: 'repeat(7,1fr)', gap: SP(4) }}>
             {week.map((w, i) =>
             <div key={w} style={{
               textAlign: 'center', fontSize: FS(18), padding: PAD('6px 0'),
